@@ -10,3 +10,4 @@ edition = "2021"
 aiger = "0.2"
 itertools = "0.9"
 petgraph = "0.5"
+egg = { version = "0.9.5", features = ["lp"] }
