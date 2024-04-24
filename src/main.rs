@@ -1,7 +1,8 @@
 #![allow(warnings)]
 
 use mignite::mig4::Mig;
-
+use mignite::mig4_egg::simplify;
+use mignite::mig4_egg::Prop;
 use mignite::mig4_map::Mapper;
 
 fn compute_cuts(
@@ -83,7 +84,34 @@ fn compute_cuts(
     }
 }
 
+pub(crate) fn to_sexp(nodes: Vec<Prop>) -> Mig {
+    let last = nodes.len() - 1;
+    let mut mig = Mig::default();
+    to_sexp_rec(nodes, last, &mut |_| None);
+    mig
+}
+
+fn to_sexp_rec(nodes: Vec<Prop>, i: usize, f: &mut impl FnMut(usize) -> Option<String>) {
+    let node = &nodes[i];
+    let op = node.to_string();
+    match node {
+        Prop::Maj(..) => 1 as usize,
+        Prop::Not(..) => 0 as usize,
+        _ => 0 as usize,
+    };
+    for j in 0..=i {
+        let node = &nodes[j];
+        let op = node.to_string();
+        println!("{:?}", node.to_string());
+    }
+    println!("{:?}", node);
+}
+
 fn main() {
+    let best = simplify(&["(M x3 (M x3 x4 (M x5 x6 x7)) x1)"], None);
+    to_sexp_rec(best.as_ref().to_vec(), best.as_ref().len() - 1, &mut |_| {
+        None
+    });
     const UNIT_K: usize = 6;
     const UNIT_C: usize = 8;
     const UNIT_W: i32 = 1;
@@ -98,61 +126,7 @@ fn main() {
         &[0, 0, 0, 0, 0, 0],
     ];
 
-    const ICE40HX_K: usize = 4;
-    const ICE40HX_C: usize = 8;
-    const ICE40HX_W: i32 = 350;
-    const ICE40HX_LUT_AREA: [u32; 5] = [0, 1, 1, 1, 1];
-    const ICE40HX_LUT_DELAY: [&[i32]; 5] = [
-        &[],
-        &[316],
-        &[316, 379],
-        &[316, 379, 400],
-        &[316, 379, 400, 449],
-    ];
-
-    const ECP5_K: usize = 7;
-    const ECP5_C: usize = 8;
-    const ECP5_W: i32 = 300;
-    const ECP5_LUT_AREA: [u32; 8] = [0, 1, 1, 1, 1, 2, 4, 8];
-    const ECP5_LUT_DELAY: [&[i32]; 8] = [
-        &[],
-        &[141],
-        &[141, 275],
-        &[141, 275, 379],
-        &[141, 275, 379, 379],
-        &[151, 239, 373, 477, 477],
-        &[148, 292, 380, 514, 618, 618],
-        &[148, 289, 433, 521, 655, 759, 759],
-    ];
-
-    const NEXUS_K: usize = 5;
-    const NEXUS_C: usize = 8;
-    const NEXUS_W: i32 = 300;
-    const NEXUS_LUT_AREA: [u32; 6] = [0, 1, 1, 1, 1, 2];
-    const NEXUS_LUT_DELAY: [&[i32]; 6] = [
-        &[],
-        &[233],
-        &[233, 233],
-        &[233, 233, 233],
-        &[233, 233, 233, 233],
-        &[171, 303, 306, 309, 311],
-    ];
-
-    const CV_K: usize = 6;
-    const CV_C: usize = 8;
-    const CV_W: i32 = 600;
-    const CV_LUT_AREA: [u32; 7] = [0, 1, 1, 1, 1, 1, 2];
-    const CV_LUT_DELAY: [&[i32]; 7] = [
-        &[],
-        &[97],
-        &[97, 400],
-        &[97, 400, 510],
-        &[97, 400, 510, 512],
-        &[97, 400, 510, 512, 583],
-        &[97, 400, 510, 512, 583, 605],
-    ];
-
-    let mut mig = Mig::from_aiger("adder1.aag");
+    let mut mig = Mig::from_aiger("tests/adder1.aag");
 
     mig.cleanup_graph();
 
@@ -167,47 +141,6 @@ fn main() {
         UNIT_W,
         &mig,
     );
-
-    println!();
-    println!("iCE40HX:");
-    println!();
-    compute_cuts(
-        ICE40HX_C,
-        ICE40HX_K,
-        &ICE40HX_LUT_AREA,
-        &ICE40HX_LUT_DELAY,
-        ICE40HX_W,
-        &mig,
-    );
-
-    println!();
-    println!("ECP5:");
-    println!();
-    compute_cuts(
-        ECP5_C,
-        ECP5_K,
-        &ECP5_LUT_AREA,
-        &ECP5_LUT_DELAY,
-        ECP5_W,
-        &mig,
-    );
-
-    println!();
-    println!("Nexus:");
-    println!();
-    compute_cuts(
-        NEXUS_C,
-        NEXUS_K,
-        &NEXUS_LUT_AREA,
-        &NEXUS_LUT_DELAY,
-        NEXUS_W,
-        &mig,
-    );
-
-    println!();
-    println!("Cyclone V:");
-    println!();
-    compute_cuts(CV_C, CV_K, &CV_LUT_AREA, &CV_LUT_DELAY, CV_W, &mig);
 
     mig.to_graphviz("before.dot").unwrap();
 

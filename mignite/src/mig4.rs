@@ -106,7 +106,8 @@ impl Mig {
                 MigNode::Input(index) => {
                     writeln!(
                         f,
-                        "{} [shape=box,color=blue,label=\"Input {}\"];",
+                        "{} [shape=box,color=blue,label=\"Input {} ({})\"];",
+                        node.index(),
                         node.index(),
                         self.symbol_table[&index]
                     )?;
@@ -114,7 +115,8 @@ impl Mig {
                 MigNode::Output(index) => {
                     writeln!(
                         f,
-                        "{} [shape=box,color=green,label=\"Output {}\"];",
+                        "{} [shape=box,color=green,label=\"Output {} ({})\"];",
+                        node.index(),
                         node.index(),
                         self.symbol_table[&index]
                     )?;
