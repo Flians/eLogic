@@ -3,22 +3,31 @@ import circuitgraph as cg
 
 
 def parser(vpath):
-    const1 = 'CONST1'
+    const1 = 'true'
+    const0 = 'false'
     cir_graph = cg.from_file(vpath)
     cir_graph.add(const1, '1')
+    cir_graph.add(const0, '0')
     mig_graph = cir_graph.graph
     exist_const = set()
     for node in nx.topological_sort(mig_graph):
         ntype = mig_graph.nodes[node]["type"]
         if ntype == 'and':
-            mig_graph.add_edges_from([(const1, node)], inv=True)
+            mig_graph.add_edges_from([(const0, node)])
         elif ntype == 'or':
-            mig_graph.add_edges_from([(const1, node)], inv=False)
-        elif ntype in ['0', '1'] and node != const1:
-            exist_const.add(node)
-            for suc in mig_graph.successors(node):
-                mig_graph.add_edges_from([(const1, suc)], inv=ntype == '0')
+            mig_graph.add_edges_from([(const1, node)])
         else:
+            if ntype == 'not':
+                mig_graph.nodes[node]["type"] = '~'
+            elif ntype in ['0', '1']:
+                if node not in [const1, const0]:
+                    exist_const.add(node)
+                    for suc in mig_graph.successors(node):
+                        mig_graph.add_edges_from([(const0 if ntype == '0' else const1, suc)])
+            elif ntype in ['input', 'buf']:
+                pass
+            else:
+                print(f'Warning: the type {ntype} of {node} is not in ["and", "or", "not", "0", "1", "input", "buf"].')
             continue
         mig_graph.nodes[node]["type"] = 'M'
     # clean other constants
@@ -78,7 +87,7 @@ def circuit_to_verilog(c, behavioral=False):
 
     # gates
     for n in c.nodes():
-        if c.type(n) in ["xor", "xnor", "buf", "not", "nor", "or", "and", "nand", "M"]:
+        if c.type(n) in ["xor", "xnor", "buf", "not", "nor", "or", "and", "nand", "M", "~"]:
             wires.append(n)
             fanin = list(c.fanin(n))
             if not fanin:
@@ -86,10 +95,10 @@ def circuit_to_verilog(c, behavioral=False):
             if behavioral:
                 if c.type(n) == "buf":
                     insts.append(f"assign {n} = {fanin[0]}")
-                elif c.type(n) == "not":
+                elif c.type(n) in ["not", '~']:
                     insts.append(f"assign {n} = ~{fanin[0]}")
                 elif c.type(n) == "M":
-                    insts.append(f"assign {n} = M({', '.join(fanin)})")
+                    insts.append(f"assign {n} = ({fanin[0]} & {fanin[1]}) | ({fanin[0]} & {fanin[2]}) | ({fanin[1]} & {fanin[2]})")
                 else:
                     if c.type(n) in ["xor", "xnor"]:
                         symbol = "^"
@@ -105,7 +114,7 @@ def circuit_to_verilog(c, behavioral=False):
             else:
                 fanin = ", ".join(fanin)
                 gate_name = c.uid(f"g_{len(insts)}")
-                insts.append(f"{c.type(n)} {gate_name}({n}, {fanin})")
+                insts.append(f"{'inv' if c.type(n) == '~' else c.type(n)} {gate_name}({n}, {fanin})")
         elif c.type(n) in ["0", "1", "x"]:
             insts.append(f"assign {n} = 1'b{c.type(n)}")
             wires.append(n)
@@ -114,7 +123,11 @@ def circuit_to_verilog(c, behavioral=False):
         else:
             raise ValueError(f"unknown gate type: {c.type(n)}")
 
-    verilog = f"module {c.name} ("
+    verilog = ''
+    if not behavioral:
+        verilog += "module M (y,a,b,c);\n  input a, b, c;\n  output y;\n  assign y = (a & b) | (a & c) | (b & c);\nendmodule\n\n"
+        verilog += "module inv (y,a);\n  input a;\n  output y;\n  assign y = ~a;\nendmodule\n\n"
+    verilog += f"module {c.name} ("
     verilog += ", ".join(inputs + outputs)
     verilog += ");\n"
     verilog += "".join(f"  input {inp};\n" for inp in inputs)

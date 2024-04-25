@@ -1,7 +1,6 @@
-from mig_egg import simplify
+import mig_egg
 import re
 import networkx as nx
-import circuitgraph as cg
 
 
 class Node:
@@ -48,10 +47,8 @@ def graph_from_egg_expr(egg_seq):
     cur_nodes = [root]
     while cur_nodes:
         cur = cur_nodes.pop(0)
-        if cur.value == 'M':
-            graph.nodes[cur.name]["type"] = 'M'
-        elif cur.value == '~':
-            graph.nodes[cur.name]["type"] = 'not'
+        if cur.value in ['M', '~']:
+            graph.nodes[cur.name]["type"] = cur.value
         else:
             graph.nodes[cur.name]["type"] = 'input'
         graph.nodes[cur.name]["output"] = nid == 0
@@ -60,16 +57,16 @@ def graph_from_egg_expr(egg_seq):
             cur_nodes.append(child)
             child.name = f'g{nid}' if child.value in ['M', '~'] else child.value
             graph.add_node(child.name)
-            graph.add_edges_from([(child.name, cur.name)], inv=False)
+            graph.add_edges_from([(child.name, cur.name)])
     return graph
 
 
-def graph_to_egg_expr(graph: nx.DiGraph) -> list[str]:
+def graph_to_egg_expr(graph: nx.DiGraph, inputs: set = None) -> list[str]:
     exprs: dict[str, str] = {}
     outputs = set()
     for node in nx.topological_sort(graph):
         pres = set(graph.predecessors(node))
-        if pres:
+        if pres and (not inputs or node not in inputs):
             exprs[node] = f"({graph.nodes[node]['type']} {' '.join([exprs[din] for din in pres])})"
         else:
             exprs[node] = node
@@ -80,7 +77,7 @@ def graph_to_egg_expr(graph: nx.DiGraph) -> list[str]:
 
 if __name__ == '__main__':
     egg_seq = "(M x3 (M x3 x4 (M x5 x6 x7)) x1)"
-    res = simplify(egg_seq)
+    res, inital_cost, best_cost = mig_egg.simplify(egg_seq)
 
     pattern = r"^\(M (\(?[\w ]+\)?) (\(?[\w ]+\)?) (\(?[\w ]+\)?)\)"
     match = re.search(pattern, res)
@@ -93,8 +90,7 @@ if __name__ == '__main__':
     print(res0)
     print(res2)
 
-    import matplotlib.pyplot as plt
-
+    # import matplotlib.pyplot as plt
     # nx.draw(graph, with_labels=True)
     # plt.savefig('plotgraph.png', dpi=300, bbox_inches='tight')
     # plt.show()

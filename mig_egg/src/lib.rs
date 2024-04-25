@@ -12,7 +12,7 @@ define_language! {
 
 pub struct MIGCostFn;
 impl egg::CostFunction<Prop> for MIGCostFn {
-    type Cost = (usize, usize);
+    type Cost = (usize, usize, usize);
     fn cost<C>(&mut self, enode: &Prop, mut costs: C) -> Self::Cost
     where
         C: FnMut(Id) -> Self::Cost,
@@ -27,9 +27,15 @@ impl egg::CostFunction<Prop> for MIGCostFn {
             Prop::Not(..) => 0 as usize,
             _ => 0 as usize,
         };
+        let op_inv = match enode {
+            Prop::Maj(..) => 0 as usize,
+            Prop::Not(..) => 1 as usize,
+            _ => 0 as usize,
+        };
         (
             op_depth + enode.fold(0, |max, id| max.max(costs(id).0)),
             enode.fold(op_area, |sum, id| sum + costs(id).1),
+            enode.fold(op_inv, |sum, id| sum + costs(id).2),
         )
     }
 }
@@ -61,7 +67,7 @@ impl Analysis<Prop> for ConstantFold {
             )),
             Prop::Not(a) => Some((!x(a)?, format!("(~ {})", x(a)?).parse().unwrap())),
         };
-        println!("Make: {:?} -> {:?}", enode, result);
+        // println!("Make: {:?} -> {:?}", enode, result);
         result
     }
 
@@ -147,7 +153,7 @@ fn prove_something(name: &str, start: &str, rewrites: &[Rewrite], goals: &[&str]
 
 /// parse an expression, simplify it using egg, and pretty print it back out
 #[pyfunction]
-pub fn simplify(s: &str) -> String {
+pub fn simplify(s: &str) -> (String, (usize, usize, usize), (usize, usize, usize)) {
     let all_rules: &[Rewrite; 13] = &[
         // rules needed for contrapositive
         double_neg(),
@@ -168,18 +174,24 @@ pub fn simplify(s: &str) -> String {
     // parse the expression, the type annotation tells it which Language to use
     let expr: RecExpr<Prop> = s.parse().unwrap();
 
-    // simplify the expression using a Runner, which creates an e-graph with
-    // the given expression and runs the given rules over it
+    // create an e-graph with the given expression
     let mut runner = Runner::default().with_expr(&expr);
-    runner = runner.run(all_rules);
-
     // the Runner knows which e-class the expression given with `with_expr` is in
     let root = runner.roots[0];
 
     // use an Extractor to pick the best element of the root eclass
+    let inital_cost = Extractor::new(&runner.egraph, MIGCostFn).find_best_cost(root);
+
+    // simplify the expression using a Runner, which runs the given rules over it
+    runner = runner.run(all_rules);
+
+    // use an Extractor to pick the best element of the root eclass
     let (best_cost, best) = Extractor::new(&runner.egraph, MIGCostFn).find_best(root);
-    println!("Simplified {} to {} with cost {:?}", expr, best, best_cost);
-    best.to_string()
+    println!(
+        "Simplified {} with cost {:?} to {} with cost {:?}",
+        expr, inital_cost, best, best_cost
+    );
+    (best.to_string(), inital_cost, best_cost)
 }
 
 // This function name should be same as your project name
