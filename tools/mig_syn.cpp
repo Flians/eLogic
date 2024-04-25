@@ -275,7 +275,7 @@ void MIGAQFPReSyn(char *pla_path, char *mig_path) {
   mockturtle::write_verilog(mig, mig_path);
 }
 
-void MIGReSyn(char *pla_path, char *mig_path) {
+std::vector<uint32_t> MIGReSyn(char *pla_path, char *mig_path) {
   std::string tmpf = "/tmp/" + strRand(10) + ".aig";
   if (-1 == system(fmt::format("yosys-abc -c \"read {}; strash; balance; rewrite; refactor; balance; rewrite; rewrite -z; balance; refactor -z; rewrite -z; balance; write_aiger {};\"", pla_path, tmpf).c_str())) {
     std::cout << "ABC error!" << std::endl;
@@ -300,9 +300,11 @@ void MIGReSyn(char *pla_path, char *mig_path) {
 
   assert(abc_cec_impl(mig, pla_path));
   mockturtle::write_verilog(mig, mig_path);
+  mockturtle::depth_view depth_mig{mig};
+  return {mig.num_gates(), depth_mig.depth()};
 }
 
-void MIGReSub(char *pla_path, char *mig_path) {
+std::vector<uint32_t> MIGReSub(char *pla_path, char *mig_path) {
   std::string tmpf = "/tmp/" + strRand(10) + ".aig";
   if (-1 == system(fmt::format("yosys-abc -c \"read {}; strash; balance; rewrite; refactor; balance; rewrite; rewrite -z; balance; refactor -z; rewrite -z; balance; write_aiger {};\"", pla_path, tmpf).c_str())) {
     std::cout << "ABC error!" << std::endl;
@@ -326,6 +328,8 @@ void MIGReSub(char *pla_path, char *mig_path) {
 
   assert(abc_cec_impl(mig, pla_path));
   mockturtle::write_verilog(mig, mig_path);
+  mockturtle::depth_view depth_mig2{mig};
+  return {mig.num_gates(), depth_mig2.depth()};
 }
 
 void MIGLSOracle(char *pla_path, char *mig_path, char *LSOracle = nullptr) {
@@ -337,6 +341,17 @@ void MIGLSOracle(char *pla_path, char *mig_path, char *LSOracle = nullptr) {
   if (-1 == system(fmt::format("{} -c \"read_verilog {} -m; migscript; write_verilog {} -m;\"", LSOracle ? LSOracle : "./third-party/lsoracle", tmpf, mig_path).c_str())) {
     std::cout << "LSOracle error!" << std::endl;
   }
+}
+
+std::vector<uint32_t> MIGStatus(char *mig_path) {
+  mockturtle::mig_network mig;
+  if (lorina::read_aiger(mig_path, mockturtle::aiger_reader(mig)) != lorina::return_code::success) {
+    printf("Parsing the mig %s failed.", mig_path);
+  }
+
+  mig = cleanup_dangling(mig);
+  mockturtle::depth_view depth_mig{mig};
+  return {mig.num_gates(), depth_mig.depth()};
 }
 
 PYBIND11_MODULE(MIGPy, m) {
@@ -352,6 +367,7 @@ PYBIND11_MODULE(MIGPy, m) {
   m.def("MIGReSyn", &MIGReSyn, R"pbdoc( generate the initial MIG netlist using mockturtle with node resynthesis )pbdoc", pybind11::arg("pla_path"), pybind11::arg("mig_path"));
   m.def("MIGReSub", &MIGReSub, R"pbdoc( generate the initial MIG netlist using mockturtle with MIG resubstitution )pbdoc", pybind11::arg("pla_path"), pybind11::arg("mig_path"));
   m.def("MIGLSOracle", &MIGLSOracle, R"pbdoc( generate the initial MIG netlist using LSOracle )pbdoc", pybind11::arg("pla_path"), pybind11::arg("mig_path"), pybind11::arg("LSOracle") = nullptr);
+  m.def("MIGStatus", &MIGStatus, R"pbdoc( calculate the gate count and circuit depth of given MIG netlist )pbdoc", pybind11::arg("mig_path"));
 
 #ifdef VERSION_INFO
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);

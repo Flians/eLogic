@@ -7,19 +7,24 @@ import queue
 import circuitgraph as cg
 from typing import Tuple
 from collections import defaultdict
+import networkx as nx
 
+import mig_egg
 from vparser import parser, circuit_to_verilog
+from util import process_not_buf, mig_cec
+from mig_rewrite import kcuts_kcones_PIs_POs, rewrite_dp
+from eggexpr import graph_to_egg_expr, graph_from_egg_expr
 
 import sys
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(SCRIPT_DIR, '../target/tools/'))
+SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(SCRIPT_DIR, 'target/tools/'))
 import MIGPy  # type: ignore
 
 import argparse
 
 benchmarks = [
-    ['c17'],
+    ['adder', 'arbiter', 'bar', 'c17', 'c432', 'c499'],
     ['full_adder_1', '4gt10', 'alu', 'c17', 'decoder_2_4', 'decoder_3_8', 'graycode4', 'ham3_28', 'mux_4'],
     ['4_49_7', 'graycode6_11', 'mod5adder_66', 'hwb8_64'] + [f'intdiv{i}' for i in range(4, 6)],
     [f'intdiv{i}' for i in range(6, 11)],
@@ -37,15 +42,28 @@ if __name__ == '__main__':
     benchmark = benchmarks[args.benchmark]
 
     for case in benchmark:
-        output_dir = f'results/{case}'
+        output_dir = f'{SCRIPT_DIR}/results/{case}'
         if not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
-        timer = time.time()
-        aigpath = f'tests/{case}.aig'
+        aigpath = f'tools/mockturtle/experiments/benchmarks/{case}.aig'
         vpath = f'{output_dir}/{case}.v'
-        MIGPy.MIGReSyn(aigpath, vpath)
+        init_cost = MIGPy.MIGReSyn(aigpath, vpath)
         cir = parser(vpath)
+        process_not_buf(cir.graph)
         with open(f'{output_dir}/{case}_init.v', 'w', encoding='utf-8') as vfile:
-            vfile.writelines(circuit_to_verilog(cir))
+            vfile.writelines(circuit_to_verilog(cir, behavioral=True))
+        assert mig_cec(vpath, f'{output_dir}/{case}_init.v')
 
+        timer = time.time()
+        rewrite_dp(cir.graph, K=8)
+        cir.remove_unloaded()
+        with open(f'{output_dir}/{case}_opt.v', 'w', encoding='utf-8') as vfile:
+            vfile.writelines(circuit_to_verilog(cir, behavioral=True))
+        assert mig_cec(vpath, f'{output_dir}/{case}_opt.v')
+        final_cost = MIGPy.MIGStatus(f'{output_dir}/{case}_opt.v')
+        nx.drawing.nx_agraph.write_dot(cir.graph, f'{case}_opt.dot')
+
+        print(f'\nThe results of {case}:')
+        print(f"initial cost {init_cost}")
+        print(f"final cost {init_cost}")
         print("--- Total %.2f seconds ---\n" % (time.time() - timer))
