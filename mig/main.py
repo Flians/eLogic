@@ -24,7 +24,7 @@ import MIGPy  # type: ignore
 import argparse
 
 benchmarks = [
-    ['adder', 'arbiter', 'bar', 'c17', 'c432', 'c499'],
+    ['adder1', 'c17', 'adder', 'arbiter', 'bar', 'c432', 'c499'],
     ['full_adder_1', '4gt10', 'alu', 'c17', 'decoder_2_4', 'decoder_3_8', 'graycode4', 'ham3_28', 'mux_4'],
     ['4_49_7', 'graycode6_11', 'mod5adder_66', 'hwb8_64'] + [f'intdiv{i}' for i in range(4, 6)],
     [f'intdiv{i}' for i in range(6, 11)],
@@ -47,23 +47,24 @@ if __name__ == '__main__':
             os.makedirs(output_dir, exist_ok=True)
         aigpath = f'tools/mockturtle/experiments/benchmarks/{case}.aig'
         vpath = f'{output_dir}/{case}.v'
-        init_cost = MIGPy.MIGReSyn(aigpath, vpath)
+        init_cost = MIGPy.MIGReSub(aigpath, vpath)
         cir = parser(vpath)
         process_not_buf(cir.graph)
         with open(f'{output_dir}/{case}_init.v', 'w', encoding='utf-8') as vfile:
             vfile.writelines(circuit_to_verilog(cir, behavioral=True))
         assert mig_cec(vpath, f'{output_dir}/{case}_init.v')
+        nx.drawing.nx_agraph.write_dot(cir.graph, f'{output_dir}/{case}_init.dot')
 
         timer = time.time()
         rewrite_dp(cir.graph, K=8)
         cir.remove_unloaded()
         with open(f'{output_dir}/{case}_opt.v', 'w', encoding='utf-8') as vfile:
             vfile.writelines(circuit_to_verilog(cir, behavioral=True))
-        assert mig_cec(vpath, f'{output_dir}/{case}_opt.v')
         final_cost = MIGPy.MIGStatus(f'{output_dir}/{case}_opt.v')
-        nx.drawing.nx_agraph.write_dot(cir.graph, f'{case}_opt.dot')
+        nx.drawing.nx_agraph.write_dot(cir.graph, f'{output_dir}/{case}_opt.dot')
 
         print(f'\nThe results of {case}:')
         print(f"initial cost {init_cost}")
-        print(f"final cost {init_cost}")
+        print(f"final cost {final_cost}")
         print("--- Total %.2f seconds ---\n" % (time.time() - timer))
+        assert mig_cec(vpath, f'{output_dir}/{case}_opt.v')

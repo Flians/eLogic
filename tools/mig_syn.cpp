@@ -345,7 +345,7 @@ void MIGLSOracle(char *pla_path, char *mig_path, char *LSOracle = nullptr) {
 
 std::vector<uint32_t> MIGStatus(char *mig_path) {
   mockturtle::mig_network mig;
-  if (lorina::read_aiger(mig_path, mockturtle::aiger_reader(mig)) != lorina::return_code::success) {
+  if (lorina::read_verilog(mig_path, mockturtle::verilog_reader(mig)) != lorina::return_code::success) {
     printf("Parsing the mig %s failed.", mig_path);
   }
 
