@@ -25,9 +25,6 @@ def extract_subgraph(graph: nx.DiGraph, cone: set, cut: set, root: str) -> nx.Di
             if new_subgraph.out_degree(fi) == 1:
                 unloaded.append(fi)
         new_subgraph.remove_node(n)
-    for n in new_subgraph:
-        if new_subgraph.nodes[n]['type'] == 'M' and len(set(new_subgraph.predecessors(n))) in [1, 2]:
-            pass
     return new_subgraph
 
 
@@ -136,7 +133,7 @@ def kcuts_kcones_PIs_POs(graph: nx.DiGraph, K: int, starts: set = {}, end: str =
     return computed, all_cones
 
 
-def rewrite_dp(graph: nx.DiGraph, K: int = 8):
+def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
     all_cuts, all_cones = kcuts_kcones_PIs_POs(graph, K=8)
     dp: Dict[str, list] = defaultdict(lambda: [0, 0])
     pt: Dict[str, tuple[set, str]] = {}
@@ -192,8 +189,13 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8):
                 '''
                 expr = graph_to_egg_expr(subgraph, cut)
                 expr_opt, inital_cost, final_cost = mig_egg.simplify(expr[0])  # type: ignore
-                if inital_cost[0] < final_cost[0] or (inital_cost[0] == final_cost[0] and inital_cost[1] <= final_cost[1]):
-                    continue
+                if obj_area:
+                    if inital_cost[1] < final_cost[1] or (inital_cost[1] == final_cost[1] and inital_cost[0] <= final_cost[0]):
+                        continue
+                else:
+                    if inital_cost[0] < final_cost[0] or (inital_cost[0] == final_cost[0] and inital_cost[1] <= final_cost[1]):
+                        continue
+                print(f"Simplified {expr} with cost {inital_cost} to {expr_opt} with cost {final_cost}")
                 subgraph_opt = graph_from_egg_expr(expr_opt)
                 distances = distances_from_PIs_PO(subgraph_opt)
                 cost = [0, set()]
@@ -201,9 +203,14 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8):
                     cost[0] = max(distances[pre] + dp[pre][0], cost[0])
                     cost[1] |= fanins[pre]
                 cost[1] = len(cost[1]) + final_cost[1]
-                if cost < dp[n]:
-                    dp[n] = cost
-                    pt[n] = (cut.copy(), expr_opt)
+                if obj_area:
+                    if cost[1] < dp[n][1] or (cost[1] == dp[n][1] and cost[0] < dp[n][0]):
+                        dp[n] = cost
+                        pt[n] = (cut.copy(), expr_opt)
+                else:
+                    if cost < dp[n]:
+                        dp[n] = cost
+                        pt[n] = (cut.copy(), expr_opt)
         if pt[n][1]:
             cut = pt[n][0].copy()
             subgraph_opt = graph_from_egg_expr(pt[n][1])

@@ -187,10 +187,7 @@ pub fn simplify(s: &str) -> (String, (usize, usize, usize), (usize, usize, usize
 
     // use an Extractor to pick the best element of the root eclass
     let (best_cost, best) = Extractor::new(&runner.egraph, MIGCostFn).find_best(root);
-    println!(
-        "Simplified {} with cost {:?} to {} with cost {:?}",
-        expr, inital_cost, best, best_cost
-    );
+    // println!("Simplified {} with cost {:?} to {} with cost {:?}", expr, inital_cost, best, best_cost);
     (best.to_string(), inital_cost, best_cost)
 }
 
