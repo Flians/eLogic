@@ -49,7 +49,7 @@ if __name__ == '__main__':
         nx.drawing.nx_agraph.write_dot(cir.graph, f'{output_dir}/{case}_init.dot')
 
         timer = time.time()
-        rewrite_dp(cir.graph, K=8)
+        rewrite_dp(cir.graph, K=8, obj_area=False)
         opt_time = time.time() - timer
         cir.remove_unloaded()
         with open(f'{output_dir}/{case}_opt.v', 'w', encoding='utf-8') as vfile:
