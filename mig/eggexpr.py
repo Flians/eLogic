@@ -49,6 +49,10 @@ def graph_from_egg_expr(egg_seq):
         cur = cur_nodes.pop(0)
         if cur.value in ['M', '~']:
             graph.nodes[cur.name]["type"] = cur.value
+        elif cur.value == 'true':
+            graph.nodes[cur.name]["type"] = '1'
+        elif cur.value == 'false':
+            graph.nodes[cur.name]["type"] = '0'
         else:
             graph.nodes[cur.name]["type"] = 'input'
         graph.nodes[cur.name]["output"] = nid == 0
