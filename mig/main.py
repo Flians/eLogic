@@ -15,7 +15,7 @@ import MIGPy  # type: ignore
 import argparse
 
 benchmarks = [
-    ['adder4', 'adder16', 'adder1', 'c17', 'adder', 'arbiter', 'bar', 'c432', 'c499'],
+    ['adder', 'arbiter', 'bar', 'c432', 'c499', 'c1355', 'c6288', 'cavlc', 'ctrl', 'div', 'i2c', 'max', 'router', 'sin', 'sqrt'],
     ['full_adder_1', '4gt10', 'alu', 'c17', 'decoder_2_4', 'decoder_3_8', 'graycode4', 'ham3_28', 'mux_4'],
     ['4_49_7', 'graycode6_11', 'mod5adder_66', 'hwb8_64'] + [f'intdiv{i}' for i in range(4, 6)],
     [f'intdiv{i}' for i in range(6, 11)],
@@ -23,14 +23,14 @@ benchmarks = [
 
 if __name__ == '__main__':
     argParser = argparse.ArgumentParser()
-    argParser.add_argument("--generation", type=int, default=50000000, help="the number of generation")
-    argParser.add_argument("--optimized", type=int, default=2, choices=(0, 1, 2), help="0: MIGAQFPReSyn, 1: original CGP, 2: RCGP")
+    argParser.add_argument("--K", type=int, default=6, choices=(4, 6, 8), help="The input size of the feasible K-cut")
+    argParser.add_argument("--obj", type=int, default=0, choices=(0, 1), help="0: depth, 1: area")
     argParser.add_argument("--benchmark", type=int, default=0, choices=(0, 1, 2), help="the index of the benchmark")
     args = argParser.parse_args()
 
-    optimized = args.optimized
-    generation = args.generation
+    obj_area = args.obj == 1
     benchmark = benchmarks[args.benchmark]
+    print(f">>> The objective is {'area' if obj_area else 'depth'} oriented under K={args.K}-cuts.\n")
 
     for case in benchmark:
         output_dir = f'{SCRIPT_DIR}/results/{case}'
@@ -49,7 +49,7 @@ if __name__ == '__main__':
         nx.drawing.nx_agraph.write_dot(cir.graph, f'{output_dir}/{case}_init.dot')
 
         timer = time.time()
-        rewrite_dp(cir.graph, K=8, obj_area=False)
+        rewrite_dp(cir.graph, K=8, obj_area=obj_area)
         opt_time = time.time() - timer
         cir.remove_unloaded()
         with open(f'{output_dir}/{case}_opt.v', 'w', encoding='utf-8') as vfile:

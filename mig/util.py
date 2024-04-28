@@ -37,12 +37,18 @@ def process_not_buf(graph: nx.DiGraph):
                             undriven.add(node)
                             name_mapping[pre] = node
                             graph.nodes[pre]["output"] = True
-                            sucs = set(graph.successors(node))
-                            graph.add_edges_from([(pre, suc) for suc in sucs])
+                            graph.add_edges_from([(pre, suc) for suc in graph.successors(node)])
                 else:
                     print(f'Warning: the type {ntype} of {node} is not driven.')
                     undriven.add(node)
             else:
-                pass
+                pres = set(graph.predecessors(node))
+                if pres:
+                    assert len(pres) == 1
+                    for pre in pres:
+                        graph.add_edges_from([(pre, suc) for suc in graph.successors(node)])
+                else:
+                    print(f'Warning: the type {ntype} of {node} is not driven.')
+                    undriven.add(node)
     graph.remove_nodes_from(undriven)
     nx.relabel_nodes(graph, name_mapping, copy=False)
