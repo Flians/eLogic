@@ -216,7 +216,7 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
             subgraph_opt = graph_from_egg_expr(pt[n][1])
             # add sub circuit
             mapping = {}
-            new_root = ''
+            new_root = pt[n][1]
             sc_io = cut | {n}
             for sn, attr in subgraph_opt.nodes.data():
                 if sn in sc_io:
@@ -252,7 +252,7 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
                 if cur == n:
                     graph.add_edges_from(((new_root, suc) for suc in graph.successors(cur)))
                 graph.remove_node(cur)
-                if cur == n:
+                if cur == n and new_root not in ['true', 'false']:
                     nx.relabel_nodes(graph, {new_root: cur}, copy=False)
                     removed.add(new_root)
                 else:
