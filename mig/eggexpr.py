@@ -70,6 +70,8 @@ def graph_to_egg_expr(graph: nx.DiGraph, inputs: set = None) -> list[str]:
     outputs = set()
     for node in nx.topological_sort(graph):
         pres = set(graph.predecessors(node))
+        if graph.nodes[node]['type'] == 'M' and len(pres) in [1, 2]:
+            return []
         if pres and (not inputs or node not in inputs):
             exprs[node] = f"({graph.nodes[node]['type']} {' '.join([exprs[din] for din in pres])})"
         else:

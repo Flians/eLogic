@@ -165,13 +165,13 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
             continue
         # update K-cuts
         if last_n is not None:
-            all_cuts, all_cones = kcuts_kcones_PIs_POs(graph, 8, pt[last_n][0], n, all_cuts, all_cones, fanins)
+            all_cuts, all_cones = kcuts_kcones_PIs_POs(graph, 8, starts=pt[last_n][0], end=n, computed=all_cuts, all_cones=all_cones, fanins=fanins)
         cuts = all_cuts[n].copy()
         for cut in cuts:
             lc = ','.join(map(str, sorted(cut))) + f'|{n}'
             cone = all_cones[lc].copy()
             nonleaves = cone - cut
-            if len(nonleaves) < 3 or len({n for n in nonleaves if graph.nodes[n]["type"] == 'M'}) < 3:
+            if len(nonleaves) < 3 or len({n for n in nonleaves if graph.nodes[n]["type"] == 'M'}) < 3 or (cone - set(graph.nodes)):
                 continue  # {y} = M(a,b,c) covered by {y,a,b,c}
             else:
                 subgraph: nx.DiGraph = extract_subgraph(graph, cone, cut, n)
@@ -188,6 +188,8 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
                     continue
                 '''
                 expr = graph_to_egg_expr(subgraph, cut)
+                if not expr:
+                    continue
                 expr_opt, inital_cost, final_cost = mig_egg.simplify(expr[0])  # type: ignore
                 if obj_area:
                     if inital_cost[1] < final_cost[1] or (inital_cost[1] == final_cost[1] and inital_cost[0] <= final_cost[0]):
