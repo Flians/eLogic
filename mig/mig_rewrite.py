@@ -65,7 +65,7 @@ def distances_from_PIs_PO(graph: nx.DiGraph) -> dict:
     return distances
 
 
-def kcuts_kcones_PIs_POs(graph: nx.DiGraph, K: int, starts: set = {}, end: str = None, computed: Dict[Any, List[Set]] = {}, all_cones: Dict[str, set[int]] = {}, fanins: Dict[str, set[str]] = {}) -> tuple[Dict[Any, List[Set]], Dict[str, Set[int]]]:  # type: ignore
+def kcuts_kcones_PIs_POs(graph: nx.DiGraph, K: int) -> tuple[Dict[Any, List[Set]], Dict[str, Set[int]]]:  # type: ignore
     """
     Generate all K-cuts from PIs to POs.
 
@@ -80,14 +80,10 @@ def kcuts_kcones_PIs_POs(graph: nx.DiGraph, K: int, starts: set = {}, end: str =
             K-cuts.
 
     """
-    flag = False
+    computed: Dict[Any, List[Set]] = {}
+    all_cones: Dict[str, Set[int]] = {}
+
     for n in nx.topological_sort(graph):
-        if starts and n in starts:
-            flag = True
-        if starts and not flag:
-            continue
-        if starts and flag and n in computed:
-            computed[n].clear()
         it = graph.predecessors(n)
         pre = next(it, None)
         if pre is not None:
@@ -97,16 +93,8 @@ def kcuts_kcones_PIs_POs(graph: nx.DiGraph, K: int, starts: set = {}, end: str =
                 la = ','.join(map(str, sorted(a_cut))) + f'|{pre}'
                 lc = ','.join(map(str, sorted(a_cut))) + f'|{n}'
                 partial_cones[lc] = all_cones[la] | {n, pre}
-            if fanins:
-                if graph.nodes[n]['type'] == 'M':
-                    fanins[n] = {n}
-                else:
-                    fanins[n] = set()
-                fanins[n] |= fanins[pre]
             for pre2 in it:
                 merged_cuts = []
-                if fanins:
-                    fanins[n] |= fanins[pre2]
                 cuts2 = copy.deepcopy(computed[pre2])
                 for a_cut, b_cut in product(cuts, cuts2):
                     merged_cut = a_cut | b_cut
@@ -127,14 +115,84 @@ def kcuts_kcones_PIs_POs(graph: nx.DiGraph, K: int, starts: set = {}, end: str =
         # add cuts
         computed[n] = cuts
         all_cones[f'{n}|{n}'] = {n}
-        if end and n == end:
-            break
 
     return computed, all_cones
 
 
+def update_kcuts_kcones(graph: nx.DiGraph, K: int, starts: set = {}, all_cuts: Dict[Any, List[Set]] = {}, all_cones: Dict[str, set[int]] = {}, fanins: Dict[str, set[str]] = {}) -> tuple[Dict[Any, List[Set]], Dict[str, Set[int]]]:  # type: ignore
+    """
+    Update all K-cuts from PIs to POs.
+
+    Parameters
+    ----------
+    K : int
+            Maximum cut width.
+
+    Returns
+    -------
+    iter of str
+            K-cuts.
+
+    """
+    flag = False
+    stop_times = defaultdict(lambda: 0)
+    for n in nx.topological_sort(graph):
+        if starts and n in starts:
+            flag = True
+        if (starts and not flag) or (n in all_cuts and stop_times[suc] == graph.in_degree(n)):
+            if fanins:
+                fanins[n] = {n} if graph.nodes[n]['type'] == 'M' else set()
+                for pre in graph.predecessors(n):
+                    fanins[n] |= fanins[pre]
+            for suc in graph.successors(n):
+                stop_times[suc] += 1
+            continue
+        it = graph.predecessors(n)
+        pre = next(it, None)
+        is_changed = False
+        if pre is not None:
+            cuts = copy.deepcopy(all_cuts[pre])
+            partial_cones: Dict[str, Set[int]] = {}
+            for a_cut in cuts:
+                la = ','.join(map(str, sorted(a_cut))) + f'|{pre}'
+                lc = ','.join(map(str, sorted(a_cut))) + f'|{n}'
+                partial_cones[lc] = all_cones[la] | {n, pre}
+            if fanins:
+                fanins[n] = {n} if graph.nodes[n]['type'] == 'M' else set()
+                fanins[n] |= fanins[pre]
+            for pre2 in it:
+                merged_cuts = []
+                if fanins:
+                    fanins[n] |= fanins[pre2]
+                cuts2 = copy.deepcopy(all_cuts[pre2])
+                for a_cut, b_cut in product(cuts, cuts2):
+                    merged_cut = a_cut | b_cut
+                    if len(merged_cut) <= K:
+                        merged_cuts.append(merged_cut)
+                        la = ','.join(map(str, sorted(a_cut))) + f'|{n}'
+                        lb = ','.join(map(str, sorted(b_cut))) + f'|{pre2}'
+                        lc = ','.join(map(str, sorted(merged_cut))) + f'|{n}'
+                        partial_cones[lc] = partial_cones[la] | all_cones[lb] | {pre, pre2}
+                cuts = merged_cuts
+                pre = pre2
+            for a_cut in cuts:
+                lc = ','.join(map(str, sorted(a_cut))) + f'|{n}'
+                if not is_changed and (lc not in all_cones or all_cones[lc] != partial_cones[lc]):
+                    is_changed = True
+                all_cones[lc] = partial_cones[lc]
+            cuts += [{n}]
+        else:
+            cuts = [{n}]
+        # update cuts
+        if is_changed or len(all_cuts[n]) != len(cuts):
+            all_cuts[n] = cuts
+        else:
+            stop_times[n] += 1
+        all_cones[f'{n}|{n}'] = {n}
+
+
 def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
-    all_cuts, all_cones = kcuts_kcones_PIs_POs(graph, K=8)
+    all_cuts, all_cones = kcuts_kcones_PIs_POs(graph, K=K)
     dp: Dict[str, list] = defaultdict(lambda: [0, 0])
     pt: Dict[str, tuple[set, str]] = {}
     inputs = set()
@@ -165,7 +223,7 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
             continue
         # update K-cuts
         if last_n is not None:
-            all_cuts, all_cones = kcuts_kcones_PIs_POs(graph, 8, starts=pt[last_n][0], end=n, computed=all_cuts, all_cones=all_cones, fanins=fanins)
+            update_kcuts_kcones(graph, K, starts=pt[last_n][0], all_cuts=all_cuts, all_cones=all_cones, fanins=fanins)
         cuts = all_cuts[n].copy()
         for cut in cuts:
             lc = ','.join(map(str, sorted(cut))) + f'|{n}'
@@ -189,6 +247,7 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
                 '''
                 expr = graph_to_egg_expr(subgraph, cut)
                 if not expr:
+                    print(f"??? {n} {cut} {cone}")
                     continue
                 expr_opt, inital_cost, final_cost = mig_egg.simplify(expr[0])  # type: ignore
                 if obj_area:
