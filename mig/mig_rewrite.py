@@ -7,6 +7,49 @@ from eggexpr import graph_to_egg_expr, graph_from_egg_expr
 import mig_egg
 
 
+def add_edges(graph: nx.DiGraph, ebunch_to_add) -> Dict:
+    removed = {}
+    for e in ebunch_to_add:
+        ne = len(e)
+        if ne == 3:
+            u, v, dd = e
+        elif ne == 2:
+            u, v = e
+            dd = {}
+        else:
+            raise ValueError(f"Edge tuple {e} must be a 2-tuple or 3-tuple.")
+        if v in removed:
+            continue
+        if u in removed:
+            u = removed[u]
+        if graph.has_edge(u, v):
+            if 'type' in graph.nodes[v] and graph.nodes[v]['type'] == 'M':
+                sucs = set(graph.successors(v))
+                graph.remove_node(v)
+                removed[v] = u
+                removed.update(add_edges(graph, ((u, suc) for suc in sucs)))
+                continue
+            else:
+                print(f"??? Edge ({u},{v}) exists.")
+        if u not in graph._succ:
+            if u is None:
+                raise ValueError("None cannot be a node")
+            graph._succ[u] = graph.adjlist_inner_dict_factory()
+            graph._pred[u] = graph.adjlist_inner_dict_factory()
+            graph._node[u] = graph.node_attr_dict_factory()
+        if v not in graph._succ:
+            if v is None:
+                raise ValueError("None cannot be a node")
+            graph._succ[v] = graph.adjlist_inner_dict_factory()
+            graph._pred[v] = graph.adjlist_inner_dict_factory()
+            graph._node[v] = graph.node_attr_dict_factory()
+        datadict = graph._adj[u].get(v, graph.edge_attr_dict_factory())
+        datadict.update(dd)
+        graph._succ[u][v] = datadict
+        graph._pred[v][u] = datadict
+    return removed
+
+
 def extract_subgraph(graph: nx.DiGraph, cone: set, cut: set, root: str) -> nx.DiGraph:
     subgraph: nx.DiGraph = graph.subgraph(cone)
     new_subgraph = nx.DiGraph()
@@ -199,6 +242,8 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
     inputs = set()
     outputs = set()
     fanins = defaultdict(set)
+    indegree_map = {}
+    zero_indegree = []
     # initialization
     for n in nx.topological_sort(graph):
         cost = [0, 0]
@@ -206,6 +251,8 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
             fanins[n] |= fanins[pre]
             cost[0] = max(cost[0], dp[pre][0])
         if graph.nodes[n]['type'] == 'M':
+            if graph.in_degree(n) != 3:
+                pass
             fanins[n] |= {n}
             dp[n][0] = 1 + cost[0]
             dp[n][1] = len(fanins[n])
@@ -213,131 +260,151 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
             dp[n][0] = 0 + cost[0]
             dp[n][1] = len(fanins[n])
         pt[n] = ({n}, '')
-        if graph.in_degree(n) == 0:
+        ind = graph.in_degree(n)
+        if ind == 0:
             inputs.add(n)
+            zero_indegree.append(n)
+        else:
+            indegree_map[n] = ind
         if graph.out_degree(n) == 0:
             outputs.add(n)
 
     last_n = None
-    for n in nx.topological_sort(graph):
-        if n in inputs:
-            continue
-        # update K-cuts
-        if last_n is not None:
-            update_kcuts_kcones(graph, K, starts=pt[last_n][0], all_cuts=all_cuts, all_cones=all_cones, fanins=fanins)
-        cuts = all_cuts[n].copy()
-        for cut in cuts:
-            lc = ','.join(map(str, sorted(cut))) + f'|{n}'
-            cone = all_cones[lc].copy()
-            nonleaves = cone - cut
-            if len(nonleaves) < 3 or (cone - set(graph.nodes)) or len({nn for nn in nonleaves if graph.nodes[nn]["type"] == 'M'}) < 3:
-                continue  # {y} = M(a,b,c) covered by {y,a,b,c}
-            else:
+    while zero_indegree:
+        this_generation = zero_indegree
+        zero_indegree = []
+        for n in this_generation:
+            if n not in graph:
+                continue
+            for child in graph.successors(n):
+                indegree_map[child] -= 1
+                if indegree_map[child] == 0:
+                    zero_indegree.append(child)
+                    del indegree_map[child]
+            if n in inputs:
+                continue
+            # update K-cuts
+            if last_n is not None:
+                update_kcuts_kcones(graph, K, starts=pt[last_n][0], all_cuts=all_cuts, all_cones=all_cones, fanins=fanins)
+            cuts = all_cuts[n].copy()
+            for cut in cuts:
+                lc = ','.join(map(str, sorted(cut))) + f'|{n}'
+                cone = all_cones[lc].copy()
+                nonleaves = cone - cut
+                if len(nonleaves) < 3 or (cone - set(graph.nodes)) or len({nn for nn in nonleaves if graph.nodes[nn]["type"] == 'M'}) < 3:
+                    continue  # {y} = M(a,b,c) covered by {y,a,b,c}
+                else:
+                    subgraph: nx.DiGraph = extract_subgraph(graph, cone, cut, n)
+                    '''
+                    # check if inner nodes are used out of the subgraph
+                    flag = False
+                    for inn in subgraph:
+                        if subgraph.nodes[inn]['type'] == 'M' and subgraph.in_degree(inn) not in [0, 3]:
+                            raise Exception(f"Maj node {inn} has less than 3 inputs")
+                        if inn != n and subgraph.out_degree(inn) != graph.out_degree(inn) and graph.in_degree(inn) != 0:
+                            flag = True
+                            break
+                    if flag:
+                        continue
+                    '''
+                    expr = graph_to_egg_expr(subgraph, cut)
+                    if not expr:
+                        print(f"??? {n} {cut} {cone}")
+                        continue
+                    expr_opt, inital_cost, final_cost = mig_egg.simplify(expr[0])  # type: ignore
+                    if obj_area:
+                        if inital_cost[1] < final_cost[1] or (inital_cost[1] == final_cost[1] and inital_cost[0] <= final_cost[0]):
+                            continue
+                    else:
+                        if inital_cost[0] < final_cost[0] or (inital_cost[0] == final_cost[0] and inital_cost[1] <= final_cost[1]):
+                            continue
+                    print(f"Simplified {expr} with cost {inital_cost} to {expr_opt} with cost {final_cost}")
+                    subgraph_opt = graph_from_egg_expr(expr_opt)
+                    distances = distances_from_PIs_PO(subgraph_opt)
+                    cost = [0, set()]
+                    for pre in cut:
+                        cost[0] = max(distances[pre] + dp[pre][0], cost[0])
+                        cost[1] |= fanins[pre]
+                    cost[1] = len(cost[1]) + final_cost[1]
+                    if obj_area:
+                        if cost[1] < dp[n][1] or (cost[1] == dp[n][1] and cost[0] < dp[n][0]):
+                            dp[n] = cost
+                            pt[n] = (cut.copy(), expr_opt)
+                    else:
+                        if cost < dp[n]:
+                            dp[n] = cost
+                            pt[n] = (cut.copy(), expr_opt)
+            if pt[n][1]:
+                cut = pt[n][0].copy()
+                subgraph_opt = graph_from_egg_expr(pt[n][1])
+                # add sub circuit
+                mapping = {}
+                new_root = pt[n][1]
+                sc_io = cut | {n}
+                for sn, attr in subgraph_opt.nodes.data():
+                    if sn in sc_io:
+                        pass
+                    elif sn in ['true', 'false']:
+                        sc_io |= {sn}
+                    else:
+                        # check for name overlaps
+                        if f"{n}_{sn}" in graph.nodes:
+                            raise ValueError(f"name {sn} overlaps with {lc} subcircuit.")
+                        if subgraph_opt.nodes[sn]['output']:
+                            new_root = f"{n}_{sn}"
+                            graph.add_node(f"{n}_{sn}", **graph.nodes[n])
+                            graph.nodes[f"{n}_{sn}"]['type'] = subgraph_opt.nodes[sn]['type']
+                        else:
+                            graph.add_node(f"{n}_{sn}", **attr)
+                        mapping[sn] = f"{n}_{sn}"
+                g = nx.relabel_nodes(subgraph_opt, mapping)
+                add_edges(graph, g.edges.data())
+                # remove nodes in original cone
+                lc = ','.join(map(str, sorted(cut))) + f'|{n}'
+                cone = all_cones[lc].copy()
                 subgraph: nx.DiGraph = extract_subgraph(graph, cone, cut, n)
-                '''
-                # check if inner nodes are used out of the subgraph
-                flag = False
-                for inn in subgraph:
-                    if subgraph.nodes[inn]['type'] == 'M' and subgraph.in_degree(inn) not in [0, 3]:
-                        raise Exception(f"Maj node {inn} has less than 3 inputs")
-                    if inn != n and subgraph.out_degree(inn) != graph.out_degree(inn) and graph.in_degree(inn) != 0:
-                        flag = True
-                        break
-                if flag:
-                    continue
-                '''
-                expr = graph_to_egg_expr(subgraph, cut)
-                if not expr:
-                    print(f"??? {n} {cut} {cone}")
-                    continue
-                expr_opt, inital_cost, final_cost = mig_egg.simplify(expr[0])  # type: ignore
-                if obj_area:
-                    if inital_cost[1] < final_cost[1] or (inital_cost[1] == final_cost[1] and inital_cost[0] <= final_cost[0]):
-                        continue
-                else:
-                    if inital_cost[0] < final_cost[0] or (inital_cost[0] == final_cost[0] and inital_cost[1] <= final_cost[1]):
-                        continue
-                print(f"Simplified {expr} with cost {inital_cost} to {expr_opt} with cost {final_cost}")
-                subgraph_opt = graph_from_egg_expr(expr_opt)
-                distances = distances_from_PIs_PO(subgraph_opt)
-                cost = [0, set()]
-                for pre in cut:
-                    cost[0] = max(distances[pre] + dp[pre][0], cost[0])
-                    cost[1] |= fanins[pre]
-                cost[1] = len(cost[1]) + final_cost[1]
-                if obj_area:
-                    if cost[1] < dp[n][1] or (cost[1] == dp[n][1] and cost[0] < dp[n][0]):
-                        dp[n] = cost
-                        pt[n] = (cut.copy(), expr_opt)
-                else:
-                    if cost < dp[n]:
-                        dp[n] = cost
-                        pt[n] = (cut.copy(), expr_opt)
-        if pt[n][1]:
-            cut = pt[n][0].copy()
-            subgraph_opt = graph_from_egg_expr(pt[n][1])
-            # add sub circuit
-            mapping = {}
-            new_root = pt[n][1]
-            sc_io = cut | {n}
-            for sn, attr in subgraph_opt.nodes.data():
-                if sn in sc_io:
-                    pass
-                elif sn in ['true', 'false']:
-                    sc_io |= {sn}
-                else:
-                    # check for name overlaps
-                    if f"{n}_{sn}" in graph.nodes:
-                        raise ValueError(f"name {sn} overlaps with {lc} subcircuit.")
-                    if subgraph_opt.nodes[sn]['output']:
-                        new_root = f"{n}_{sn}"
-                        graph.add_node(f"{n}_{sn}", **graph.nodes[n])
-                        graph.nodes[f"{n}_{sn}"]['type'] = subgraph_opt.nodes[sn]['type']
+                removed = set()
+                unloaded = [n]
+                while unloaded:
+                    cur = unloaded.pop()
+                    for pre in subgraph.predecessors(cur):
+                        if pre in sc_io:
+                            continue
+                        if graph.out_degree(pre) == 1:
+                            unloaded.append(pre)
+                    if cur == n:
+                        sucs = set(graph.successors(cur))
+                        add_edges(graph, ((new_root, suc) for suc in sucs))
+                    graph.remove_node(cur)
+                    if cur == n and new_root not in ['true', 'false']:
+                        nx.relabel_nodes(graph, {new_root: cur}, copy=False)
+                        removed.add(new_root)
                     else:
-                        graph.add_node(f"{n}_{sn}", **attr)
-                    mapping[sn] = f"{n}_{sn}"
-            g = nx.relabel_nodes(subgraph_opt, mapping)
-            graph.add_edges_from(g.edges.data())
-            # remove nodes in original cone
-            lc = ','.join(map(str, sorted(cut))) + f'|{n}'
-            cone = all_cones[lc].copy()
-            subgraph: nx.DiGraph = extract_subgraph(graph, cone, cut, n)
-            removed = set()
-            unloaded = [n]
-            while unloaded:
-                cur = unloaded.pop()
-                for pre in subgraph.predecessors(cur):
-                    if pre in sc_io:
+                        removed.add(cur)
+                # remove duplicates
+                new_nodes = set(mapping.values()) | set(subgraph.nodes) - removed
+                subgraph: nx.DiGraph = graph.subgraph(new_nodes)
+                record_ins = {}
+                for cur in nx.topological_sort(subgraph):
+                    cur_ins = ','.join(map(str, sorted(graph.predecessors(cur))))
+                    if not cur_ins:
                         continue
-                    if graph.out_degree(pre) == 1:
-                        unloaded.append(pre)
-                if cur == n:
-                    graph.add_edges_from(((new_root, suc) for suc in graph.successors(cur)))
-                graph.remove_node(cur)
-                if cur == n and new_root not in ['true', 'false']:
-                    nx.relabel_nodes(graph, {new_root: cur}, copy=False)
-                    removed.add(new_root)
-                else:
-                    removed.add(cur)
-            # remove duplicates
-            new_nodes = set(mapping.values()) | set(subgraph.nodes) - removed
-            subgraph: nx.DiGraph = graph.subgraph(new_nodes)
-            record_ins = {}
-            for cur in nx.topological_sort(subgraph):
-                cur_ins = ','.join(map(str, sorted(graph.predecessors(cur))))
-                if not cur_ins:
-                    continue
-                cur_ins += '|' + graph.nodes[cur]['type']
-                if cur_ins in record_ins:
-                    if graph.nodes[cur]['output']:
-                        old = record_ins[cur_ins]
+                    cur_ins += '|' + graph.nodes[cur]['type']
+                    if cur_ins in record_ins:
+                        if graph.nodes[cur]['output']:
+                            old = record_ins[cur_ins]
+                            record_ins[cur_ins] = cur
+                            sucs = set(graph.successors(old))
+                            add_edges(graph, ((cur, suc) for suc in sucs))
+                            graph.remove_node(old)
+                        else:
+                            sucs = set(graph.successors(cur))
+                            add_edges(graph, ((record_ins[cur_ins], suc) for suc in sucs))
+                            graph.remove_node(cur)
+                    else:
                         record_ins[cur_ins] = cur
-                        graph.add_edges_from(((cur, suc) for suc in graph.successors(old)))
-                        graph.remove_node(old)
-                    else:
-                        graph.add_edges_from(((record_ins[cur_ins], suc) for suc in graph.successors(cur)))
-                        graph.remove_node(cur)
-                else:
-                    record_ins[cur_ins] = cur
-        last_n = n
-    pass
+                last_n = n
+        if not zero_indegree:
+            indegree_map = {v: d for v, d in graph.in_degree() if d > 0}
+            zero_indegree = [v for v, d in graph.in_degree() if d == 0]
+            last_n = None
