@@ -52,3 +52,12 @@ def process_not_buf(graph: nx.DiGraph):
                     undriven.add(node)
     graph.remove_nodes_from(undriven)
     nx.relabel_nodes(graph, name_mapping, copy=False)
+
+
+if __name__ == '__main__':
+    benchmarks = ['adder', 'arbiter', 'bar', 'cavlc', 'c432', 'c499', 'c1355', 'c6288', 'ctrl', 'div', 'i2c', 'max', 'router', 'sin', 'sqrt']
+    for case in benchmarks:
+        print(f'nohup python3 -u mig/main.py --K 8 --obj 0 --benchmark {case} > egg_depth_K8_{case}.log 2>&1 &')
+    print()
+    for case in benchmarks:
+        print(f'nohup python3 -u mig/main.py --K 8 --obj 1 --benchmark {case} > egg_area_K8_{case}.log 2>&1 &')
