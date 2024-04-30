@@ -184,10 +184,11 @@ def update_kcuts_kcones(graph: nx.DiGraph, K: int, starts: set = {}, all_cuts: D
         else:
             cuts = [{n}]
         # update cuts
-        if is_changed or len(all_cuts[n]) != len(cuts):
+        if is_changed or n not in all_cuts or len(all_cuts[n]) != len(cuts):
             all_cuts[n] = cuts
         else:
-            stop_times[n] += 1
+            for suc in graph.successors(n):
+                stop_times[suc] += 1
         all_cones[f'{n}|{n}'] = {n}
 
 
@@ -229,7 +230,7 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
             lc = ','.join(map(str, sorted(cut))) + f'|{n}'
             cone = all_cones[lc].copy()
             nonleaves = cone - cut
-            if len(nonleaves) < 3 or len({nn for nn in nonleaves if graph.nodes[nn]["type"] == 'M'}) < 3 or (cone - set(graph.nodes)):
+            if len(nonleaves) < 3 or (cone - set(graph.nodes)) or len({nn for nn in nonleaves if graph.nodes[nn]["type"] == 'M'}) < 3:
                 continue  # {y} = M(a,b,c) covered by {y,a,b,c}
             else:
                 subgraph: nx.DiGraph = extract_subgraph(graph, cone, cut, n)
