@@ -139,7 +139,7 @@ def update_kcuts_kcones(graph: nx.DiGraph, K: int, starts: set = {}, all_cuts: D
     for n in nx.topological_sort(graph):
         if starts and n in starts:
             flag = True
-        if (starts and not flag) or (n in all_cuts and stop_times[suc] == graph.in_degree(n)):
+        if n in all_cuts and ((starts and not flag) or stop_times[n] == graph.in_degree(n)):
             if fanins:
                 fanins[n] = {n} if graph.nodes[n]['type'] == 'M' else set()
                 for pre in graph.predecessors(n):
