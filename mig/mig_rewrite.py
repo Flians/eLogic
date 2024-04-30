@@ -7,6 +7,43 @@ from eggexpr import graph_to_egg_expr, graph_from_egg_expr
 import mig_egg
 
 
+def add_edges(graph: nx.DiGraph, ebunch_to_add):
+    for e in ebunch_to_add:
+        ne = len(e)
+        if ne == 3:
+            u, v, dd = e
+        elif ne == 2:
+            u, v = e
+            dd = {}
+        else:
+            raise ValueError(f"Edge tuple {e} must be a 2-tuple or 3-tuple.")
+        if graph.has_edge(u, v):
+            if 'type' in graph.nodes[v] and graph.nodes[v]['type'] == 'M':
+                sucs = set(graph.successors(v))
+                graph.remove_node(v)
+                add_edges(graph, ((u, suc) for suc in sucs))
+                continue
+            else:
+                print(f"??? Edge ({u},{v}) exists.")
+        if u not in graph._succ:
+            if u is None:
+                raise ValueError("None cannot be a node")
+            graph._succ[u] = graph.adjlist_inner_dict_factory()
+            graph._pred[u] = graph.adjlist_inner_dict_factory()
+            graph._node[u] = graph.node_attr_dict_factory()
+        if v not in graph._succ:
+            if v is None:
+                raise ValueError("None cannot be a node")
+            graph._succ[v] = graph.adjlist_inner_dict_factory()
+            graph._pred[v] = graph.adjlist_inner_dict_factory()
+            graph._node[v] = graph.node_attr_dict_factory()
+        datadict = graph._adj[u].get(v, graph.edge_attr_dict_factory())
+        datadict.update(dd)
+        graph._succ[u][v] = datadict
+        graph._pred[v][u] = datadict
+    nx._clear_cache(graph)
+
+
 def extract_subgraph(graph: nx.DiGraph, cone: set, cut: set, root: str) -> nx.DiGraph:
     subgraph: nx.DiGraph = graph.subgraph(cone)
     new_subgraph = nx.DiGraph()
@@ -206,6 +243,8 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
             fanins[n] |= fanins[pre]
             cost[0] = max(cost[0], dp[pre][0])
         if graph.nodes[n]['type'] == 'M':
+            if graph.in_degree(n) != 3:
+                pass
             fanins[n] |= {n}
             dp[n][0] = 1 + cost[0]
             dp[n][1] = len(fanins[n])
@@ -297,7 +336,7 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
                         graph.add_node(f"{n}_{sn}", **attr)
                     mapping[sn] = f"{n}_{sn}"
             g = nx.relabel_nodes(subgraph_opt, mapping)
-            graph.add_edges_from(g.edges.data())
+            add_edges(graph, g.edges.data())
             # remove nodes in original cone
             lc = ','.join(map(str, sorted(cut))) + f'|{n}'
             cone = all_cones[lc].copy()
@@ -312,7 +351,8 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
                     if graph.out_degree(pre) == 1:
                         unloaded.append(pre)
                 if cur == n:
-                    graph.add_edges_from(((new_root, suc) for suc in graph.successors(cur)))
+                    sucs = set(graph.successors(cur))
+                    add_edges(graph, ((new_root, suc) for suc in sucs))
                 graph.remove_node(cur)
                 if cur == n and new_root not in ['true', 'false']:
                     nx.relabel_nodes(graph, {new_root: cur}, copy=False)
@@ -332,10 +372,12 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
                     if graph.nodes[cur]['output']:
                         old = record_ins[cur_ins]
                         record_ins[cur_ins] = cur
-                        graph.add_edges_from(((cur, suc) for suc in graph.successors(old)))
+                        sucs = set(graph.successors(old))
+                        add_edges(graph, ((cur, suc) for suc in sucs))
                         graph.remove_node(old)
                     else:
-                        graph.add_edges_from(((record_ins[cur_ins], suc) for suc in graph.successors(cur)))
+                        sucs = set(graph.successors(cur))
+                        add_edges(graph, ((record_ins[cur_ins], suc) for suc in sucs))
                         graph.remove_node(cur)
                 else:
                     record_ins[cur_ins] = cur
