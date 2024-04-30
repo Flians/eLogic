@@ -55,9 +55,10 @@ def process_not_buf(graph: nx.DiGraph):
 
 
 if __name__ == '__main__':
+    K = 6
     benchmarks = ['adder', 'arbiter', 'bar', 'cavlc', 'c432', 'c499', 'c1355', 'c6288', 'ctrl', 'div', 'i2c', 'max', 'router', 'sin', 'sqrt']
     for case in benchmarks:
-        print(f'nohup python3 -u mig/main.py --K 8 --obj 0 --benchmark {case} > egg_depth_K8_{case}.log 2>&1 &')
+        print(f'nohup python3 -u mig/main.py --K {K} --obj 0 --benchmark {case} > egg_depth_K{K}_{case}.log 2>&1 &')
     print()
     for case in benchmarks:
-        print(f'nohup python3 -u mig/main.py --K 8 --obj 1 --benchmark {case} > egg_area_K8_{case}.log 2>&1 &')
+        print(f'nohup python3 -u mig/main.py --K {K} --obj 1 --benchmark {case} > egg_area_K{K}_{case}.log 2>&1 &')
