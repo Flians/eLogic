@@ -307,9 +307,11 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
                     cost[1] |= fanins[pre]
                 cost[1] = len(cost[1]) + final_cost[1]
                 if (obj_area and (cost[1] < dp[n][1] or (cost[1] == dp[n][1] and cost[0] < dp[n][0]))) or (obj_area is False and cost < dp[n]):
-                    dp[n] = cost
-                    best_cut = cut.copy()
-                    best_expr = expr_opt
+                    cost[1] += len({nn for nn in subgraph if nn != n and graph.nodes[nn]['type'] == 'M' and graph.out_degree(nn) != subgraph.out_degree(nn)})
+                    if (obj_area and (cost[1] < dp[n][1] or (cost[1] == dp[n][1] and cost[0] < dp[n][0]))) or (obj_area is False and cost < dp[n]):
+                        dp[n] = cost
+                        best_cut = cut.copy()
+                        best_expr = expr_opt
         if best_cut:
             subgraph_opt = graph_from_egg_expr(best_expr)
             # add sub circuit
