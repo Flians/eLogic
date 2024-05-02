@@ -25,9 +25,16 @@ def add_edges(graph: nx.DiGraph, ebunch_to_add) -> Dict:
         if graph.has_edge(u, v):
             if 'type' in graph.nodes[v] and graph.nodes[v]['type'] == 'M':
                 sucs = set(graph.successors(v))
-                graph.remove_node(v)
-                removed[v] = u
-                removed.update(add_edges(graph, ((u, suc) for suc in sucs)))
+                if graph.nodes[v]['output']:
+                    graph.nodes[u]['output'] = True
+                    graph.remove_node(v)
+                    nx.relabel_nodes(graph, {u: v})
+                    removed[u] = v
+                    removed.update(add_edges(graph, ((v, suc) for suc in sucs)))
+                else:
+                    graph.remove_node(v)
+                    removed[v] = u
+                    removed.update(add_edges(graph, ((u, suc) for suc in sucs)))
                 continue
             else:
                 print(f"??? Edge ({u},{v}) exists.")
@@ -51,9 +58,17 @@ def add_edges(graph: nx.DiGraph, ebunch_to_add) -> Dict:
             sucs = set(graph.successors(v))
             third_in = set(graph.predecessors(v)) - {'false', 'true'}
             assert len(third_in) == 1
-            graph.remove_node(v)
-            removed[v] = list(third_in)[0]
-            removed.update(add_edges(graph, ((removed[v], suc) for suc in sucs)))
+            third_in = list(third_in)[0]
+            if graph.nodes[v]['output']:
+                graph.nodes[third_in]['output'] = True
+                graph.remove_node(v)
+                nx.relabel_nodes(graph, {third_in: v})
+                removed[third_in] = v
+                removed.update(add_edges(graph, ((v, suc) for suc in sucs)))
+            else:
+                graph.remove_node(v)
+                removed[v] = third_in
+                removed.update(add_edges(graph, ((third_in, suc) for suc in sucs)))
     return removed
 
 
@@ -185,7 +200,7 @@ def kcuts_kcones_PIs_POs(graph: nx.DiGraph, K: int) -> tuple[Dict[Any, List[Set]
             inputs.add(n)
         else:
             indegree_map[n] = ind
-        if graph.out_degree(n) == 0:
+        if graph.nodes[n]['output']:
             outputs.add(n)
 
     return all_cuts, all_cones, dp, fanins, inputs, outputs, indegree_map
@@ -289,7 +304,6 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
                 '''
                 expr = graph_to_egg_expr(subgraph, cut)
                 if not expr:
-                    print(f"??? {n} {cut} {cone}")
                     continue
                 expr_opt, inital_cost, final_cost = mig_egg.simplify(expr[0])  # type: ignore
                 if obj_area:
@@ -344,6 +358,8 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
             unloaded = [n]
             while unloaded:
                 cur = unloaded.pop()
+                if cur != n and graph.nodes[cur]['output']:
+                    continue
                 for pre in subgraph.predecessors(cur):
                     if pre in sc_io:
                         continue
@@ -355,8 +371,6 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
                     add_edges(graph, ((new_root, suc) for suc in sucs))
                 else:
                     graph.remove_node(cur)
-                del all_cuts[cur]
-                del fanins[cur]
                 if cur == n and new_root not in sc_io:
                     nx.relabel_nodes(graph, {new_root: cur}, copy=False)
                     cur = new_root
