@@ -18,6 +18,24 @@ def mig_cec(cpath: str, opath: str) -> bool:
     return cec
 
 
+def del_buf(graph: nx.DiGraph, n: str):
+    if n not in graph:
+        return
+    pres = list(graph.predecessors(n))
+    assert len(pres) == 1
+    pre = pres[0]
+    sucs = set(graph.successors(n))
+    graph.remove_node(n)
+    for suc in sucs:
+        if graph.has_edge(pre, suc):
+            suc_pres = list(set(graph.predecessors(suc)) - {pre})
+            assert len(suc_pres) == 1
+            graph.remove_edge(suc_pres[0], suc)
+            del_buf(graph, suc)
+        else:
+            graph.add_edge(pre, suc)
+
+
 def process_not_buf(graph: nx.DiGraph):
     undriven = set()
     name_mapping = {}
@@ -55,8 +73,8 @@ def process_not_buf(graph: nx.DiGraph):
 
 
 if __name__ == '__main__':
-    K = 6
-    benchmarks = ['adder', 'arbiter', 'bar', 'cavlc', 'c432', 'c499', 'c1355', 'c6288', 'ctrl', 'div', 'i2c', 'max', 'router', 'sin', 'sqrt']
+    K = 8
+    benchmarks = ['adder', 'arbiter', 'bar', 'cavlc', 'c432', 'c499', 'c1355', 'c6288', 'ctrl', 'dec', 'div', 'i2c', 'int2float', 'max', 'multiplier', 'priority', 'sin', 'sqrt']
     for case in benchmarks:
         print(f'nohup python3 -u mig/main.py --K {K} --obj 0 --benchmark {case} > egg_depth_K{K}_{case}.log 2>&1 &')
     print()
