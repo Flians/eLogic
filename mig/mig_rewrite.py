@@ -54,21 +54,31 @@ def add_edges(graph: nx.DiGraph, ebunch_to_add) -> Dict:
         datadict.update(dd)
         graph._succ[u][v] = datadict
         graph._pred[v][u] = datadict
-        if graph.has_edge('false', v) and graph.has_edge('true', v):
-            sucs = set(graph.successors(v))
-            third_in = set(graph.predecessors(v)) - {'false', 'true'}
-            assert len(third_in) == 1
-            third_in = list(third_in)[0]
-            if graph.nodes[v]['output']:
-                graph.nodes[third_in]['output'] = True
-                graph.remove_node(v)
-                nx.relabel_nodes(graph, {third_in: v})
-                removed[third_in] = v
-                removed.update(add_edges(graph, ((v, suc) for suc in sucs)))
-            else:
-                graph.remove_node(v)
-                removed[v] = third_in
-                removed.update(add_edges(graph, ((third_in, suc) for suc in sucs)))
+    return removed
+
+
+def mig01(graph: nx.DiGraph):
+    sucs0 = set(graph.successors('false'))
+    sucs1 = set(graph.successors('true'))
+    nodes = set.intersection(sucs0, sucs1)
+    removed = {}
+    for n in nodes:
+        third_in = set(graph.predecessors(n)) - {'false', 'true'}
+        assert len(third_in) == 1
+        third_in = list(third_in)[0]
+        sucs = set(graph.successors(n))
+        if graph.nodes[n]['output']:
+            if graph.nodes[third_in]['output']:
+                pass
+            graph.nodes[third_in]['output'] = True
+            graph.remove_node(n)
+            nx.relabel_nodes(graph, {third_in: n})
+            removed[third_in] = n
+            removed.update(add_edges(graph, ((n, suc) for suc in sucs)))
+        else:
+            graph.remove_node(n)
+            removed[n] = third_in
+            removed.update(add_edges(graph, ((third_in, suc) for suc in sucs)))
     return removed
 
 
@@ -91,33 +101,6 @@ def extract_subgraph(graph: nx.DiGraph, cone: set, cut: set, root: str) -> nx.Di
                 unloaded.append(fi)
         new_subgraph.remove_node(n)
     return new_subgraph
-
-
-def transitive_fanin(graph: nx.DiGraph, ns, ntypes=None):
-    """
-    Compute the transitive fanin of a node.
-
-    Parameters
-    ----------
-    ns : str or iterable of str
-            Node(s) to compute transitive fanin for.
-
-    Returns
-    -------
-    set of str
-            Nodes in transitive fanin.
-
-    """
-    if isinstance(ns, str):
-        ns = [ns]
-    gates = set()
-    for n in ns:
-        gates |= nx.ancestors(graph, n)
-    if ntypes:
-        if isinstance(ntypes, str):
-            ntypes = [ntypes]
-        gates = {n for n in gates if graph.nodes[n]["type"] in ntypes}
-    return gates
 
 
 def distances_from_PIs_PO(graph: nx.DiGraph) -> dict:
@@ -206,68 +189,9 @@ def kcuts_kcones_PIs_POs(graph: nx.DiGraph, K: int) -> tuple[Dict[Any, List[Set]
     return all_cuts, all_cones, dp, fanins, inputs, outputs, indegree_map
 
 
-def update_kcuts_kcones(graph: nx.DiGraph, K: int, starts: set = {}, all_cuts: Dict[Any, List[Set]] = {}, all_cones: Dict[str, set[int]] = {}, fanins: Dict[str, set[str]] = {}, dp: Dict[str, list] = {}) -> tuple[Dict[Any, List[Set]], Dict[str, Set[int]]]:  # type: ignore
-    flag = False
-    stop_times = defaultdict(lambda: 0)
-    for n in nx.topological_sort(graph):
-        if graph.nodes[n]['type'] == 'M' and graph.in_degree(n) != 3:
-            pass
-        if starts and n in starts:
-            flag = True
-        if n in all_cuts and ((starts and not flag) or stop_times[n] == graph.in_degree(n)):
-            if fanins:
-                fanins[n] = {n} if graph.nodes[n]['type'] == 'M' else set()
-                for pre in graph.predecessors(n):
-                    fanins[n] |= fanins[pre]
-            for suc in graph.successors(n):
-                stop_times[suc] += 1
-            continue
-        it = graph.predecessors(n)
-        pre = next(it, None)
-        is_changed = False
-        if pre is not None:
-            cuts = copy.deepcopy(all_cuts[pre])
-            partial_cones: Dict[str, Set[int]] = {}
-            for a_cut in cuts:
-                la = ','.join(map(str, sorted(a_cut))) + f'|{pre}'
-                lc = ','.join(map(str, sorted(a_cut))) + f'|{n}'
-                partial_cones[lc] = all_cones[la] | {n, pre}
-            if fanins:
-                fanins[n] = {n} if graph.nodes[n]['type'] == 'M' else set()
-                fanins[n] |= fanins[pre]
-            for pre2 in it:
-                merged_cuts = []
-                if fanins:
-                    fanins[n] |= fanins[pre2]
-                cuts2 = copy.deepcopy(all_cuts[pre2])
-                for a_cut, b_cut in product(cuts, cuts2):
-                    merged_cut = a_cut | b_cut
-                    if len(merged_cut) <= K:
-                        merged_cuts.append(merged_cut)
-                        la = ','.join(map(str, sorted(a_cut))) + f'|{n}'
-                        lb = ','.join(map(str, sorted(b_cut))) + f'|{pre2}'
-                        lc = ','.join(map(str, sorted(merged_cut))) + f'|{n}'
-                        partial_cones[lc] = partial_cones[la] | all_cones[lb] | {pre, pre2}
-                cuts = merged_cuts
-                pre = pre2
-            for a_cut in cuts:
-                lc = ','.join(map(str, sorted(a_cut))) + f'|{n}'
-                if not is_changed and (lc not in all_cones or all_cones[lc] != partial_cones[lc]):
-                    is_changed = True
-                all_cones[lc] = partial_cones[lc]
-            cuts += [{n}]
-        else:
-            cuts = [{n}]
-        # update cuts
-        if is_changed or n not in all_cuts or len(all_cuts[n]) != len(cuts):
-            all_cuts[n] = cuts
-        else:
-            for suc in graph.successors(n):
-                stop_times[suc] += 1
-        all_cones[f'{n}|{n}'] = {n}
-
-
-def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
+def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area: bool = False, independent: bool = False):
+    # clean 0-1-in
+    mig01(graph)
     # initialization
     all_cuts, all_cones, dp, fanins, inputs, outputs, indegree_map = kcuts_kcones_PIs_POs(graph, K=K)
     all_nodes_topo = list(nx.topological_sort(graph))
@@ -278,11 +202,14 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
             continue
         # update K-cuts, all_cones, dp, fanins
         if best_cut:
-            # update_kcuts_kcones(graph, K, starts=best_cut, all_cuts=all_cuts, all_cones=all_cones, fanins=fanins, dp=dp)  # type: ignore
+            # clean 0-1-in
+            mig01(graph)
             all_cuts, all_cones, dp, fanins, _, _, _ = kcuts_kcones_PIs_POs(graph, K=K)
         cuts = copy.deepcopy(all_cuts[n])
+        cuts.sort(reverse=True, key=lambda x: len(x))
         best_cut = set()
-        for cut in cuts:
+        for ci in range(min(10, len(cuts))):
+            cut = cuts[ci]
             lc = ','.join(map(str, sorted(cut))) + f'|{n}'
             cone = all_cones[lc].copy()
             nonleaves = cone - cut
@@ -290,18 +217,17 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
                 continue  # {y} = M(a,b,c) covered by {y,a,b,c}
             else:
                 subgraph: nx.DiGraph = extract_subgraph(graph, cone, cut, n)
-                '''
                 # check if inner nodes are used out of the subgraph
-                flag = False
-                for inn in subgraph:
-                    if subgraph.nodes[inn]['type'] == 'M' and subgraph.in_degree(inn) not in [0, 3]:
-                        raise Exception(f"Maj node {inn} has less than 3 inputs")
-                    if inn != n and subgraph.out_degree(inn) != graph.out_degree(inn) and graph.in_degree(inn) != 0:
-                        flag = True
-                        break
-                if flag:
-                    continue
-                '''
+                if independent:
+                    iflag = False
+                    for inn in subgraph:
+                        if subgraph.nodes[inn]['type'] == 'M' and subgraph.in_degree(inn) not in [0, 3]:
+                            raise Exception(f"Maj node {inn} has less than 3 inputs")
+                        if inn != n and subgraph.out_degree(inn) != graph.out_degree(inn) and graph.in_degree(inn) != 0:
+                            iflag = True
+                            break
+                    if iflag:
+                        continue
                 expr = graph_to_egg_expr(subgraph, cut)
                 if not expr:
                     continue
@@ -321,7 +247,7 @@ def rewrite_dp(graph: nx.DiGraph, K: int = 8, obj_area=False):
                     cost[1] |= fanins[pre]
                 cost[1] = len(cost[1]) + final_cost[1]
                 if (obj_area and (cost[1] < dp[n][1] or (cost[1] == dp[n][1] and cost[0] < dp[n][0]))) or (obj_area is False and cost < dp[n]):
-                    cost[1] += len({nn for nn in subgraph if nn != n and graph.nodes[nn]['type'] == 'M' and graph.out_degree(nn) != subgraph.out_degree(nn)})
+                    cost[1] += len({nn for nn in subgraph if nn != n and graph.nodes[nn]['type'] == 'M' and subgraph.in_degree(nn) > 1 and graph.out_degree(nn) != subgraph.out_degree(nn)})
                     if (obj_area and (cost[1] < dp[n][1] or (cost[1] == dp[n][1] and cost[0] < dp[n][0]))) or (obj_area is False and cost < dp[n]):
                         dp[n] = cost
                         best_cut = cut.copy()

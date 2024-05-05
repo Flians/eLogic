@@ -15,7 +15,7 @@ import MIGPy  # type: ignore
 import argparse
 
 benchmarks = [
-    ['cavlc', 'c432', 'adder', 'arbiter', 'bar', 'c499', 'c1355', 'c6288', 'ctrl', 'div', 'i2c', 'max', 'router', 'sin', 'sqrt'],
+    ['adder', 'arbiter', 'bar', 'cavlc', 'c432', 'c499', 'c1355', 'c6288', 'ctrl', 'dec', 'div', 'i2c', 'int2float', 'max', 'multiplier', 'priority', 'sin', 'sqrt'],
     ['full_adder_1', '4gt10', 'alu', 'c17', 'decoder_2_4', 'decoder_3_8', 'graycode4', 'ham3_28', 'mux_4'],
     ['4_49_7', 'graycode6_11', 'mod5adder_66', 'hwb8_64'] + [f'intdiv{i}' for i in range(4, 6)],
     [f'intdiv{i}' for i in range(6, 11)],
@@ -23,13 +23,13 @@ benchmarks = [
 
 if __name__ == '__main__':
     argParser = argparse.ArgumentParser()
-    argParser.add_argument("--K", type=int, default=8, choices=(4, 6, 8), help="The input size of the feasible K-cut")
-    argParser.add_argument("--obj", type=int, default=0, choices=(0, 1), help="0: depth, 1: area")
-    argParser.add_argument("--benchmark", type=int, default=0, choices=(0, 1, 2), help="the index of the benchmark")
+    argParser.add_argument("--K", type=int, default=6, choices=(4, 6, 8), help="The input size of the feasible K-cut")
+    argParser.add_argument("--obj", type=int, default=1, choices=(0, 1), help="0: depth, 1: area")
+    argParser.add_argument("--benchmark", type=str, default='cavlc', help="the index of the benchmark")
     args = argParser.parse_args()
 
     obj_area = args.obj == 1
-    benchmark = benchmarks[args.benchmark]
+    benchmark = [args.benchmark]  # benchmarks[args.benchmark]
     print(f">>> The objective is {'area' if obj_area else 'depth'} oriented under K={args.K}-cuts.\n")
 
     for case in benchmark:
@@ -50,6 +50,7 @@ if __name__ == '__main__':
 
         timer = time.time()
         rewrite_dp(cir.graph, K=args.K, obj_area=obj_area)
+        rewrite_dp(cir.graph, K=args.K, obj_area=obj_area, independent=True)
         opt_time = time.time() - timer
         cir.remove_unloaded()
         with open(f'{output_dir}/{case}_opt.v', 'w', encoding='utf-8') as vfile:
