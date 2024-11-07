@@ -6,3 +6,7 @@
 	path = tools/mockturtle
 	url = https://github.com/lsils/mockturtle.git
 	branch = master
+[submodule "tools/symengine"]
+	path = tools/symengine
+	url = https://github.com/symengine/symengine.git
+	branch = master

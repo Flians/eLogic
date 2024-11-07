@@ -16,3 +16,5 @@ else()
 endif()
 
 add_subdirectory(tools)
+add_subdirectory(mig_egg)
+add_subdirectory(emig)

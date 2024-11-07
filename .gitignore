@@ -2,3 +2,4 @@
 target/
 results/
 Cargo.lock
+build

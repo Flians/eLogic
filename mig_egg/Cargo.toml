@@ -3,8 +3,23 @@ name = "mig_egg"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[build-dependencies]
+cxx-build = "1.0"
+
+[lib]
+name = "mig_egg"
+crate-type = ["staticlib"]
 
 [dependencies]
+cxx = "1.0"
 egg = { version = "0.9.5", features = ["lp"] }
 pyo3 = { version = "0.20", features = ["extension-module"] }
+
+rustc-hash = "1.1.0"
+indexmap = "2.0.0"
+rpds = "1.1.0"
+egraph-serialize = "0.2.0"
+ordered-float = "3"
+fxhash = "0.2.1"
+hashbrown = "0.12.3"
+log = "0.4.20"
