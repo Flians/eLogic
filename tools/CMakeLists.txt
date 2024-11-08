@@ -20,4 +20,4 @@ target_link_libraries(MIGPy PUBLIC mockturtle)
 
 set(BUILD_TESTS OFF)
 set(BUILD_BENCHMARKS OFF)
-add_subdirectory(symengine)
+# add_subdirectory(symengine)

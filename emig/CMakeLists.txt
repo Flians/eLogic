@@ -7,3 +7,6 @@ target_link_libraries(emig PUBLIC mig_egg mockturtle experiments fmt ${Python_LI
 target_include_directories(emig PRIVATE ${Python_INCLUDE_DIRS})
 add_dependencies(emig mig_egg mockturtle Python::Python)
 
+add_executable(baseline ${CMAKE_CURRENT_SOURCE_DIR}/baseline.cpp)
+target_link_libraries(baseline PUBLIC mockturtle experiments fmt)
+add_dependencies(baseline mockturtle)
