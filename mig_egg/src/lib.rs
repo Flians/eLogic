@@ -293,7 +293,8 @@ mod ffi {
         // bef_dep: u32,
         // bef_size: u32,
         // bef_invs: u32,
-        aft_expr: String,
+        aft_expr: *mut c_char,
+        aft_expr_len: usize,
         aft_dep: u32,
         aft_size: u32,
         aft_invs: u32,
@@ -345,7 +346,12 @@ fn free_string(s: *mut c_char) {
 fn free_ccost(cost: *mut ffi::CCost) {
     if !cost.is_null() {
         unsafe {
-            let _ = Box::from_raw(cost);
+            // println!("{}", (*cost).aft_expr);
+            // Convert the raw pointer back to Box<MyStruct> to drop it
+            let my_struct = Box::from_raw(cost);
+
+            // Free the CString memory
+            free_string(my_struct.aft_expr);
         }
     }
 }
@@ -401,8 +407,10 @@ pub fn simplify_mig(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost {
     let (best_cost, best) =
         egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &vars_))
             .find_best(root);
+    let aft_expr = best.to_string();
     let cost: ffi::CCost = ffi::CCost {
-        aft_expr: best.to_string(),
+        aft_expr: CString::new(aft_expr.clone()).unwrap().into_raw(),
+        aft_expr_len: aft_expr.len(),
         aft_dep: best_cost.dep,
         aft_size: best_cost.aom,
         aft_invs: best_cost.inv,
@@ -731,7 +739,7 @@ mod tests {
             rules,
             &["(M x 0 (M y x (M u 0 v)))", "(M (M y x 0) x (M 0 u v))"],
         );
-        */
+
         simplify("(& 0 1)");
         simplify("(& x 1)");
         simplify("(& x (~ 1))");
@@ -749,6 +757,8 @@ mod tests {
         // simplify("(M x3 (M x3 x4 (M x5 x6 x7)) x1)");
         simplify("(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))");
         simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))");
+        */
+        simplify("(M 0 (~ (M 0 (~ a) b)) (M 0 c (~ d)))");
     }
 
     #[test]

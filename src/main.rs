@@ -2,7 +2,7 @@
 
 use mignite::mig4::Mig;
 use mignite::mig4_egg::simplify;
-use mignite::mig4_egg::Prop;
+use mignite::mig4_egg::MIG;
 use mignite::mig4_map::Mapper;
 
 fn compute_cuts(
@@ -84,19 +84,19 @@ fn compute_cuts(
     }
 }
 
-pub(crate) fn to_sexp(nodes: Vec<Prop>) -> Mig {
+pub(crate) fn to_sexp(nodes: Vec<MIG>) -> Mig {
     let last = nodes.len() - 1;
     let mut mig = Mig::default();
     to_sexp_rec(nodes, last, &mut |_| None);
     mig
 }
 
-fn to_sexp_rec(nodes: Vec<Prop>, i: usize, f: &mut impl FnMut(usize) -> Option<String>) {
+fn to_sexp_rec(nodes: Vec<MIG>, i: usize, f: &mut impl FnMut(usize) -> Option<String>) {
     let node = &nodes[i];
     let op = node.to_string();
     match node {
-        Prop::Maj(..) => 1 as usize,
-        Prop::Not(..) => 0 as usize,
+        MIG::Maj(..) => 1 as usize,
+        MIG::Not(..) => 0 as usize,
         _ => 0 as usize,
     };
     for j in 0..=i {
@@ -108,7 +108,7 @@ fn to_sexp_rec(nodes: Vec<Prop>, i: usize, f: &mut impl FnMut(usize) -> Option<S
 }
 
 fn main() {
-    let best = simplify(&["(M x3 (M x3 x4 (M x5 x6 x7)) x1)"], None);
+    let (best, inital_cost, best_cost) = simplify(&"(M x3 (M x3 x4 (M x5 x6 x7)) x1)", None, None);
     to_sexp_rec(best.as_ref().to_vec(), best.as_ref().len() - 1, &mut |_| {
         None
     });
@@ -126,7 +126,7 @@ fn main() {
         &[0, 0, 0, 0, 0, 0],
     ];
 
-    let mut mig = Mig::from_aiger("tests/adder1.aag");
+    let mut mig = Mig::from_aiger("data/adder.aag");
 
     mig.cleanup_graph();
 

@@ -149,7 +149,15 @@ namespace mockturtle {
       if (this->is_complemented(_root)) {
         _original_expr += ")";
       }
-      _original_size = _nodes.size() - _num_leaves - _num_constants;
+      uint32_t cur_size = _nodes.size();
+      _original_size = cur_size - _num_leaves - _num_constants;
+      _mffc_size = 1;
+      cur_size -= 1; // except the root
+      for (uint32_t ni = _num_constants + _num_leaves; ni < cur_size; ++ni) {
+        if (this->fanout_size(_nodes[ni]) <= _out_degs[ni]) {
+          ++_mffc_size;
+        }
+      }
     }
 
   public:
@@ -191,12 +199,12 @@ namespace mockturtle {
         exp_map.set_bad(_original_expr);
     }
 
-    static signal rebuild(Ntk &ntk, const ::rust::String &expr, const std::vector<node> &leaves) {
+    static signal rebuild(Ntk &ntk, const char *aft_expr, const std::uint32_t aft_expr_len, const std::vector<node> &leaves) {
       const signal &const_false = ntk.get_constant(false);
 
       const signal gap(-1);
       std::stack<signal> signal_stack;
-      for (auto start = expr.begin(), end = expr.end(); start < end; ++start) {
+      for (auto start = aft_expr, end = aft_expr + aft_expr_len; start < end; ++start) {
         // skip space
         while (start < end && std::isspace(*start)) {
           ++start;
@@ -226,6 +234,10 @@ namespace mockturtle {
             new_node = ntk.create_maj(children[0], children[1], children[2]);
           } else {
             assert(false);
+          }
+          uint32_t clevel = 0;
+          if constexpr (has_level_v<Ntk>) {
+            clevel = ntk.level(ntk.get_node(new_node));
           }
           signal_stack.push(new_node);
         } else {
@@ -270,10 +282,12 @@ namespace mockturtle {
       _node_to_index[n] = static_cast<uint32_t>(_nodes.size());
       _nodes.push_back(n);
       _prefix_exprs.push_back(expr);
+      _out_degs.push_back(0);
     }
 
     size_t traverse(node const &n) {
       if (this->visited(n) == this->trav_id()) {
+        ++_out_degs[node_to_index(n)];
         return 0;
       }
 
@@ -306,7 +320,10 @@ namespace mockturtle {
 
       cur_node_expr += ")";
 
+      if (cur_node_expr.size() == 3) has_bug = 1;
+
       add_node(n, cur_node_expr);
+      ++_out_degs[node_to_index(n)];
       this->set_visited(n, this->trav_id());
       return depth + 1;
     }
@@ -317,10 +334,14 @@ namespace mockturtle {
     std::vector<node> _nodes;
     phmap::flat_hash_map<node, uint32_t> _node_to_index;
     std::vector<std::string> _prefix_exprs;
+    std::vector<uint32_t> _out_degs;
     unsigned _original_depth{0};
     unsigned _original_size{0};
     std::string _original_expr;
+    uint32_t _mffc_size;
     signal _root;
+
+    bool has_bug{0};
   };
 
   template <class T>
