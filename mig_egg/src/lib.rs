@@ -163,7 +163,7 @@ impl<'a> egg::CostFunction<MIG> for MIGCostFn_dsi<'a> {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ConstantFold;
 impl egg::Analysis<MIG> for ConstantFold {
     type Data = Option<(u8, egg::PatternAst<MIG>)>;
@@ -412,7 +412,6 @@ pub fn simplify_mig(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost {
     Box::into_raw(Box::new(cost))
 }
 
-use egraph_serialize::*;
 use ordered_float::NotNan;
 use rustc_hash::FxHashMap;
 
@@ -441,9 +440,9 @@ pub struct GreedyDagExtractor<'a, CF: egg::CostFunction<L>, L: Language, N: egg:
 }
 
 struct CostSet {
-    costs: FxHashMap<ClassId, Cost>,
+    costs: FxHashMap<egraph_serialize::ClassId, Cost>,
     total: Cost,
-    choice: NodeId,
+    choice: egraph_serialize::NodeId,
 }
 
 use std::cmp::Ordering;
@@ -622,6 +621,118 @@ where
     */
 }
 
+use std::fmt::Display;
+use std::fs::File;
+use std::io::BufWriter;
+use std::path::PathBuf;
+
+pub fn egg_to_serialized_egraph<L, A>(egraph: &egg::EGraph<L, A>) -> egraph_serialize::EGraph
+where
+    L: Language + Display,
+    A: egg::Analysis<L>,
+{
+    let mut out = egraph_serialize::EGraph::default();
+    for class in egraph.classes() {
+        for (i, node) in class.nodes.iter().enumerate() {
+            out.add_node(
+                format!("{}.{}", class.id, i),
+                egraph_serialize::Node {
+                    op: node.to_string(),
+                    children: node
+                        .children()
+                        .iter()
+                        .map(|id| egraph_serialize::NodeId::from(format!("{}.0", id)))
+                        .collect(),
+                    eclass: egraph_serialize::ClassId::from(format!("{}", class.id)),
+                    cost: egraph_serialize::Cost::new(1.0).unwrap(),
+                    subsumed: false,
+                },
+            )
+        }
+    }
+    out
+}
+
+pub fn find_root_nodes(egraph: &CEGraph) -> Vec<Id> {
+    let mut roots = Vec::new();
+    let mut has_parent = std::collections::HashSet::new();
+
+    // First collect all nodes that are children
+    for class in egraph.classes() {
+        for node in &class.nodes {
+            for child in node.children() {
+                has_parent.insert(child);
+            }
+        }
+    }
+
+    // Then find nodes that aren't children of any other node
+    // and contain a Maj node (since that's our root operation)
+    for class in egraph.classes() {
+        if !has_parent.contains(&class.id) && class.nodes.iter().any(|n| matches!(n, MIG::Maj(_))) {
+            roots.push(class.id);
+        }
+    }
+
+    // If no roots found, look for the highest-level Maj node
+    if roots.is_empty() {
+        for class in egraph.classes() {
+            if class.nodes.iter().any(|n| matches!(n, MIG::Maj(_))) {
+                roots.push(class.id);
+                break;
+            }
+        }
+    }
+
+    roots
+}
+
+/// Save the serialized e-graph to a JSON file and include root e-class IDs.
+fn save_serialized_egraph_to_json(
+    serialized_egraph: &egraph_serialize::EGraph,
+    file_path: &PathBuf,
+    root_id: &usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let file = File::create(&file_path)?;
+    let writer = BufWriter::new(file);
+    serde_json::to_writer_pretty(writer, &serialized_egraph)?;
+
+    let json_string = std::fs::read_to_string(&file_path)?;
+    let mut json_data: serde_json::Value = serde_json::from_str(&json_string)?;
+    // Store root_id as a vector
+    json_data["root_eclasses"] = serde_json::json!([root_id.to_string()]);
+
+    let file = File::create(&file_path)?;
+    let writer = BufWriter::new(file);
+    serde_json::to_writer_pretty(writer, &json_data)?;
+
+    Ok(())
+}
+
+pub fn process_json_prop_cost(json_str: &str) -> String {
+    let mut data: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+
+    if let Some(nodes) = data
+        .get_mut("nodes")
+        .and_then(|nodes| nodes.as_object_mut())
+    {
+        for node in nodes.values_mut() {
+            let op = node["op"].as_str().unwrap();
+            let cost = node["cost"].as_f64().unwrap();
+
+            let new_cost = match op {
+                "M" => 1.0,
+                "~" => 0.0,
+                _ => cost,
+            };
+
+            node["cost"] = serde_json::to_value(new_cost).unwrap();
+        }
+    }
+
+    serde_json::to_string_pretty(&data).unwrap()
+}
+
 // use pyo3::prelude::*;
 /// parse an expression, simplify it using egg, and pretty print it back out
 // #[pyfunction]
@@ -657,6 +768,54 @@ pub fn simplify(s: &str) -> (String, CCost, CCost) {
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
 
     /*
+    // Create a new egraph for each expression
+    let mut initial_egraph = CEGraph::default();
+    let root_id = initial_egraph.add_expr(&expr);
+    println!("Root ID found when adding expr: {:?}", root_id);
+    initial_egraph.rebuild();
+    //find the root nodes
+    let root_nodes = find_root_nodes(&initial_egraph.clone());
+    println!("Root nodes found by traversing: {:?}", root_nodes);
+
+    // Create a runner with just this expression's root
+    let mut runner = egg::Runner::default()
+        .with_egraph(initial_egraph)
+        .with_iter_limit(5)
+        .with_node_limit(50)
+        .with_time_limit(Duration::from_secs(10));
+
+    runner.roots = vec![root_id];
+    // Run the runner with the rules
+    let runner = runner.run(all_rules);
+    let saturated_egraph = runner.egraph;
+    // make root id is runner.roots[0]
+    let root_id = runner.roots[0];
+
+    // Serialize the egraph to JSON with single root
+    let serialized_egraph = egg_to_serialized_egraph(&saturated_egraph);
+    let output_path = env::current_dir()
+        .unwrap()
+        .join(format!("rewritten_egraph_.json"));
+
+    // dump the serialized egraph to a dot file
+    // serialized_egraph.to_dot_file(output_path.with_extension("dot")).unwrap();
+    // Save with single root ID
+    save_serialized_egraph_to_json(&serialized_egraph, &output_path, &usize::from(root_id));
+
+    println!("------------------assign cost of enode-----------------");
+    let json_string = serde_json::to_string(&serialized_egraph).unwrap();
+    let cost_string = process_json_prop_cost(&json_string);
+    let mut json_data: serde_json::Value = serde_json::from_str(&cost_string).unwrap();
+    json_data["root_eclasses"] =
+        serde_json::Value::Array(vec![serde_json::Value::String(root_id.to_string())]);
+    let output_egraph_cost_json_path: PathBuf = env::current_dir()
+        .unwrap()
+        .join(format!("rewritten_egraph_cost_{}.json", i));
+    let file = File::create(&output_egraph_cost_json_path).unwrap();
+    serde_json::to_writer_pretty(file, &json_data).unwrap();
+    */
+
+    /*
     let mut visited: HashSet<&str> = HashSet::default();
     for node in expr.as_ref() {
         if let Some(var) = node.as_variable() {
@@ -664,7 +823,6 @@ pub fn simplify(s: &str) -> (String, CCost, CCost) {
         }
     }
     */
-
     let vars: [u32; 26] = [0; 26];
     let slice: &[u32] = &vars;
 

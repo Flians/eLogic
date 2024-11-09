@@ -201,9 +201,12 @@ namespace mockturtle {
       return _prefix_exprs[index];
     }
 
-    const CCost *optimize_by_egg(const std::vector<uint32_t> &leaf_levels) const {
-      // return simplify_mig(_original_expr, leaf_levels.data(), leaf_levels.size());
+    const CCost *optimize_by_egg_lib(const std::vector<uint32_t> &leaf_levels) const {
       return exp_map.insert(_original_expr, leaf_levels);
+    }
+
+    CCost *optimize_by_egg(const std::vector<uint32_t> &leaf_levels) const {
+      return simplify_mig(_original_expr, leaf_levels.data(), leaf_levels.size());
     }
 
     void feedback(bool is_bad) const {
@@ -328,7 +331,10 @@ namespace mockturtle {
 
       cur_node_expr += ")";
 
-      if (cur_node_expr.size() == 3) has_bug = 1;
+      if (cur_node_expr.size() <= 3) {
+        printf("egg_view.traverse meet dead nodes!\n");
+        has_bug = 1;
+      }
 
       add_node(n, cur_node_expr);
       ++_out_degs[node_to_index(n)];
