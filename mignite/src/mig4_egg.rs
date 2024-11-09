@@ -205,19 +205,6 @@ impl egg::Analysis<MIG> for ConstantFold {
     }
 }
 
-pub struct MigcostFnLp;
-#[cfg_attr(docsrs, doc(cfg(feature = "lp")))]
-impl egg::LpCostFunction<MIG, ConstantFold> for MigcostFnLp {
-    fn node_cost(&mut self, _egraph: &CEGraph, _eclass: egg::Id, _enode: &MIG) -> f64 {
-        let op_depth = match _enode {
-            MIG::Maj(..) => 1 as f64,
-            MIG::Not(..) => 0 as f64,
-            _ => 0 as f64,
-        };
-        op_depth
-    }
-}
-
 macro_rules! rule {
     ($name:ident, $left:literal, $right:literal) => {
         #[allow(dead_code)]
@@ -297,9 +284,8 @@ pub fn simplify(
     let root = runner.roots[0];
 
     // use an Extractor to pick the best element of the root eclass
-    let inital_cost =
-        egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, slice))
-            .find_best_cost(root);
+    let inital_cost = CCost::default();
+    // let inital_cost = egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, slice)).find_best_cost(root);
 
     // simplify the expression using a Runner, which runs the given rules over it
     runner = runner.run(rules);

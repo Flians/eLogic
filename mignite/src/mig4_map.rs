@@ -1,6 +1,9 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::HashMap, usize};
 
-use crate::mig4;
+use crate::{
+    mig4::{self, MigNode},
+    mig4_egg::{simplify, CCost},
+};
 
 use itertools::Itertools;
 use petgraph::prelude::*;
@@ -134,6 +137,170 @@ impl<'a> Mapper<'a> {
             edge_flow: vec![0.0; len],
             references: vec![0; len],
         }
+    }
+
+    #[inline]
+    pub fn cut_dep_mffc_prefixexp(&self, cut: &Cut) -> (usize, usize, String) {
+        let mut discovered: HashMap<usize, String> = cut
+            .inputs
+            .iter()
+            .enumerate()
+            .map(|(index, pi)| {
+                (
+                    *pi,
+                    String::from_utf8(vec!['a' as u8 + index as u8]).unwrap(),
+                )
+            })
+            .collect::<HashMap<usize, String>>();
+        discovered.insert(0, "0".into());
+        let mut expsi_odegs: HashMap<usize, (usize, usize)> = cut
+            .inputs
+            .iter()
+            .map(|pi| (*pi, (usize::MAX, 0 as usize)))
+            .collect::<HashMap<usize, (usize, usize)>>();
+        let mut original_expr: String = String::new();
+        let mut max_dep: usize = 0;
+        let mut cur_dep: usize = 0;
+
+        let mut stack: Vec<usize> = Vec::new();
+        stack.push(cut.output);
+        while let Some(node) = stack.last() {
+            if *node == usize::MAX {
+                cur_dep -= 1;
+                original_expr.push_str(")");
+                stack.pop(); // pop MAX flag
+                let cur_root: usize = stack.pop().unwrap(); // pop M/A root
+                let cur_expsi_odeg = expsi_odegs.get_mut(&cur_root).unwrap();
+                cur_expsi_odeg.1 += 1; // visited again
+                discovered.insert(cur_root, original_expr[cur_expsi_odeg.0..].to_string());
+                continue;
+            }
+            if discovered.contains_key(node) {
+                original_expr.push_str(" ");
+                original_expr += discovered.get(node).unwrap();
+                expsi_odegs.get_mut(&node).unwrap().1 += 1; // visited again
+                stack.pop();
+            } else {
+                cur_dep += 1;
+                max_dep = std::cmp::max(max_dep, cur_dep);
+                expsi_odegs.insert(*node, (original_expr.len(), 1)); // record the starting index
+                if *node == cut.output {
+                    original_expr.push_str("(M");
+                } else {
+                    original_expr.push_str(" (M");
+                }
+                let (x_edge, y_edge, z_edge) = self
+                    .mig
+                    .try_unwrap_majority(NodeIndex::new(*node))
+                    .expect("majority node with less than three inputs");
+                stack.push(usize::MAX);
+                let x = self.mig.edge_source(x_edge);
+                stack.push(x.index());
+                let y = self.mig.edge_source(y_edge);
+                stack.push(y.index());
+                let z = self.mig.edge_source(z_edge);
+                stack.push(z.index());
+            }
+        }
+        let mffc: usize = 1 + cut
+            .nodes
+            .iter()
+            .filter(|node| {
+                !cut.inputs.contains(node)
+                    && **node != cut.output
+                    && self.mig.output_degree(NodeIndex::new(**node))
+                        <= expsi_odegs.get(&node).unwrap().1
+            })
+            .count();
+
+        (mffc, max_dep, original_expr)
+    }
+
+    #[inline]
+    pub fn rebuild_cut(
+        &self,
+        cut: &Cut,
+        expr: &String,
+    ) -> (
+        (usize, bool),
+        Vec<NodeIndex>,
+        StableGraph<MigNode, bool, Directed>,
+    ) {
+        let const_false: usize = 0;
+        let mut signal_stack: Vec<(usize, bool)> = Vec::new();
+
+        let mut graph: StableGraph<MigNode, bool, Directed> = StableGraph::new();
+        let inputs = cut
+            .inputs()
+            .into_iter()
+            .map(|node| {
+                if node.index() == 0 {
+                    graph.add_node(MigNode::Zero)
+                } else {
+                    graph.add_node(self.mig.node_type(node))
+                }
+            })
+            .collect::<Vec<NodeIndex>>();
+
+        for start in expr.chars() {
+            // skip space
+            if start.is_whitespace() {
+                continue;
+            }
+
+            if start == '(' {
+                signal_stack.push((usize::MAX, false));
+            } else if start == ')' {
+                // 1. collect children
+                let mut children: Vec<(usize, bool)> = Vec::new();
+                while !signal_stack.is_empty() {
+                    let cid = signal_stack.pop().unwrap();
+                    if cid.0 == usize::MAX {
+                        break;
+                    }
+                    children.push(cid);
+                }
+                // 2. build node
+                let num_ins = children.len();
+                let mut new_node = (0, false);
+                if num_ins == 1 {
+                    // NOT
+                    new_node = (children[0].0, !children[0].1);
+                } else if num_ins == 2 { // AND
+                     // new_node = ntk.create_and(children[0], children[1]);
+                } else if num_ins == 3 {
+                    // MAJ
+                    // new_node = ntk.create_maj(children[0], children[1], children[2]);
+                    let new_node = graph.add_node(MigNode::Majority);
+                    for node in children {
+                        graph.add_edge(NodeIndex::new(node.0), new_node, node.1);
+                    }
+                } else {
+                    assert!(false);
+                }
+                signal_stack.push(new_node);
+            } else {
+                if start == '~' || start == 'M' || start == '&' {
+                    // pass
+                } else {
+                    if start == '0' {
+                        signal_stack.push((const_false, false));
+                    } else if start == '1' {
+                        signal_stack.push((const_false, true));
+                    } else {
+                        signal_stack
+                            .push((inputs[(start as u8 - 'a' as u8) as usize].index(), false));
+                    }
+                }
+            }
+        }
+        let new_root = signal_stack.last().unwrap();
+        (*new_root, inputs, graph)
+    }
+
+    pub fn rewrite_expr(&self, expr: &String, ori_deps: Option<&[u32]>) -> (String, CCost) {
+        let (best, inital_cost, best_cost) = simplify(&expr, ori_deps, None);
+        (best.to_string(), best_cost)
     }
 
     #[must_use]
@@ -425,6 +592,18 @@ impl<'a> Mapper<'a> {
 
                 self.cuts[node.index()] = cuts;
                 let best_cut = &self.cuts[node.index()][0];
+                let (mffc, max_dep, original_expr) = self.cut_dep_mffc_prefixexp(best_cut);
+                let (aft_expr, cost) = self.rewrite_expr(
+                    &original_expr,
+                    Some(
+                        best_cut
+                            .inputs()
+                            .map(|pi| self.depth[pi.index()] as u32)
+                            .collect::<Vec<u32>>()
+                            .as_slice(),
+                    ),
+                );
+                self.rebuild_cut(best_cut, &aft_expr);
 
                 for input in &best_cut.inputs {
                     self.references[*input] += 1;

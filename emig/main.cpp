@@ -57,6 +57,7 @@ void main_mig() {
       exp("rewrite_elo_mig", "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
 
   for (auto const &benchmark : experiments::epfl_benchmarks()) {
+    if (benchmark == "div") continue;
     fmt::print("[i] processing {}\n", benchmark);
     std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
 

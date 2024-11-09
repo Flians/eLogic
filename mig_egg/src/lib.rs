@@ -302,8 +302,6 @@ mod ffi {
 
     extern "Rust" {
         unsafe fn simplify_mig(s: &str, vars: *const u32, size: usize) -> *mut CCost;
-        fn get_vec_at(numbers: &Vec<u32>, index: usize) -> u32;
-        fn less_than(cost1: &CCost, cost2: &CCost) -> bool;
         unsafe fn free_string(s: *mut c_char);
         unsafe fn free_ccost(cost: *mut CCost);
     }
@@ -327,14 +325,6 @@ impl Ord for ffi::CCost {
     }
 }
 
-fn get_vec_at(numbers: &Vec<u32>, index: usize) -> u32 {
-    numbers[index]
-}
-
-fn less_than(cost1: &ffi::CCost, cost2: &ffi::CCost) -> bool {
-    cost1 < cost2
-}
-
 fn free_string(s: *mut c_char) {
     if !s.is_null() {
         unsafe {
@@ -347,11 +337,10 @@ fn free_ccost(cost: *mut ffi::CCost) {
     if !cost.is_null() {
         unsafe {
             // println!("{}", (*cost).aft_expr);
-            // Convert the raw pointer back to Box<MyStruct> to drop it
-            let my_struct = Box::from_raw(cost);
-
             // Free the CString memory
-            free_string(my_struct.aft_expr);
+            free_string((*cost).aft_expr);
+            // Convert the raw pointer back to Box<MyStruct> to drop it
+            let _ = Box::from_raw(cost);
         }
     }
 }
@@ -408,8 +397,12 @@ pub fn simplify_mig(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost {
         egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &vars_))
             .find_best(root);
     let aft_expr = best.to_string();
+    let aft_expr_cstring = match CString::new(aft_expr.clone()) {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
+    };
     let cost: ffi::CCost = ffi::CCost {
-        aft_expr: CString::new(aft_expr.clone()).unwrap().into_raw(),
+        aft_expr: aft_expr_cstring.into_raw(),
         aft_expr_len: aft_expr.len(),
         aft_dep: best_cost.dep,
         aft_size: best_cost.aom,

@@ -218,23 +218,32 @@ namespace mockturtle {
 
               // optimize by egg
               const auto dcost = eview.optimize_by_egg(leaf_levels);
-              const uint32_t cur_depth = dcost->aft_dep;
+              if (!dcost) {
+                // free_ccost(dcost);
+                continue;
+              }
+              const uint32_t aft_dep = dcost->aft_dep;
+              std::string aft_expr;
+              char *cur_chr = dcost->aft_expr;
+              for (std::size_t i = 0; i < dcost->aft_expr_len; ++i) {
+                aft_expr += *cur_chr++;
+              }
+              // free_ccost(dcost);
 
               // skip bad cut
-              if (!dcost || best_dep < cur_depth) {
-                free_ccost(dcost);
+              if (eview._original_expr == aft_expr || best_dep < aft_dep) {
                 continue;
               }
 
               // rewrite using egg
               const uint32_t size_bef = ntk.size();
-              const signal<Ntk> new_f = egg_view<Ntk>::rebuild(ntk, dcost->aft_expr, dcost->aft_expr_len, leaves);
+              const signal<Ntk> new_f = egg_view<Ntk>::rebuild(ntk, aft_expr.data(), aft_expr.size(), leaves);
               const int32_t nodes_added = ntk.size() - size_bef;
               const int32_t gain = mffc_size - nodes_added;
-              free_ccost(dcost);
 
               // discard if dag.root and n are the same
               if (n == ntk.get_node(new_f)) {
+                assert(nodes_added == 0);
                 continue;
               }
 
@@ -244,12 +253,12 @@ namespace mockturtle {
                 continue;
               }
 
-              if (gain > best_gain || (gain == best_gain && cur_depth < best_dep)) {
+              if (gain > best_gain || (gain == best_gain && aft_dep < best_dep)) {
                 if (best_gain != -1)
                   ntk.take_out_node(ntk.get_node(best_signal));
                 best_gain = gain;
                 best_signal = new_f;
-                best_dep = cur_depth;
+                best_dep = aft_dep;
               } else {
                 ntk.take_out_node(ntk.get_node(new_f));
               }

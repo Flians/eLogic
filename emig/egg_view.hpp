@@ -34,18 +34,26 @@ namespace mockturtle {
     }
 
   public:
-    const CCost *insert(const std::string &key) {
+    const CCost *insert(const std::string &key, const std::vector<uint32_t> &leaf_levels = {}) {
       if (is_bad(key))
         return nullptr;
 
+      uint32_t min_level = 0;
+      if (!leaf_levels.empty())
+        min_level = *std::min_element(leaf_levels.begin(), leaf_levels.end());
+      std::string key_deps = key;
+      for (auto ll : leaf_levels) {
+        key_deps += "_" + std::to_string(ll - min_level);
+      }
+
       size_t tn = table.size();
       if (tn > 100000 && tn % 100000 == 0)
-        printf(">>> %lu\n", tn);
+        std::cout << ">>> " << tn << std::endl;
 
-      auto [it, inserted] = table.try_emplace(key, nullptr, free_ccost);
+      auto [it, inserted] = table.try_emplace(key_deps, nullptr, free_ccost);
 
       if (inserted) {
-        it->second = std::unique_ptr<CCost, decltype(&free_ccost)>(simplify_mig(key, nullptr, 0), free_ccost);
+        it->second = std::unique_ptr<CCost, decltype(&free_ccost)>(simplify_mig(key, leaf_levels.data(), leaf_levels.size()), free_ccost);
       }
 
       return it->second.get();
@@ -189,9 +197,9 @@ namespace mockturtle {
       return _prefix_exprs[index];
     }
 
-    CCost *optimize_by_egg(const std::vector<uint32_t> &leaf_levels) const {
-      return simplify_mig(_original_expr, leaf_levels.data(), leaf_levels.size());
-      // return exp_map.insert(_original_expr);
+    const CCost *optimize_by_egg(const std::vector<uint32_t> &leaf_levels) const {
+      // return simplify_mig(_original_expr, leaf_levels.data(), leaf_levels.size());
+      return exp_map.insert(_original_expr, leaf_levels);
     }
 
     void feedback(bool is_bad) const {
@@ -234,10 +242,6 @@ namespace mockturtle {
             new_node = ntk.create_maj(children[0], children[1], children[2]);
           } else {
             assert(false);
-          }
-          uint32_t clevel = 0;
-          if constexpr (has_level_v<Ntk>) {
-            clevel = ntk.level(ntk.get_node(new_node));
           }
           signal_stack.push(new_node);
         } else {

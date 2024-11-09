@@ -126,7 +126,7 @@ fn main() {
         &[0, 0, 0, 0, 0, 0],
     ];
 
-    let mut mig = Mig::from_aiger("data/adder.aag");
+    let mut mig = Mig::from_aiger("tests/c17.aag");
 
     mig.cleanup_graph();
 

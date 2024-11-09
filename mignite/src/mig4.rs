@@ -12,7 +12,7 @@ pub enum MigNode {
     Majority,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Mig {
     graph: StableGraph<MigNode, bool, Directed>,
     symbol_table: HashMap<u32, String>,
@@ -234,6 +234,11 @@ impl Mig {
     #[must_use]
     pub fn output_edges(&self, node: NodeIndex) -> petgraph::stable_graph::Neighbors<bool, u32> {
         self.graph.neighbors_directed(node, Outgoing)
+    }
+
+    #[must_use]
+    pub fn output_degree(&self, node: NodeIndex) -> usize {
+        self.output_edges(node).count()
     }
 
     #[must_use]
