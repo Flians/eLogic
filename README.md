@@ -12,6 +12,8 @@ $ sudo apt install zlib1g-dev yosys
 $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 $ cargo install maturin
 $ cd mig_egg && maturin develop
+$ cd mig_egg && maturin develop # for python
+$ cargo build --release # for c++
 $ cargo add flussab-aiger
 ```
 export GRAPHVIZ_DIR="/opt/homebrew/opt/graphviz"

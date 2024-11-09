@@ -133,11 +133,13 @@ namespace mockturtle {
         /* initialize cuts for constant nodes and PIs */
         cut_manager.init_cuts();
 
+        std::vector<node<Ntk>> best_leaves;
         std::vector<uint32_t> leaf_levels;
         std::vector<node<Ntk>> leaves;
+        best_leaves.reserve(NumVars);
         leaf_levels.reserve(NumVars);
         leaves.reserve(NumVars);
-        signal<Ntk> best_signal;
+        // signal<Ntk> best_signal;
 
         const uint32_t min_depth_gap = 3;
         const uint32_t original_size = ntk.size();
@@ -147,6 +149,7 @@ namespace mockturtle {
 
           int32_t best_gain = -1;
           uint32_t best_dep = UINT32_MAX;
+          std::string best_expr_aft;
 
           /* update level for node */
           if constexpr (has_level_v<Ntk>) {
@@ -223,11 +226,7 @@ namespace mockturtle {
                 continue;
               }
               const uint32_t aft_dep = dcost->aft_dep;
-              std::string aft_expr;
-              char *cur_chr = dcost->aft_expr;
-              for (std::size_t i = 0; i < dcost->aft_expr_len; ++i) {
-                aft_expr += *cur_chr++;
-              }
+              const std::string aft_expr(dcost->aft_expr, dcost->aft_expr_len);
               // free_ccost(dcost);
 
               // skip bad cut
@@ -238,7 +237,8 @@ namespace mockturtle {
               // rewrite using egg
               const uint32_t size_bef = ntk.size();
               const signal<Ntk> new_f = egg_view<Ntk>::rebuild(ntk, aft_expr.data(), aft_expr.size(), leaves);
-              const int32_t nodes_added = ntk.size() - size_bef;
+              const uint32_t size_aft = ntk.size();
+              const int32_t nodes_added = size_aft - size_bef;
               const int32_t gain = mffc_size - nodes_added;
 
               // discard if dag.root and n are the same
@@ -249,19 +249,22 @@ namespace mockturtle {
 
               // discard if no gain
               if (gain < 0) {
-                ntk.take_out_node(ntk.get_node(new_f));
+                // ntk.take_out_node(ntk.get_node(new_f));
+                set_news_dead(ntk, size_bef, size_aft);
                 continue;
               }
 
               if (gain > best_gain || (gain == best_gain && aft_dep < best_dep)) {
-                if (best_gain != -1)
-                  ntk.take_out_node(ntk.get_node(best_signal));
+                // if (best_gain != -1) ntk.take_out_node(ntk.get_node(best_signal));
+                // best_signal = new_f;
                 best_gain = gain;
-                best_signal = new_f;
                 best_dep = aft_dep;
+                best_leaves = leaves;
+                best_expr_aft = aft_expr;
               } else {
-                ntk.take_out_node(ntk.get_node(new_f));
+                // ntk.take_out_node(ntk.get_node(new_f));
               }
+              set_news_dead(ntk, size_bef, size_aft);
             }
 
             if (cut->size() == 0 || (cut->size() == 1 && *cut->begin() != ntk.node_to_index(n)))
@@ -269,15 +272,47 @@ namespace mockturtle {
           }
 
           if (best_gain > 0 || (best_gain == 0 && best_dep < original_level)) {
+            // build the optimal sub-graph
+            const signal<Ntk> best_signal = egg_view<Ntk>::rebuild(ntk, best_expr_aft.data(), best_expr_aft.size(), best_leaves);
 
             // replace node wth the new structure
             ntk.substitute_node_no_restrash(n, best_signal);
 
             clear_cuts_fanout_rec(cuts, cut_manager, ntk.get_node(best_signal));
-          } else if (best_gain != -1) {
+          }
+          /*
+           else if (best_gain != -1) {
             ntk.take_out_node(ntk.get_node(best_signal));
           }
+          */
         });
+      }
+
+      void set_news_dead(Ntk &ntk, uint32_t size_bef, uint32_t size_aft) {
+        for (uint32_t i = size_bef; i < size_aft; ++i) {
+          set_dead(ntk, ntk.index_to_node(i));
+        }
+      }
+
+      void set_dead(Ntk &ntk, node<Ntk> const &n) {
+        /* we cannot delete CIs, constants, or already dead nodes */
+        if (n == 0 || ntk.is_ci(n) || ntk.is_dead(n))
+          return;
+
+        auto &nobj = ntk._storage->nodes[n];
+        nobj.data[0].h1 = UINT32_C(0x80000000); /* fanout size 0, but dead */
+        ntk._storage->hash.erase(nobj);
+
+        for (auto const &fn : ntk._events->on_delete) {
+          (*fn)(n);
+        }
+
+        for (auto i = 0u; i < 3u; ++i) {
+          if (ntk.fanout_size(nobj.children[i].index) == 0) {
+            continue;
+          }
+          ntk.decr_fanout_size(nobj.children[i].index);
+        }
       }
 
       int32_t measure_mffc_ref(node<Ntk> const &n, cut_t const *cut) {
