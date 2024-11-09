@@ -9,5 +9,5 @@ edition = "2021"
 
 [dependencies]
 mignite = { path = "mignite" }
-egg = { version = "0.9.5", features = ["lp"] }
-# mig_egg = { path = "mig_egg", version = "0.1.0"}
+# mig_egg = { path = "mig_egg"}
+egg = { version = "0.9.5"}# , features = ["lp"] }

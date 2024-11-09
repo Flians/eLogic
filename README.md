@@ -12,8 +12,25 @@ $ sudo apt install zlib1g-dev yosys
 $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 $ cargo install maturin
 $ cd mig_egg && maturin develop
+$ cargo add flussab-aiger
 ```
+export GRAPHVIZ_DIR="/opt/homebrew/opt/graphviz"
+python3 -m pip install \
+--config-setting="--global-option=build_ext" \
+--config-setting="--global-option=-I$(brew --prefix graphviz)/include/" \
+--config-setting="--global-option=-L$(brew --prefix graphviz)/lib/" \
+pygraphviz --break-system-packages
 
+If you need to have cbc first in your PATH, run:
+  echo 'export PATH="/opt/homebrew/opt/cbc/bin:$PATH"' >> ~/.zshrc
+
+For compilers to find cbc you may need to set:
+  export LDFLAGS="-L/opt/homebrew/opt/cbc/lib"
+  export CPPFLAGS="-I/opt/homebrew/opt/cbc/include"
+
+For pkg-config to find cbc you may need to set:
+  export PKG_CONFIG_PATH="/opt/homebrew/opt/cbc/lib/pkgconfig"
+  
 ## run
 
 ``` bash
