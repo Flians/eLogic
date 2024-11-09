@@ -1,0 +1,150 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "emig",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/emig/emig",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Test",
+          "text": "python import sys;sys.path.insert(0, '/usr/share/gcc/python');from libstdcxx.v6.printers import register_libstdcxx_printers;register_libstdcxx_printers(None)",
+          "ignoreFailures": false
+        },
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Set Disassembly Flavor to Intel",
+          "text": "-gdb-set disassembly-flavor intel",
+          "ignoreFailures": true
+        }
+      ],
+      "preLaunchTask": "build_sh"
+    },
+    {
+      "name": "MIGReSub",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "/home/flynn/miniconda3/bin/python3",
+      "args": [
+        "mig/main.py"
+      ],
+      "stopAtEntry": true,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "miDebuggerPath": "/usr/bin/gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        },
+        {
+          "description": "Set Disassembly Flavor to Intel",
+          "text": "-gdb-set disassembly-flavor intel",
+          "ignoreFailures": true
+        }
+      ],
+      "preLaunchTask": "build_sh"
+    },
+    {
+      "name": "Python Debugger: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/mig/main.py",
+      "justMyCode": false,
+      "console": "integratedTerminal",
+      "args": []
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug executable 'MIGBalance'",
+      "cargo": {
+        "args": [
+          "build",
+          "--bin=MIGBalance",
+          "--package=MIGBalance"
+        ],
+        "filter": {
+          "name": "MIGBalance",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in executable 'MIGBalance'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--bin=MIGBalance",
+          "--package=MIGBalance"
+        ],
+        "filter": {
+          "name": "MIGBalance",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug integration test 'datalog'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--test=datalog",
+          "--package=MIGBalance"
+        ],
+        "filter": {
+          "name": "datalog",
+          "kind": "test"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug integration test 'prop'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--test=prop",
+          "--package=MIGBalance"
+        ],
+        "filter": {
+          "name": "prop",
+          "kind": "test"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

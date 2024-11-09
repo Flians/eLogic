@@ -38,12 +38,16 @@ namespace mockturtle {
       if (is_bad(key))
         return nullptr;
 
-      uint32_t min_level = 0;
-      if (!leaf_levels.empty())
+      uint32_t min_level = 0, max_level = 0;
+      if (!leaf_levels.empty()) {
         min_level = *std::min_element(leaf_levels.begin(), leaf_levels.end());
+        max_level = *std::max_element(leaf_levels.begin(), leaf_levels.end());
+      }
       std::string key_deps = key;
-      for (auto ll : leaf_levels) {
-        key_deps += "_" + std::to_string(ll - min_level);
+      if (max_level > min_level) {
+        for (auto ll : leaf_levels) {
+          key_deps += "_" + std::to_string(ll - min_level);
+        }
       }
 
       size_t tn = table.size();
