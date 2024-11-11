@@ -1,19 +1,23 @@
+use egraph_serialize::{ClassId, Cost, EGraph, Node, NodeId};
 use indexmap::IndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::HashMap;
 
 pub use crate::*;
 
+pub mod bottom_up;
+pub mod faster_bottom_up;
 pub mod faster_greedy_dag;
-//#[cfg(feature = "ilp-cbc")]
-//pub mod faster_ilp_cbc;
+#[cfg(feature = "ilp-cbc")]
+pub mod faster_ilp_cbc;
 pub mod global_greedy_dag;
 pub mod greedy_dag;
-//#[cfg(feature = "ilp-cbc")]
-//pub mod ilp_cbc;
+#[cfg(feature = "ilp-cbc")]
+pub mod ilp_cbc;
 
 // Allowance for floating point values to be considered equal
 pub const EPSILON_ALLOWANCE: f64 = 0.00001;
+pub const INFINITY: Cost = unsafe { Cost::new_unchecked(std::f64::INFINITY) };
 
 pub trait Extractor: Sync {
     fn extract(&self, egraph: &EGraph, roots: &[ClassId]) -> ExtractionResult;
@@ -69,6 +73,78 @@ enum Status {
 }
 
 impl ExtractionResult {
+    pub fn print_aft_expr(&self, egraph: &EGraph) -> String {
+        let mut result = String::new();
+        for root in &egraph.root_eclasses {
+            result.push_str(&self.print_aft_term(egraph, root));
+        }
+        result
+    }
+
+    fn print_aft_term(&self, egraph: &EGraph, class_id: &ClassId) -> String {
+        let node_id = &self.choices[class_id];
+        let node = &egraph[node_id];
+
+        if node.children.is_empty() {
+            // Leaf node
+            format!("{}", node.op)
+        } else {
+            // Internal node
+            let children: Vec<String> = node
+                .children
+                .iter()
+                .map(|child| self.print_aft_term(egraph, egraph.nid_to_cid(child)))
+                .collect();
+            format!("({} {})", node.op, children.join(" "))
+        }
+    }
+
+    pub fn print_extracted_term(
+        &self,
+        egraph: &EGraph,
+        cost_function: &MIGCostFn_dsi,
+    ) -> (String, CCost) {
+        let mut metrics = CCost::default();
+        let mut result = String::new();
+        for root in &egraph.root_eclasses {
+            let (term, term_metrics) = self.print_term(egraph, cost_function, root);
+            result.push_str(&term);
+            metrics = CCost::merge(&metrics, &term_metrics);
+        }
+        (result, metrics)
+    }
+
+    fn print_term(
+        &self,
+        egraph: &EGraph,
+        cost_function: &MIGCostFn_dsi,
+        class_id: &ClassId,
+    ) -> (String, CCost) {
+        let node_id = &self.choices[class_id];
+        let node = &egraph[node_id];
+        let metrics = cost_function.cal_cur_cost_bystr(node.op.as_str());
+
+        if node.children.is_empty() {
+            // Leaf node
+            (format!("{}", node.op), metrics)
+        } else {
+            // Internal node
+            let mut children_terms = Vec::new();
+            let mut to_cost = CCost::default();
+            for child in &node.children {
+                let (child_term, child_metrics) =
+                    self.print_term(egraph, cost_function, egraph.nid_to_cid(child));
+                to_cost = CCost::merge(&to_cost, &child_metrics);
+                children_terms.push(child_term);
+            }
+
+            (
+                format!("({} {})", node.op, children_terms.join(" ")),
+                metrics + to_cost,
+            )
+        }
+    }
+
     pub fn check(&self, egraph: &EGraph) {
         // should be a root
         assert!(!egraph.root_eclasses.is_empty());
@@ -186,6 +262,50 @@ impl ExtractionResult {
         costs.values().sum()
     }
 
+    pub fn dag_cost_size(&self, egraph: &EGraph, roots: &[ClassId]) -> Cost {
+        let mut costs: IndexMap<ClassId, Cost> = IndexMap::new();
+        let mut todo: Vec<ClassId> = roots.to_vec();
+        while let Some(cid) = todo.pop() {
+            let node_id = &self.choices[&cid];
+            let node = &egraph[node_id];
+            if costs.insert(cid.clone(), node.cost).is_some() {
+                continue;
+            }
+            for child in &node.children {
+                todo.push(egraph.nid_to_cid(child).clone());
+            }
+        }
+        costs.values().sum()
+    }
+
+    pub fn dag_cost_depth(&self, egraph: &EGraph, roots: &[ClassId]) -> Cost {
+        let mut costs: IndexMap<ClassId, Cost> = IndexMap::new();
+        let mut todo: Vec<ClassId> = roots.to_vec();
+        while let Some(cid) = todo.pop() {
+            let node_id = &self.choices[&cid];
+            let node = &egraph[node_id];
+
+            if costs.insert(cid.clone(), node.cost).is_some() {
+                continue;
+            }
+
+            let mut flag = true;
+            let mut best_child: ClassId = cid.clone();
+            let mut best_child_cost = Cost::default();
+            for child in &node.children {
+                let child_cid = egraph.nid_to_cid(child);
+                let cur_child_cost = self.dag_cost_depth(egraph, &[child_cid.clone()]);
+                if flag || cur_child_cost < best_child_cost {
+                    best_child_cost = cur_child_cost;
+                    best_child = child_cid.clone();
+                    flag = false;
+                }
+            }
+            todo.push(best_child);
+        }
+        costs.values().sum()
+    }
+
     pub fn node_sum_cost<M>(&self, egraph: &EGraph, node: &Node, costs: &M) -> Cost
     where
         M: MapGet<ClassId, Cost>,
@@ -199,5 +319,24 @@ impl ExtractionResult {
                     costs.get(cid).unwrap_or(&INFINITY)
                 })
                 .sum::<Cost>()
+    }
+
+    // node_depth_cost method calculates the maximum cost among a node and its children
+    pub fn node_depth_cost<M>(&self, egraph: &EGraph, node: &Node, costs: &M) -> Cost
+    where
+        M: MapGet<ClassId, Cost>,
+    {
+        let child_max_cost = node
+            .children
+            .iter()
+            .map(|n| {
+                let cid = egraph.nid_to_cid(n);
+                costs.get(cid).unwrap_or(&INFINITY)
+            })
+            .max()
+            .copied()
+            .unwrap_or(Cost::default());
+
+        node.cost + child_max_cost
     }
 }

@@ -50,14 +50,19 @@ namespace mockturtle {
         }
       }
 
-      size_t tn = table.size();
-      if (tn > 100000 && tn % 100000 == 0)
-        std::cout << ">>> " << tn << std::endl;
+      // size_t tn = table.size();
+      // if (tn > 100000 && tn % 100000 == 0) std::cout << ">>> " << tn << std::endl;
 
       auto [it, inserted] = table.try_emplace(key_deps, nullptr, free_ccost);
 
       if (inserted) {
-        it->second = std::unique_ptr<CCost, decltype(&free_ccost)>(simplify_mig(key, leaf_levels.data(), leaf_levels.size()), free_ccost);
+        it->second = std::unique_ptr<CCost, decltype(&free_ccost)>(simplify_depth(key, leaf_levels.data(), leaf_levels.size()), free_ccost);
+      }
+
+      if (strcmp(it->second->aft_expr, key.c_str()) == 0) { // no improvement
+        bad_exprs.insert(key_deps);
+        table.erase(key);
+        return nullptr;
       }
 
       return it->second.get();
@@ -163,6 +168,7 @@ namespace mockturtle {
       }
       uint32_t cur_size = _nodes.size();
       _original_size = cur_size - _num_leaves - _num_constants;
+
       _mffc_size = 1;
       cur_size -= 1; // except the root
       for (uint32_t ni = _num_constants + _num_leaves; ni < cur_size; ++ni) {
@@ -206,7 +212,7 @@ namespace mockturtle {
     }
 
     CCost *optimize_by_egg(const std::vector<uint32_t> &leaf_levels) const {
-      return simplify_mig(_original_expr, leaf_levels.data(), leaf_levels.size());
+      return simplify_depth(_original_expr, leaf_levels.data(), leaf_levels.size());
     }
 
     void feedback(bool is_bad) const {

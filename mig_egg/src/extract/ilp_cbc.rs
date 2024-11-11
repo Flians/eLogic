@@ -22,6 +22,7 @@ impl<const TIMEOUT_IN_SECONDS: u32> Extractor for CbcExtractorWithTimeout<TIMEOU
     }
 }
 
+#[derive(Default)]
 pub struct CbcExtractor;
 
 impl Extractor for CbcExtractor {
@@ -31,6 +32,8 @@ impl Extractor for CbcExtractor {
 }
 
 fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> ExtractionResult {
+    // print the extractor info
+    println!("Using cbc ilp extractor");
     let mut model = Model::default();
 
     model.set_parameter("seconds", &timeout_seconds.to_string());
@@ -86,8 +89,37 @@ fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> Extracti
             let node_cost = node.cost.into_inner();
             assert!(node_cost >= 0.0);
 
-            if node_cost != 0.0 {
-                model.set_obj_coeff(node_active, node_cost);
+            // Skip if cost is zero
+            if node_cost == 0.0 {
+                continue;
+            }
+
+            // Add node's own cost to both sum and depth objectives
+            model.set_obj_coeff(node_active, node_cost * 2.0); // Base cost affects both metrics
+
+            // For each child, add constraints for depth-based costs
+            let children_classes: Vec<_> = node
+                .children
+                .iter()
+                .map(|n| egraph[n].eclass.clone())
+                .collect();
+
+            if !children_classes.is_empty() {
+                // Add a variable to represent the max depth cost for this node
+                let depth_var = model.add_col();
+                model.set_col_lower(depth_var, 0.0);
+
+                // Add depth_var to objective
+                model.set_obj_coeff(depth_var, 1.0);
+
+                // For each child, depth_var must be >= child's cost when node is active
+                for child_class in children_classes {
+                    let row = model.add_row();
+                    model.set_row_lower(row, 0.0);
+                    model.set_weight(row, depth_var, 1.0);
+                    model.set_weight(row, vars[&child_class].active, -node_cost);
+                    model.set_weight(row, node_active, -node_cost);
+                }
             }
         }
     }
