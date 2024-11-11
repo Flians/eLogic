@@ -216,13 +216,13 @@ namespace mockturtle {
       void compute_cuts(node<Ntk> const &n) {
         const auto index = ntk.node_to_index(n);
 
-        if (cuts.cuts(index).size() > 0)
-          return;
-
         if (ntk.is_dead(n)) { // stop at a dead node
           cuts.clear_cut_set(index);
           return;
         }
+
+        if (cuts.cuts(index).size() > 0)
+          return;
 
         ntk.foreach_fanin(n, [&](auto const &f) {
           compute_cuts(ntk.get_node(f));
@@ -630,25 +630,32 @@ namespace mockturtle {
             if (flag)
               continue;
 
+            /* measure the MFFC contained in the cut */
+            const uint32_t mffc_size = measure_mffc_deref(n, cut);
+            /* restore contained MFFC */
+            measure_mffc_ref(n, cut);
+            if (mffc_size <= 1)
+              continue;
+
             // build egg graph
             egg_view<Ntk> eview(ntk, leaves, ntk.make_signal(n));
+            // const uint32_t mffc_size = eview._mffc_size;
 
             // skip bad cut
-            if (eview._mffc_size <= 1 || eview._original_size < 2 || eview.has_bug)
+            if (mffc_size <= 1 || eview._original_size < 2 || eview.has_bug)
               continue;
 
             // optimize by egg
             const auto dcost = eview.optimize_by_egg_lib(leaf_levels);
             if (!dcost) {
-              // free_ccost(dcost);
               continue;
             }
-            const uint32_t aft_dep = dcost->aft_dep;
+            uint32_t aft_dep = dcost->aft_dep;
             const std::string aft_expr(dcost->aft_expr, dcost->aft_expr_len);
             // free_ccost(dcost);
 
             // skip bad cut
-            if (eview._original_expr == aft_expr || best_dep < aft_dep) {
+            if (eview._original_expr == aft_expr) { // || original_level < aft_dep) {
               continue;
             }
 
@@ -657,7 +664,11 @@ namespace mockturtle {
             const signal<Ntk> new_f = egg_view<Ntk>::rebuild(ntk, aft_expr.data(), aft_expr.size(), leaves);
             const uint32_t size_aft = ntk.size();
             const int32_t nodes_added = size_aft - size_bef;
-            const int32_t gain = eview._mffc_size - nodes_added;
+            const int32_t gain = mffc_size - nodes_added;
+            if constexpr (has_level_v<Ntk>) {
+              // assert(ft_dep == ntk.level(ntk.get_node(new_f)));
+              aft_dep = ntk.level(ntk.get_node(new_f));
+            }
 
             // discard if dag.root and n are the same
             if (n == ntk.get_node(new_f)) {
@@ -672,7 +683,8 @@ namespace mockturtle {
               continue;
             }
 
-            if (gain > best_gain || (gain == best_gain && aft_dep < best_dep)) {
+            // if (aft_dep < best_dep && gain > best_gain) {
+            if ((gain > best_gain && aft_dep <= best_dep) || (gain == best_gain && aft_dep < best_dep)) {
               // if (best_gain != -1) ntk.take_out_node(ntk.get_node(best_signal));
               // best_signal = new_f;
               best_gain = gain;
@@ -705,6 +717,66 @@ namespace mockturtle {
         });
       }
 
+      uint32_t measure_mffc_ref(mockturtle::node<Ntk> const &n, cut_t const *cut) {
+        /* reference cut leaves */
+        for (auto leaf : *cut) {
+          ntk.incr_fanout_size(ntk.index_to_node(leaf));
+        }
+
+        uint32_t mffc_size = recursive_ref(n);
+
+        /* dereference leaves */
+        for (auto leaf : *cut) {
+          ntk.decr_fanout_size(ntk.index_to_node(leaf));
+        }
+
+        return mffc_size;
+      }
+
+      uint32_t measure_mffc_deref(mockturtle::node<Ntk> const &n, cut_t const *cut) {
+        /* reference cut leaves */
+        for (auto leaf : *cut) {
+          ntk.incr_fanout_size(ntk.index_to_node(leaf));
+        }
+
+        uint32_t mffc_size = recursive_deref(n);
+
+        /* dereference leaves */
+        for (auto leaf : *cut) {
+          ntk.decr_fanout_size(ntk.index_to_node(leaf));
+        }
+
+        return mffc_size;
+      }
+
+      uint32_t recursive_deref(mockturtle::node<Ntk> const &n) {
+        /* terminate? */
+        if (ntk.is_constant(n) || ntk.is_pi(n))
+          return 0;
+
+        /* recursively collect nodes */
+        uint32_t value{cost_fn(ntk, n)};
+        ntk.foreach_fanin(n, [&](auto const &s) {
+          if (ntk.decr_fanout_size(ntk.get_node(s)) == 0) {
+            value += recursive_deref(ntk.get_node(s));
+          } });
+        return value;
+      }
+
+      uint32_t recursive_ref(mockturtle::node<Ntk> const &n) {
+        /* terminate? */
+        if (ntk.is_constant(n) || ntk.is_pi(n))
+          return 0;
+
+        /* recursively collect nodes */
+        uint32_t value{cost_fn(ntk, n)};
+        ntk.foreach_fanin(n, [&](auto const &s) {
+          if (ntk.incr_fanout_size(ntk.get_node(s)) == 0) {
+            value += recursive_ref(ntk.get_node(s));
+          } });
+        return value;
+      }
+
       void set_news_dead(Ntk &ntk, uint32_t size_bef, uint32_t size_aft) {
         for (uint32_t i = size_bef; i < size_aft; ++i) {
           set_dead(ntk, ntk.index_to_node(i));
@@ -725,7 +797,7 @@ namespace mockturtle {
           (*fn)(n);
         }
 
-        for (auto i = 0u; i < 3u; ++i) {
+        for (auto i = 0u; i < Ntk::max_fanin_size; ++i) {
           if (ntk.fanout_size(nobj.children[i].index) == 0) {
             continue;
           }
@@ -755,7 +827,7 @@ namespace mockturtle {
           auto const index = ntk.node_to_index(g);
           if (cuts.cuts(index).size() > 0) {
             cut_manager.clear_cuts(g);
-            if (!ntk.is_dead(g))
+            if (!ntk.is_dead(g)) // stop at a dead node
               clear_cuts_fanout_rec(cuts, cut_manager, g);
           }
         });

@@ -2,7 +2,7 @@ use egg::{Id, Language};
 use std::cmp;
 use std::collections::HashSet;
 use std::ffi::CString;
-use std::ops::Add;
+use std::ops::{Add, Mul};
 use std::os::raw::c_char;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -22,11 +22,45 @@ impl Default for CCost {
     }
 }
 impl CCost {
-    fn merge(a: &CCost, b: &CCost) -> CCost {
+    pub fn merge(a: &CCost, b: &CCost) -> CCost {
         CCost {
             dep: cmp::max(a.dep, b.dep),
             aom: a.aom + b.aom,
             inv: a.inv + b.inv,
+        }
+    }
+
+    fn max() -> Self {
+        CCost {
+            dep: u32::MAX,
+            aom: u32::MAX,
+            inv: u32::MAX,
+        }
+    }
+
+    const MASK: u64 = 0x1FFFFF;
+    const SHIFT_X: u64 = 42;
+    const SHIFT_Y: u64 = 21;
+
+    pub fn encode(&self) -> f64 {
+        let packed = ((self.dep as u64 & Self::MASK) << Self::SHIFT_X)
+            | ((self.aom as u64 & Self::MASK) << Self::SHIFT_Y)
+            | (self.inv as u64 & Self::MASK);
+
+        f64::from_bits(packed)
+    }
+
+    pub fn decode(value: f64) -> Self {
+        let packed = value.to_bits();
+
+        let x = ((packed >> Self::SHIFT_X) & Self::MASK) as u32;
+        let y = ((packed >> Self::SHIFT_Y) & Self::MASK) as u32;
+        let z = (packed & Self::MASK) as u32;
+
+        CCost {
+            dep: x,
+            aom: y,
+            inv: z,
         }
     }
 }
@@ -112,13 +146,40 @@ impl<'a> MIGCostFn_dsi<'a> {
     pub fn reset(&mut self) {
         self.visited.clear();
     }
-}
-impl<'a> egg::CostFunction<MIG> for MIGCostFn_dsi<'a> {
-    type Cost = CCost;
-    fn cost<C>(&mut self, enode: &MIG, mut costs: C) -> Self::Cost
-    where
-        C: FnMut(egg::Id) -> Self::Cost,
-    {
+
+    pub fn cal_cur_cost_bystr(&self, enode: &str) -> CCost {
+        let op_depth = match enode {
+            "&" => 1 as u32,
+            "M" => 1 as u32,
+            "~" => 0 as u32,
+            "0" => 0 as u32,
+            "1" => 0 as u32,
+            _ => {
+                let chr_v = enode.as_bytes();
+                let index = (chr_v[0] as u8) - ('a' as u8);
+                self.original_dep[index as usize]
+            }
+        };
+        let op_area = match enode {
+            "&" => 1 as u32,
+            "M" => 1 as u32,
+            "~" => 0 as u32,
+            _ => 0,
+        };
+        let op_inv = match enode {
+            "&" => 0 as u32,
+            "M" => 0 as u32,
+            "~" => 1 as u32,
+            _ => 0 as u32,
+        };
+        CCost {
+            dep: op_depth,
+            aom: op_area,
+            inv: op_inv,
+        }
+    }
+
+    pub fn cal_cur_cost(&self, enode: &MIG) -> CCost {
         let op_depth = match enode {
             MIG::And(..) => 1 as u32,
             MIG::Maj(..) => 1 as u32,
@@ -142,11 +203,20 @@ impl<'a> egg::CostFunction<MIG> for MIGCostFn_dsi<'a> {
             MIG::Not(..) => 1 as u32,
             _ => 0 as u32,
         };
-        let cur_cost = Self::Cost {
+        CCost {
             dep: op_depth,
             aom: op_area,
             inv: op_inv,
-        };
+        }
+    }
+}
+impl<'a> egg::CostFunction<MIG> for MIGCostFn_dsi<'a> {
+    type Cost = CCost;
+    fn cost<C>(&mut self, enode: &MIG, mut costs: C) -> Self::Cost
+    where
+        C: FnMut(egg::Id) -> Self::Cost,
+    {
+        let cur_cost = self.cal_cur_cost(enode);
         // let cid = &self.egraph.lookup(enode.clone()).unwrap();
 
         cur_cost
@@ -233,6 +303,8 @@ macro_rules! rule {
     };
 }
 
+rule! {neg_false, "(~ false)", "true"}
+rule! {neg_true, "(~ true)", "false"}
 rule! {true_false,     "1",                     "(~ 0)"                                                         }
 rule! {false_true,     "0",                     "(~ 1)"                                                         }
 rule! {double_neg,     double_neg_flip,         "(~ (~ ?a))",                 "?a"                              }
@@ -301,7 +373,8 @@ mod ffi {
     }
 
     extern "Rust" {
-        unsafe fn simplify_mig(s: &str, vars: *const u32, size: usize) -> *mut CCost;
+        unsafe fn simplify_depth(s: &str, vars: *const u32, size: usize) -> *mut CCost;
+        unsafe fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut CCost;
         unsafe fn free_string(s: *mut c_char);
         unsafe fn free_ccost(cost: *mut CCost);
     }
@@ -345,7 +418,7 @@ fn free_ccost(cost: *mut ffi::CCost) {
     }
 }
 
-pub fn simplify_mig(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost {
+pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost {
     let all_rules = &[
         // rules needed for contrapositive
         double_neg(),
@@ -412,9 +485,6 @@ pub fn simplify_mig(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost {
     Box::into_raw(Box::new(cost))
 }
 
-use ordered_float::NotNan;
-use rustc_hash::FxHashMap;
-
 pub(crate) type BuildHasher = fxhash::FxBuildHasher;
 
 #[cfg(feature = "deterministic")]
@@ -429,20 +499,11 @@ mod hashmap {
     pub(crate) type HashSet<K> = hashbrown::HashSet<K, BuildHasher>;
 }
 
-pub type Cost = NotNan<f64>;
-pub const INFINITY: Cost = unsafe { NotNan::new_unchecked(std::f64::INFINITY) };
-
 #[derive(Debug)]
-pub struct GreedyDagExtractor<'a, CF: egg::CostFunction<L>, L: Language, N: egg::Analysis<L>> {
+pub struct GreedyDagExtractor<'a, CF: egg::CostFunction<L>, L: egg::Language, N: egg::Analysis<L>> {
     cost_function: CF,
-    costs: hashmap::HashMap<Id, (CF::Cost, L)>,
+    costs: hashmap::HashMap<egg::Id, (CF::Cost, L)>,
     egraph: &'a egg::EGraph<L, N>,
-}
-
-struct CostSet {
-    costs: FxHashMap<egraph_serialize::ClassId, Cost>,
-    total: Cost,
-    choice: egraph_serialize::NodeId,
 }
 
 use std::cmp::Ordering;
@@ -459,7 +520,7 @@ fn cmp<T: PartialOrd>(a: &Option<T>, b: &Option<T>) -> Ordering {
 impl<'a, CF, L, N> GreedyDagExtractor<'a, CF, L, N>
 where
     CF: egg::CostFunction<L>,
-    L: Language,
+    L: egg::Language,
     N: egg::Analysis<L>,
 {
     /// Create a new `Extractor` given an `EGraph` and a
@@ -482,19 +543,19 @@ where
 
     /// Find the cheapest (lowest cost) represented `RecExpr` in the
     /// given eclass.
-    pub fn find_best(&self, eclass: Id) -> (CF::Cost, egg::RecExpr<L>) {
+    pub fn find_best(&self, eclass: egg::Id) -> (CF::Cost, egg::RecExpr<L>) {
         let (cost, root) = self.costs[&self.egraph.find(eclass)].clone();
         let expr = root.build_recexpr(|id| self.find_best_node(id).clone());
         (cost, expr)
     }
 
     /// Find the cheapest e-node in the given e-class.
-    pub fn find_best_node(&self, eclass: Id) -> &L {
+    pub fn find_best_node(&self, eclass: egg::Id) -> &L {
         &self.costs[&self.egraph.find(eclass)].1
     }
 
     /// Find the cost of the term that would be extracted from this e-class.
-    pub fn find_best_cost(&self, eclass: Id) -> CF::Cost {
+    pub fn find_best_cost(&self, eclass: egg::Id) -> CF::Cost {
         let (cost, _) = &self.costs[&self.egraph.find(eclass)];
         cost.clone()
     }
@@ -557,83 +618,48 @@ where
             .unwrap_or_else(|| panic!("Can't extract, eclass is empty: {:#?}", eclass));
         cost.map(|c| (c, node.clone()))
     }
-
-    /*
-    pub fn extract(&self, egraph: &'a egg::EGraph<L, N>, _roots: &[Id]) -> ExtractionResult {
-        let mut costs = FxHashMap::<ClassId, CostSet>::with_capacity_and_hasher(
-            egraph.classes().len(),
-            Default::default(),
-        );
-
-        let mut keep_going = true;
-
-        let mut i = 0;
-        while keep_going {
-            i += 1;
-            println!("iteration {}", i);
-            keep_going = false;
-
-            'node_loop: for cid in egraph.classes() {
-                let mut cost_set = CostSet {
-                    costs: Default::default(),
-                    total: Cost::default(),
-                    choice: cid.id,
-                };
-
-                // compute the cost set from the children
-                for child in &cid {
-                    let child_cid = egraph.nid_to_cid(child);
-                    if let Some(child_cost_set) = costs.get(child_cid) {
-                        // prevent a cycle
-                        if child_cost_set.costs.contains_key(cid) {
-                            continue 'node_loop;
-                        }
-                        cost_set.costs.extend(child_cost_set.costs.clone());
-                    } else {
-                        continue 'node_loop;
-                    }
-                }
-
-                // add this node
-                cost_set.costs.insert(cid.clone(), node.cost);
-
-                cost_set.total = cost_set.costs.values().sum();
-
-                // if the cost set is better than the current one, update it
-                if let Some(old_cost_set) = costs.get(cid) {
-                    if cost_set.total < old_cost_set.total {
-                        costs.insert(cid.clone(), cost_set);
-                        keep_going = true;
-                    }
-                } else {
-                    costs.insert(cid.clone(), cost_set);
-                    keep_going = true;
-                }
-            }
-        }
-
-        let mut result = ExtractionResult::default();
-        for (cid, cost_set) in costs {
-            result.choose(cid, cost_set.choice);
-        }
-        result
-    }
-    */
 }
 
-use std::fmt::Display;
+mod extract;
+pub use extract::Extractor;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::PathBuf;
 
-pub fn egg_to_serialized_egraph<L, A>(egraph: &egg::EGraph<L, A>) -> egraph_serialize::EGraph
-where
-    L: Language + Display,
-    A: egg::Analysis<L>,
-{
+pub fn egg_to_serialized_egraph(
+    egraph: &CEGraph,
+    cost_function: &MIGCostFn_dsi,
+    root_id: egg::Id,
+) -> egraph_serialize::EGraph {
     let mut out = egraph_serialize::EGraph::default();
+    let final_root = egraph.find(root_id);
+
+    // First pass: create all classes to ensure they exist
+    for class in egraph.classes() {
+        out.class_data.insert(
+            egraph_serialize::ClassId::from(format!("{}", class.id)),
+            egraph_serialize::ClassData { typ: None },
+        );
+    }
+
+    // Second pass: add nodes and their costs
     for class in egraph.classes() {
         for (i, node) in class.nodes.iter().enumerate() {
+            let cost = cost_function.cal_cur_cost(&node);
+
+            // Ensure all child classes exist
+            for child in node.children() {
+                if !out
+                    .class_data
+                    .contains_key(&egraph_serialize::ClassId::from(format!("{}", child)))
+                {
+                    out.class_data.insert(
+                        egraph_serialize::ClassId::from(format!("{}", child)),
+                        egraph_serialize::ClassData { typ: None },
+                    );
+                }
+            }
+
             out.add_node(
                 format!("{}.{}", class.id, i),
                 egraph_serialize::Node {
@@ -644,12 +670,16 @@ where
                         .map(|id| egraph_serialize::NodeId::from(format!("{}.0", id)))
                         .collect(),
                     eclass: egraph_serialize::ClassId::from(format!("{}", class.id)),
-                    cost: egraph_serialize::Cost::new(1.0).unwrap(),
+                    cost: egraph_serialize::Cost::new(cost.encode()).unwrap(),
                     subsumed: false,
                 },
             )
         }
     }
+
+    // Set root eclasses
+    out.root_eclasses = vec![egraph_serialize::ClassId::from(format!("{}", final_root))];
+
     out
 }
 
@@ -665,7 +695,6 @@ pub fn find_root_nodes(egraph: &CEGraph) -> Vec<Id> {
             }
         }
     }
-
     // Then find nodes that aren't children of any other node
     // and contain a Maj node (since that's our root operation)
     for class in egraph.classes() {
@@ -673,7 +702,6 @@ pub fn find_root_nodes(egraph: &CEGraph) -> Vec<Id> {
             roots.push(class.id);
         }
     }
-
     // If no roots found, look for the highest-level Maj node
     if roots.is_empty() {
         for class in egraph.classes() {
@@ -683,7 +711,6 @@ pub fn find_root_nodes(egraph: &CEGraph) -> Vec<Id> {
             }
         }
     }
-
     roots
 }
 
@@ -709,34 +736,7 @@ fn save_serialized_egraph_to_json(
     Ok(())
 }
 
-pub fn process_json_prop_cost(json_str: &str) -> String {
-    let mut data: serde_json::Value = serde_json::from_str(&json_str).unwrap();
-
-    if let Some(nodes) = data
-        .get_mut("nodes")
-        .and_then(|nodes| nodes.as_object_mut())
-    {
-        for node in nodes.values_mut() {
-            let op = node["op"].as_str().unwrap();
-            let cost = node["cost"].as_f64().unwrap();
-
-            let new_cost = match op {
-                "M" => 1.0,
-                "~" => 0.0,
-                _ => cost,
-            };
-
-            node["cost"] = serde_json::to_value(new_cost).unwrap();
-        }
-    }
-
-    serde_json::to_string_pretty(&data).unwrap()
-}
-
-// use pyo3::prelude::*;
-/// parse an expression, simplify it using egg, and pretty print it back out
-// #[pyfunction]
-pub fn simplify(s: &str) -> (String, CCost, CCost) {
+pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost {
     let all_rules = &[
         // rules needed for contrapositive
         double_neg(),
@@ -767,87 +767,159 @@ pub fn simplify(s: &str) -> (String, CCost, CCost) {
     // parse the expression, the type annotation tells it which Language to use
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
 
-    /*
-    // Create a new egraph for each expression
-    let mut initial_egraph = CEGraph::default();
-    let root_id = initial_egraph.add_expr(&expr);
-    println!("Root ID found when adding expr: {:?}", root_id);
-    initial_egraph.rebuild();
-    //find the root nodes
-    let root_nodes = find_root_nodes(&initial_egraph.clone());
-    println!("Root nodes found by traversing: {:?}", root_nodes);
-
-    // Create a runner with just this expression's root
-    let mut runner = egg::Runner::default()
-        .with_egraph(initial_egraph)
-        .with_iter_limit(5)
-        .with_node_limit(50)
-        .with_time_limit(Duration::from_secs(10));
-
-    runner.roots = vec![root_id];
-    // Run the runner with the rules
-    let runner = runner.run(all_rules);
-    let saturated_egraph = runner.egraph;
-    // make root id is runner.roots[0]
-    let root_id = runner.roots[0];
-
-    // Serialize the egraph to JSON with single root
-    let serialized_egraph = egg_to_serialized_egraph(&saturated_egraph);
-    let output_path = env::current_dir()
-        .unwrap()
-        .join(format!("rewritten_egraph_.json"));
-
-    // dump the serialized egraph to a dot file
-    // serialized_egraph.to_dot_file(output_path.with_extension("dot")).unwrap();
-    // Save with single root ID
-    save_serialized_egraph_to_json(&serialized_egraph, &output_path, &usize::from(root_id));
-
-    println!("------------------assign cost of enode-----------------");
-    let json_string = serde_json::to_string(&serialized_egraph).unwrap();
-    let cost_string = process_json_prop_cost(&json_string);
-    let mut json_data: serde_json::Value = serde_json::from_str(&cost_string).unwrap();
-    json_data["root_eclasses"] =
-        serde_json::Value::Array(vec![serde_json::Value::String(root_id.to_string())]);
-    let output_egraph_cost_json_path: PathBuf = env::current_dir()
-        .unwrap()
-        .join(format!("rewritten_egraph_cost_{}.json", i));
-    let file = File::create(&output_egraph_cost_json_path).unwrap();
-    serde_json::to_writer_pretty(file, &json_data).unwrap();
-    */
-
-    /*
-    let mut visited: HashSet<&str> = HashSet::default();
-    for node in expr.as_ref() {
-        if let Some(var) = node.as_variable() {
-            visited.insert(var);
-        }
+    let vars_default: [u32; 26] = [0; 26];
+    let mut vars_: &[u32] = &vars_default;
+    if size > 0 {
+        vars_ = unsafe { std::slice::from_raw_parts(vars, size) };
     }
-    */
-    let vars: [u32; 26] = [0; 26];
-    let slice: &[u32] = &vars;
 
     // create an e-graph with the given expression
-    let mut runner = egg::Runner::default().with_expr(&expr);
-    // the Runner knows which e-class the expression given with `with_expr` is in
-    let root = runner.roots[0];
+    let mut initial_egraph = CEGraph::default();
+    let root_id = initial_egraph.add_expr(&expr);
+    initial_egraph.rebuild();
 
-    // use an Extractor to pick the best element of the root eclass
-    let inital_cost =
-        egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, slice))
-            .find_best_cost(root);
+    let mut runner = egg::Runner::default()
+        .with_egraph(initial_egraph)
+        .with_iter_limit(10)
+        .with_node_limit(100)
+        .with_time_limit(std::time::Duration::from_secs(10));
+    runner.roots = vec![root_id];
 
     // simplify the expression using a Runner, which runs the given rules over it
     runner = runner.run(all_rules);
+    let saturated_egraph = runner.egraph;
+    let root_id = runner.roots[0];
 
-    // use an Extractor to pick the best element of the root eclass
-    let (best_cost, best) =
-        GreedyDagExtractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, slice))
-            .find_best(root);
-    println!(
-        "Simplified {} with cost {:?} to {} with cost {:?}",
-        expr, inital_cost, best, best_cost
+    // Serialize the egraph to JSON with single root
+    let serialized_egraph = egg_to_serialized_egraph(
+        &saturated_egraph,
+        &MIGCostFn_dsi::new(&saturated_egraph, vars_),
+        root_id,
     );
-    (best.to_string(), inital_cost, best_cost)
+    let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
+
+    // #[cfg(feature = "ilp-cbc")]
+    // let extractor = extract::ilp_cbc::CbcExtractor::default();
+    // Extract the result using global_greedy_dag extractor
+    // let extractor = extract::bottom_up::BottomUpExtractor {};
+    // #[cfg(not(feature = "ilp-cbc"))]
+    let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
+    let extraction_result = extractor.extract(&serialized_egraph, &egraph_serialize_root);
+
+    // Get the cost
+    // let tree_cost = extraction_result.tree_cost(&serialized_egraph, &egraph_serialize_root);
+    let dag_cost = extraction_result.dag_cost_size(&serialized_egraph, &egraph_serialize_root);
+    let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
+    /*
+    let (aft_expr, tcost) = extraction_result.print_extracted_term(
+        &serialized_egraph,
+        &MIGCostFn_dsi::new(&saturated_egraph, vars_),
+    );
+    */
+    let aft_expr_cstring = match CString::new(aft_expr.clone()) {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
+    };
+    let cost: ffi::CCost = ffi::CCost {
+        aft_expr: aft_expr_cstring.into_raw(),
+        aft_expr_len: aft_expr.len(),
+        aft_dep: dag_cost.floor() as u32,
+        aft_size: (dag_cost - dag_cost.floor()).mul(1000 as f64).ceil() as u32,
+        aft_invs: 0,
+    };
+
+    // println!("Depth: {}, Size: {}, term: {}", cost.aft_dep, cost.aft_size, aft_expr);
+
+    Box::into_raw(Box::new(cost))
+}
+
+// use pyo3::prelude::*;
+/// parse an expression, simplify it using egg, and pretty print it back out
+// #[pyfunction]
+pub fn simplify(s: &str) {
+    let all_rules = &[
+        // rules needed for contrapositive
+        double_neg(),
+        double_neg_flip(),
+        neg(),
+        neg_flip(),
+        // and some others
+        distri(),
+        distri_flip(),
+        com_associ(),
+        com_associ_flip(),
+        // relevance(),
+        associ(),
+        comm_lm(),
+        comm_lr(),
+        comm_mr(),
+        maj_2_equ(),
+        maj_2_com(),
+        associ_and(),
+        comm_and(),
+        comp_and(),
+        dup_and(),
+        and_true(),
+        and_false(),
+        // true_false(),
+        // false_true(),
+        neg_false(),
+        neg_true(),
+    ];
+    // parse the expression, the type annotation tells it which Language to use
+    let expr: egg::RecExpr<MIG> = s.parse().unwrap();
+
+    let vars: [u32; 26] = [0; 26];
+    let vars_: &[u32] = &vars;
+
+    // create an e-graph with the given expression
+    let mut initial_egraph = CEGraph::default();
+    let root_id = initial_egraph.add_expr(&expr);
+    initial_egraph.rebuild();
+
+    let mut runner = egg::Runner::default()
+        .with_egraph(initial_egraph)
+        .with_iter_limit(10)
+        .with_node_limit(100)
+        .with_time_limit(std::time::Duration::from_secs(10));
+    runner.roots = vec![root_id];
+
+    // simplify the expression using a Runner, which runs the given rules over it
+    runner = runner.run(all_rules);
+    let saturated_egraph = runner.egraph;
+    let root_id = runner.roots[0];
+
+    // Serialize the egraph to JSON with single root
+    let serialized_egraph = egg_to_serialized_egraph(
+        &saturated_egraph,
+        &MIGCostFn_dsi::new(&saturated_egraph, vars_),
+        root_id,
+    );
+    let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
+
+    // #[cfg(feature = "ilp-cbc")]
+    // let extractor = extract::ilp_cbc::CbcExtractor::default();
+    // Extract the result using global_greedy_dag extractor
+    // #[cfg(not(feature = "ilp-cbc"))]
+    let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
+    // let extractor = extract::bottom_up::BottomUpExtractor {};
+    let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
+
+    // Get the cost
+    // let tree_cost = extraction_result.tree_cost(&serialized_egraph, &egraph_serialize_root);
+    let dag_cost = extraction_result.dag_cost(&serialized_egraph, &egraph_serialize_root);
+    let aft_dep = dag_cost.floor() as u32;
+    let aft_size = (dag_cost - dag_cost.floor()).mul(1000 as f64).ceil() as u32;
+    let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
+    println!(
+        "DAG cost: depth: {}, size: {}, expr: {}",
+        aft_dep, aft_size, aft_expr
+    );
+    let (aft_expr, tcost) = extraction_result.print_extracted_term(
+        &serialized_egraph,
+        &MIGCostFn_dsi::new(&saturated_egraph, vars_),
+    );
+    println!("Simplified {} to {} with cost {:?}", expr, aft_expr, tcost);
 }
 
 /*
@@ -890,26 +962,27 @@ mod tests {
             rules,
             &["(M x 0 (M y x (M u 0 v)))", "(M (M y x 0) x (M 0 u v))"],
         );
+        */
 
         simplify("(& 0 1)");
-        simplify("(& x 1)");
-        simplify("(& x (~ 1))");
+        // simplify("(& x 1)");
+        // simplify("(& x (~ 1))");
         simplify("(& x (~ x))");
-        simplify("(& x x)");
-        simplify("(& (& x b) (& b y))");
+        // simplify("(& x x)");
+        // simplify("(& (& x b) (& b y))");
         simplify("(M 1 1 1)");
         simplify("(M 1 1 0)");
         simplify("(M 1 0 0)");
         simplify("(M 0 0 0)");
-        simplify("(M x 1 (~ 0))");
-        simplify("(M a b (M a b c))");
+        // simplify("(M x 1 (~ 0))");
+        // simplify("(M a b (M a b c))");
         simplify("(M x 0 (M y 1 (M u 0 v)))");
         simplify("(M (M w x (~ z)) x (M z x y))");
-        // simplify("(M x3 (M x3 x4 (M x5 x6 x7)) x1)");
+        simplify("(M c (M c d (M e f b)) a)");
         simplify("(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))");
         simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))");
-        */
         simplify("(M 0 (~ (M 0 (~ a) b)) (M 0 c (~ d)))");
+        simplify("(M (~ 0) (M 0 a (~ (M 0 b (~ c)))) (M 0 (~ a) (M 0 b (~ c))))");
     }
 
     #[test]

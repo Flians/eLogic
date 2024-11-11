@@ -12,14 +12,14 @@
 
 #define EXPERIMENTS_PATH "tools/mockturtle/experiments/"
 
-const uint32_t CutSize = 4u;
+const uint32_t CutSize = 8u;
 
 void main_aig() {
 
   experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool>
-      exp("rewrite_elo_aig", "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
+      exp(fmt::format("rewrite_elo_aig_k{}", CutSize), "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
 
-  for (auto const &benchmark : experiments::all_benchmarks()) {
+  for (auto const &benchmark : experiments::epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
     std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
 
@@ -54,7 +54,7 @@ void main_aig() {
 void main_mig() {
 
   experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool>
-      exp("rewrite_elo_mig", "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
+      exp(fmt::format("rewrite_elo_mig_k{}", CutSize), "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
 
   for (auto const &benchmark : experiments::epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
@@ -89,7 +89,7 @@ void main_mig() {
 }
 
 int main(int argc, char *argv[]) {
-  int op = 1;
+  int op = 0;
   if (argc >= 2)
     op = atoi(argv[1]);
   if (op == 0) {
@@ -97,8 +97,8 @@ int main(int argc, char *argv[]) {
   } else if (op == 1) {
     main_mig();
   } else {
-    auto cost = std::unique_ptr<CCost, decltype(&free_ccost)>(simplify_mig("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))", nullptr, 0), free_ccost);
-    std::cout << cost->aft_expr << std::endl;
+    auto cost = std::unique_ptr<CCost, decltype(&free_ccost)>(simplify_size("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))", nullptr, 0), free_ccost);
+    std::cout << "Size: " << cost->aft_size << ", Depth: " << cost->aft_dep << ", Expr: " << cost->aft_expr << std::endl;
   }
   return 0;
 }

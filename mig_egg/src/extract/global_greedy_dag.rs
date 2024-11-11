@@ -17,8 +17,8 @@ type Reachable = HashTrieSet<ClassId>;
 struct TermInfo {
     node: NodeId,
     eclass: ClassId,
-    node_cost: Cost,
-    total_cost: Cost,
+    node_cost: CCost,
+    total_cost: CCost,
     // store the set of reachable terms from this term
     reachable: Reachable,
     size: usize,
@@ -47,18 +47,20 @@ impl TermDag {
         node_id: NodeId,
         node: &Node,
         children: Vec<TermId>,
-        target: Cost,
+        target: CCost,
     ) -> Option<TermId> {
         let term = Term {
             op: node.op.clone(),
             children: children.clone(),
         };
 
+        // Return existing term if already hash-consed
         if let Some(id) = self.hash_cons.get(&term) {
             return Some(*id);
         }
 
-        let node_cost = node.cost;
+        // Initialize node_cost based on operation
+        let node_cost = CCost::decode(node.cost.into());
 
         if children.is_empty() {
             let next_id = self.nodes.len();
@@ -83,33 +85,32 @@ impl TermDag {
                 }
             }
 
-            let biggest_child = (0..children.len())
-                .max_by_key(|i| self.info[children[*i]].size)
-                .unwrap();
-
-            let mut cost = node_cost + self.total_cost(children[biggest_child]);
-            let mut reachable = self.info[children[biggest_child]].reachable.clone();
-            let next_id = self.nodes.len();
-
-            for child in children.iter() {
-                if cost > target {
-                    return None;
-                }
-                let child_cost = self.get_cost(&mut reachable, *child);
-                cost += child_cost;
+            // Calculate initial cost considering all dimensions
+            let mut total_cost = node_cost;
+            // Early cost check - compare all dimensions
+            if total_cost > target {
+                return None;
             }
 
-            if cost > target {
-                return None;
+            let mut reachable = HashTrieSet::new();
+            let next_id = self.nodes.len();
+
+            // Calculate costs for children
+            for child in children.iter() {
+                let child_cost = self.get_cost(&mut reachable, *child);
+                total_cost = CCost::merge(&total_cost, &child_cost);
+                if total_cost > target {
+                    return None;
+                }
             }
 
             reachable = reachable.insert(node.eclass.clone());
 
             self.info.push(TermInfo {
                 node: node_id,
-                node_cost,
                 eclass: node.eclass.clone(),
-                total_cost: cost,
+                node_cost: node_cost,
+                total_cost: total_cost,
                 reachable,
                 size: 1 + children.iter().map(|c| self.info[*c].size).sum::<usize>(),
             });
@@ -121,7 +122,7 @@ impl TermDag {
 
     /// Return a new term, like this one but making use of shared terms.
     /// Also return the cost of the new nodes.
-    fn get_cost(&self, shared: &mut Reachable, id: TermId) -> Cost {
+    fn get_cost(&self, shared: &mut Reachable, id: TermId) -> CCost {
         let eclass = self.info[id].eclass.clone();
 
         // This is the key to why this algorithm is faster than greedy_dag.
@@ -130,23 +131,23 @@ impl TermDag {
         // Since the term with `id` is shared, the reachable set of `id` will already
         // be in `shared`.
         if shared.contains(&eclass) {
-            NotNan::<f64>::new(0.0).unwrap()
+            CCost::default()
         } else {
             let mut cost = self.node_cost(id);
             for child in &self.nodes[id].children {
                 let child_cost = self.get_cost(shared, *child);
-                cost += child_cost;
+                cost = CCost::merge(&cost, &child_cost);
             }
             *shared = shared.insert(eclass);
             cost
         }
     }
 
-    pub fn node_cost(&self, id: TermId) -> Cost {
+    pub fn node_cost(&self, id: TermId) -> CCost {
         self.info[id].node_cost
     }
 
-    pub fn total_cost(&self, id: TermId) -> Cost {
+    pub fn total_cost(&self, id: TermId) -> CCost {
         self.info[id].total_cost
     }
 }
@@ -160,15 +161,22 @@ impl Extractor for GlobalGreedyDagExtractor {
         let mut termdag = TermDag::default();
         let mut best_in_class: HashMap<ClassId, TermId> = HashMap::default();
 
+        // Track best costs seen so far
+        let mut best_costs: HashMap<ClassId, CCost> = HashMap::default();
+
         let mut i = 0;
         while keep_going {
             i += 1;
-            println!("iteration {}", i);
+            // println!("iteration {}", i);
             keep_going = false;
 
-            'node_loop: for (node_id, node) in &nodes {
+            // Sort nodes by cost and size for better initial choices
+            let mut node_entries: Vec<_> = nodes.iter().collect();
+            node_entries.sort_by_key(|(_, node)| (node.cost, node.children.len()));
+
+            'node_loop: for (node_id, node) in node_entries {
                 let mut children: Vec<TermId> = vec![];
-                // compute the cost set from the children
+                // Collect children, preferring ones with lower costs
                 for child in &node.children {
                     let child_cid = egraph.nid_to_cid(child);
                     if let Some(best) = best_in_class.get(child_cid) {
@@ -181,12 +189,24 @@ impl Extractor for GlobalGreedyDagExtractor {
                 let old_cost = best_in_class
                     .get(&node.eclass)
                     .map(|id| termdag.total_cost(*id))
-                    .unwrap_or(INFINITY);
+                    .unwrap_or(CCost::max());
 
                 if let Some(candidate) = termdag.make(node_id.clone(), node, children, old_cost) {
-                    let cadidate_cost = termdag.total_cost(candidate);
+                    // let candidate_cost = termdag.total_cost(candidate);
+                    let candidate_info = &termdag.info[candidate];
 
-                    if cadidate_cost < old_cost {
+                    // Enhanced selection criteria considering:
+                    // 2. Depth
+                    // 3. Size
+                    let should_update = match best_in_class.get(&node.eclass) {
+                        None => true,
+                        Some(&old_id) => {
+                            let old_info = &termdag.info[old_id];
+                            candidate_info.total_cost < old_info.total_cost
+                        }
+                    };
+
+                    if should_update {
                         best_in_class.insert(node.eclass.clone(), candidate);
                         keep_going = true;
                     }
