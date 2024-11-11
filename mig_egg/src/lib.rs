@@ -678,9 +678,7 @@ pub fn egg_to_serialized_egraph(
         }
     }
 
-    // Set root eclasses
     out.root_eclasses = vec![egraph_serialize::ClassId::from(format!("{}", final_root))];
-
     out
 }
 
