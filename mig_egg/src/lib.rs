@@ -634,7 +634,7 @@ pub fn egg_to_serialized_egraph(
     let mut out = egraph_serialize::EGraph::default();
     let final_root = egraph.find(root_id);
 
-    // First pass: create all classes to ensure they exist
+    // First pass: create all classes
     for class in egraph.classes() {
         out.class_data.insert(
             egraph_serialize::ClassId::from(format!("{}", class.id)),
@@ -642,17 +642,23 @@ pub fn egg_to_serialized_egraph(
         );
     }
 
-    // Second pass: add nodes and their costs
+    // Second pass: add nodes with simplified costs
     for class in egraph.classes() {
         for (i, node) in class.nodes.iter().enumerate() {
-            let cost = cost_function.cal_cur_cost(&node);
+            // Use simpler cost model like reference
+            let cost = match node {
+                MIG::Maj(..) => egraph_serialize::Cost::new(1.0).unwrap(),
+                MIG::Not(..) => egraph_serialize::Cost::new(0.0).unwrap(),
+                MIG::Bool(..) => egraph_serialize::Cost::new(0.0).unwrap(),
+                MIG::Symbol(..) => egraph_serialize::Cost::new(0.0).unwrap(),
+                MIG::And(..) => egraph_serialize::Cost::new(1.0).unwrap(), // Add cost for AND
+            };
 
             // Ensure all child classes exist
             for child in node.children() {
-                if !out
-                    .class_data
-                    .contains_key(&egraph_serialize::ClassId::from(format!("{}", child)))
-                {
+                if !out.class_data.contains_key(
+                    &egraph_serialize::ClassId::from(format!("{}", child))
+                ) {
                     out.class_data.insert(
                         egraph_serialize::ClassId::from(format!("{}", child)),
                         egraph_serialize::ClassData { typ: None },
@@ -670,16 +676,14 @@ pub fn egg_to_serialized_egraph(
                         .map(|id| egraph_serialize::NodeId::from(format!("{}.0", id)))
                         .collect(),
                     eclass: egraph_serialize::ClassId::from(format!("{}", class.id)),
-                    cost: egraph_serialize::Cost::new(cost.encode()).unwrap(),
+                    cost,
                     subsumed: false,
                 },
             )
         }
     }
 
-    // Set root eclasses
     out.root_eclasses = vec![egraph_serialize::ClassId::from(format!("{}", final_root))];
-
     out
 }
 
@@ -796,7 +800,7 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
         &MIGCostFn_dsi::new(&saturated_egraph, vars_),
         root_id,
     );
-    let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
+    // let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
 
     // #[cfg(feature = "ilp-cbc")]
     // let extractor = extract::ilp_cbc::CbcExtractor::default();
@@ -804,11 +808,11 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
     // let extractor = extract::bottom_up::BottomUpExtractor {};
     // #[cfg(not(feature = "ilp-cbc"))]
     let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
-    let extraction_result = extractor.extract(&serialized_egraph, &egraph_serialize_root);
+    let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
     // Get the cost
     // let tree_cost = extraction_result.tree_cost(&serialized_egraph, &egraph_serialize_root);
-    let dag_cost = extraction_result.dag_cost_size(&serialized_egraph, &egraph_serialize_root);
+    let dag_cost = extraction_result.dag_cost(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
     /*
     let (aft_expr, tcost) = extraction_result.print_extracted_term(
@@ -895,7 +899,7 @@ pub fn simplify(s: &str) {
         &MIGCostFn_dsi::new(&saturated_egraph, vars_),
         root_id,
     );
-    let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
+    // let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
 
     // #[cfg(feature = "ilp-cbc")]
     // let extractor = extract::ilp_cbc::CbcExtractor::default();
@@ -907,7 +911,7 @@ pub fn simplify(s: &str) {
 
     // Get the cost
     // let tree_cost = extraction_result.tree_cost(&serialized_egraph, &egraph_serialize_root);
-    let dag_cost = extraction_result.dag_cost(&serialized_egraph, &egraph_serialize_root);
+    let dag_cost = extraction_result.dag_cost(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_dep = dag_cost.floor() as u32;
     let aft_size = (dag_cost - dag_cost.floor()).mul(1000 as f64).ceil() as u32;
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
@@ -965,7 +969,7 @@ mod tests {
         */
 
         simplify("(& 0 1)");
-        // simplify("(& x 1)");
+        simplify("(& x 1)");
         // simplify("(& x (~ 1))");
         simplify("(& x (~ x))");
         // simplify("(& x x)");
