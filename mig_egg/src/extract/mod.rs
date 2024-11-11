@@ -262,7 +262,7 @@ impl ExtractionResult {
         costs.values().sum()
     }
 
-    pub fn dag_cost_size(&self, egraph: &EGraph, roots: &[ClassId]) -> Cost {
+    pub fn dag_cost_size(&self, egraph: &EGraph, roots: &[ClassId]) -> CCost {
         let mut costs: IndexMap<ClassId, Cost> = IndexMap::new();
         let mut todo: Vec<ClassId> = roots.to_vec();
         while let Some(cid) = todo.pop() {
@@ -275,7 +275,9 @@ impl ExtractionResult {
                 todo.push(egraph.nid_to_cid(child).clone());
             }
         }
-        costs.values().sum()
+        costs.into_iter().fold(Default::default(), |sum, c| {
+            &sum + &CCost::decode(c.1.into())
+        })
     }
 
     pub fn dag_cost_depth(&self, egraph: &EGraph, roots: &[ClassId]) -> Cost {

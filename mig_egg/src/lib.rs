@@ -634,7 +634,7 @@ pub fn egg_to_serialized_egraph(
     let mut out = egraph_serialize::EGraph::default();
     let final_root = egraph.find(root_id);
 
-    // First pass: create all classes to ensure they exist
+    // First pass: create all classes
     for class in egraph.classes() {
         out.class_data.insert(
             egraph_serialize::ClassId::from(format!("{}", class.id)),
@@ -642,9 +642,10 @@ pub fn egg_to_serialized_egraph(
         );
     }
 
-    // Second pass: add nodes and their costs
+    // Second pass: add nodes with simplified costs
     for class in egraph.classes() {
         for (i, node) in class.nodes.iter().enumerate() {
+            // Use simpler cost model like reference
             let cost = cost_function.cal_cur_cost(&node);
 
             // Ensure all child classes exist
@@ -796,7 +797,7 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
         &MIGCostFn_dsi::new(&saturated_egraph, vars_),
         root_id,
     );
-    let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
+    // let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
 
     // #[cfg(feature = "ilp-cbc")]
     // let extractor = extract::ilp_cbc::CbcExtractor::default();
@@ -804,14 +805,14 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
     // let extractor = extract::bottom_up::BottomUpExtractor {};
     // #[cfg(not(feature = "ilp-cbc"))]
     let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
-    let extraction_result = extractor.extract(&serialized_egraph, &egraph_serialize_root);
+    let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
     // Get the cost
     // let tree_cost = extraction_result.tree_cost(&serialized_egraph, &egraph_serialize_root);
-    let dag_cost = extraction_result.dag_cost_size(&serialized_egraph, &egraph_serialize_root);
+    // let dag_cost = extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
     /*
-    let (aft_expr, tcost) = extraction_result.print_extracted_term(
+    let (aft_expr, dag_cost) = extraction_result.print_extracted_term(
         &serialized_egraph,
         &MIGCostFn_dsi::new(&saturated_egraph, vars_),
     );
@@ -823,8 +824,8 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
     let cost: ffi::CCost = ffi::CCost {
         aft_expr: aft_expr_cstring.into_raw(),
         aft_expr_len: aft_expr.len(),
-        aft_dep: dag_cost.floor() as u32,
-        aft_size: (dag_cost - dag_cost.floor()).mul(1000 as f64).ceil() as u32,
+        aft_dep: 0,
+        aft_size: 0,
         aft_invs: 0,
     };
 
@@ -895,7 +896,7 @@ pub fn simplify(s: &str) {
         &MIGCostFn_dsi::new(&saturated_egraph, vars_),
         root_id,
     );
-    let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
+    // let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
 
     // #[cfg(feature = "ilp-cbc")]
     // let extractor = extract::ilp_cbc::CbcExtractor::default();
@@ -907,13 +908,12 @@ pub fn simplify(s: &str) {
 
     // Get the cost
     // let tree_cost = extraction_result.tree_cost(&serialized_egraph, &egraph_serialize_root);
-    let dag_cost = extraction_result.dag_cost(&serialized_egraph, &egraph_serialize_root);
-    let aft_dep = dag_cost.floor() as u32;
-    let aft_size = (dag_cost - dag_cost.floor()).mul(1000 as f64).ceil() as u32;
+    let dag_cost =
+        extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
     println!(
         "DAG cost: depth: {}, size: {}, expr: {}",
-        aft_dep, aft_size, aft_expr
+        dag_cost.dep, dag_cost.aom, aft_expr
     );
     let (aft_expr, tcost) = extraction_result.print_extracted_term(
         &serialized_egraph,
@@ -965,17 +965,17 @@ mod tests {
         */
 
         simplify("(& 0 1)");
-        // simplify("(& x 1)");
-        // simplify("(& x (~ 1))");
+        simplify("(& x 1)");
+        simplify("(& x (~ 1))");
         simplify("(& x (~ x))");
-        // simplify("(& x x)");
-        // simplify("(& (& x b) (& b y))");
+        simplify("(& x x)");
+        simplify("(& (& x b) (& b y))");
         simplify("(M 1 1 1)");
         simplify("(M 1 1 0)");
         simplify("(M 1 0 0)");
         simplify("(M 0 0 0)");
-        // simplify("(M x 1 (~ 0))");
-        // simplify("(M a b (M a b c))");
+        simplify("(M x 1 (~ 0))");
+        simplify("(M a b (M a b c))");
         simplify("(M x 0 (M y 1 (M u 0 v)))");
         simplify("(M (M w x (~ z)) x (M z x y))");
         simplify("(M c (M c d (M e f b)) a)");
@@ -983,6 +983,7 @@ mod tests {
         simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))");
         simplify("(M 0 (~ (M 0 (~ a) b)) (M 0 c (~ d)))");
         simplify("(M (~ 0) (M 0 a (~ (M 0 b (~ c)))) (M 0 (~ a) (M 0 b (~ c))))");
+        simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))");
     }
 
     #[test]
