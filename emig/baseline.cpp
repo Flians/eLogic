@@ -27,6 +27,8 @@
 #include <mockturtle/algorithms/aig_balancing.hpp>
 #include <mockturtle/algorithms/balancing.hpp>
 #include <mockturtle/algorithms/cleanup.hpp>
+#include <mockturtle/algorithms/mig_algebraic_rewriting.hpp>
+#include <mockturtle/algorithms/mig_resub.hpp>
 #include <mockturtle/algorithms/node_resynthesis/exact.hpp>
 #include <mockturtle/algorithms/node_resynthesis/mig_npn.hpp>
 #include <mockturtle/algorithms/node_resynthesis/xag_npn.hpp>
@@ -42,7 +44,6 @@
 #include <string>
 
 #include "baseline.hpp"
-// #include "partial_simulation.hpp"
 
 #define EXPERIMENTS_PATH "tools/mockturtle/experiments/"
 #define CUT_SIZE 4u
@@ -168,19 +169,96 @@ void main_xag(const bool use_dc) {
   exp.table();
 }
 
+int mig_resubstitution(const bool use_dc) {
+  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool>
+      exp("mig_resubstitution", "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
+
+  for (auto const &benchmark : experiments::epfl_benchmarks()) {
+    fmt::print("[i] processing {}\n", benchmark);
+    std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
+
+    mockturtle::mig_network mig;
+    if (lorina::read_aiger(benchmark_path, mockturtle::aiger_reader(mig)) != lorina::return_code::success) {
+      continue;
+    }
+
+    mockturtle::resubstitution_params ps;
+    mockturtle::resubstitution_stats st;
+    ps.max_pis = 8u;
+    ps.max_inserts = 1u;
+    ps.progress = false;
+    ps.window_size = 12u;
+    ps.use_dont_cares = use_dc;
+
+    mockturtle::depth_view depth_mig{mig};
+
+    uint32_t const size_before = mig.num_gates();
+    uint32_t const depth_before = depth_mig.depth();
+
+    mockturtle::fanout_view fanout_mig{depth_mig};
+    mig_resubstitution2(fanout_mig, ps, &st);
+    mig = cleanup_dangling(mig);
+
+    bool const cec = true; // abc_cec_impl(mig, benchmark_path);
+    exp(benchmark, size_before, mig.num_gates(), depth_before, mockturtle::depth_view(mig).depth(), mockturtle::to_seconds(st.time_total), cec);
+  }
+
+  exp.save();
+  exp.table();
+
+  return 0;
+}
+
+void mig_algebraic_depth_rewriting() {
+
+  using namespace experiments;
+  using namespace mockturtle;
+
+  experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool>
+      exp("mig_algebraic_depth_rewriting", "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
+
+  for (auto const &benchmark : epfl_benchmarks()) {
+    fmt::print("[i] processing {}\n", benchmark);
+    std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
+
+    mig_network mig;
+    if (lorina::read_aiger(benchmark_path, aiger_reader(mig)) != lorina::return_code::success) {
+      continue;
+    }
+
+    uint32_t const size_before = mig.num_gates();
+    depth_view depth_mig{mig};
+    uint32_t const depth_before = depth_mig.depth();
+
+    mockturtle::mig_algebraic_depth_rewriting_params ps;
+    mockturtle::mig_algebraic_depth_rewriting_stats st;
+    mockturtle::mig_algebraic_depth_rewriting(depth_mig, ps, &st);
+
+    bool const cec = true; // abc_cec_impl(aig, benchmark_path);
+    exp(benchmark, size_before, mig.num_gates(), depth_before, depth_view(mig).depth(), to_seconds(st.time_total), cec);
+  }
+
+  exp.save();
+  exp.table();
+}
+
 int main(int argc, char *argv[]) {
   int op = 0;
   if (argc > 1)
     op = atoi(argv[1]);
-  bool use_dc = false;
+  bool use_dc = true;
   if (argc > 2)
     use_dc = atoi(argv[2]);
   if (op == 0) {
     main_aig(use_dc);
   } else if (op == 1) {
     main_mig(use_dc);
-  } else {
+  } else if (op == 2) {
     main_xag(use_dc);
+  } else if (op == 3) {
+    mig_resubstitution(use_dc);
+  } else {
+    mig_algebraic_depth_rewriting();
   }
   return 0;
 }
