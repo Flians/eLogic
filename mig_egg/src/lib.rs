@@ -802,8 +802,14 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
     // Extract the result using global_greedy_dag extractor
     // let extractor = extract::bottom_up::BottomUpExtractor {};
     // #[cfg(not(feature = "ilp-cbc"))]
+    #[cfg(feature = "ilp-cbc")]
+    let extractor = extract::ilp_cbc::CbcExtractor::default();
+    // Extract the result using global_greedy_dag extractor
+    #[cfg(not(feature = "ilp-cbc"))]
     let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
+    // let extractor = extract::bottom_up::BottomUpExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
+
 
     // Get the cost
     // let tree_cost = extraction_result.tree_cost(&serialized_egraph, &egraph_serialize_root);
@@ -896,10 +902,10 @@ pub fn simplify(s: &str) {
     );
     // let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
 
-    // #[cfg(feature = "ilp-cbc")]
-    // let extractor = extract::ilp_cbc::CbcExtractor::default();
+    #[cfg(feature = "ilp-cbc")]
+    let extractor = extract::ilp_cbc::CbcExtractor::default();
     // Extract the result using global_greedy_dag extractor
-    // #[cfg(not(feature = "ilp-cbc"))]
+    #[cfg(not(feature = "ilp-cbc"))]
     let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     // let extractor = extract::bottom_up::BottomUpExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
