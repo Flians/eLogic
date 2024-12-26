@@ -32,12 +32,27 @@ For compilers to find cbc you may need to set:
 
 For pkg-config to find cbc you may need to set:
   export PKG_CONFIG_PATH="/opt/homebrew/opt/cbc/lib/pkgconfig"
+
+## build
+
+```bash
+./build.sh
+```
   
 ## run
 
 ``` bash
-(base) flynn@flynn-Precision-7920-Tower:~/workplace/MIGBalance$ nohup python3 -u mig/main.py --K 6 --obj 0 > egg_depth_K6.log 2>&1 &
-[1] 23918
-(base) flynn@flynn-Precision-7920-Tower:~/workplace/MIGBalance$ nohup python3 -u mig/main.py --K 6 --obj 1 > egg_area_K6.log 2>&1 &
-[2] 24021
+nohup ./build/emig/emig 0 > emig_aig_k4_size.log 2>&1 &
+nohup ./build/emig/emig 1 > emig_mig_k4_size.log 2>&1 &
+nohup ./build/emig/emig 0 > emig_aig_k6_size.log 2>&1 &
+nohup ./build/emig/emig 1 > emig_mig_k6_size.log 2>&1 &
+nohup ./build/emig/emig 0 > emig_aig_k8_size.log 2>&1 &
+nohup ./build/emig/emig 1 > emig_mig_k8_size.log 2>&1 &
+
+nohup ./build/emig/emig 0 > emig_aig_k4_dep.log 2>&1 &
+nohup ./build/emig/emig 1 > emig_mig_k4_dep.log 2>&1 &
+nohup ./build/emig/emig 0 > emig_aig_k6_dep.log 2>&1 &
+nohup ./build/emig/emig 1 > emig_mig_k6_dep.log 2>&1 &
+nohup ./build/emig/emig 0 > emig_aig_k8_dep.log 2>&1 &
+nohup ./build/emig/emig 1 > emig_mig_k8_dep.log 2>&1 &
 ```

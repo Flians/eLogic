@@ -568,6 +568,13 @@ namespace mockturtle {
         leaves.reserve(NumVars);
         // signal<Ntk> best_signal;
 
+        /*
+        std::unordered_set<node<Ntk>> pos;
+        ntk.foreach_gate([&](auto const &n, auto i) {
+          pos.insert(n);
+        });
+        const uint32_t min_leaves = NumVars >> 1;
+        */
         const uint32_t min_depth_gap = 3;
         ntk.foreach_gate([&](auto const &n, auto i) {
           if (ntk.fanout_size(n) == 0u || ntk.is_dead(n))
@@ -576,6 +583,7 @@ namespace mockturtle {
           int32_t best_gain = -1;
           uint32_t best_dep = UINT32_MAX;
           std::string best_expr_aft;
+          bool is_on_critical_path = false;
 
           /* update level for node */
           if constexpr (has_level_v<Ntk>) {
@@ -585,6 +593,7 @@ namespace mockturtle {
             });
             ntk.set_level(n, level + 1);
             best_dep = level + 1;
+            is_on_critical_path = ntk.is_on_critical_path(n);
           }
 
           cut_manager.clear_cuts(n);
@@ -596,10 +605,12 @@ namespace mockturtle {
             printf("%lu\n", n);
           }
           */
+          // const bool is_po = pos.find(n) != pos.end();
           const uint32_t original_level = best_dep;
           for (auto &cut : cuts.cuts(ntk.node_to_index(n))) {
             /* skip trivial cut */
             const size_t cur_cut_size = cut->size();
+            // if ((is_po && cur_cut_size == 1 && *cut->begin() == ntk.node_to_index(n)) || (!is_po && cur_cut_size < min_leaves)) {
             if ((cur_cut_size == 1 && *cut->begin() == ntk.node_to_index(n))) {
               continue;
             }
@@ -683,8 +694,10 @@ namespace mockturtle {
               continue;
             }
 
-            // if (aft_dep < best_dep && gain > best_gain) {
-            if ((gain > best_gain && aft_dep <= best_dep) || (gain == best_gain && aft_dep < best_dep)) {
+            if ((is_on_critical_path && gain > best_gain && aft_dep <= best_dep) ||
+                (!is_on_critical_path && gain > best_gain) ||
+                (gain == best_gain && aft_dep < best_dep)) {
+              // if ((gain > best_gain && aft_dep <= best_dep) || (gain == best_gain && aft_dep < best_dep)) {
               // if (best_gain != -1) ntk.take_out_node(ntk.get_node(best_signal));
               // best_signal = new_f;
               best_gain = gain;
