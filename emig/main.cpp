@@ -1,3 +1,4 @@
+#include "baseline.hpp"
 #include "mig_egg/src/lib.rs.h"
 #include "rewrite_egg.hpp"
 #include "rust/cxx.h"
@@ -53,8 +54,8 @@ void main_aig() {
 
 void main_mig() {
 
-  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool>
-      exp(fmt::format("rewrite_elo_mig_k{}", CutSize), "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
+  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, uint32_t, uint32_t, float, bool>
+      exp(fmt::format("rewrite_elo_mig_k{}_post2", CutSize), "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "size_post", "depth_post", "runtime_post", "equivalent");
 
   for (auto const &benchmark : experiments::epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
@@ -75,13 +76,31 @@ void main_mig() {
     ps.cut_enumeration_ps.cut_limit = 8u;
     mockturtle::rewrite<mockturtle::mig_network, CutSize>(mig, ps, &st);
 
-    bool const cec = experiments::abc_cec_impl(mig, benchmark_path);
     uint32_t const size_after = mig.num_gates();
-    uint32_t const depth_after = mockturtle::depth_view(mig).depth();
-    exp(benchmark, size_before, mig.num_gates(), depth_before, depth_after, mockturtle::to_seconds(st.time_total), cec);
+    mockturtle::depth_view depth_mig{mig};
+    uint32_t const depth_after = depth_mig.depth();
 
-    std::cout << "size_before = " << size_before << ", depth_before = " << depth_before << std::endl;
-    std::cout << "size_after = " << size_after << ", depth_after = " << depth_after << std::endl;
+    // post optimizaiton using resubstitution
+    mockturtle::resubstitution_params ps_size;
+    mockturtle::resubstitution_stats st_size;
+    ps_size.max_pis = CutSize;
+    ps_size.max_inserts = 1u;
+    ps_size.progress = false;
+    ps_size.window_size = 12u;
+    ps_size.use_dont_cares = true;
+    // ps.preserve_depth = true;
+    mockturtle::fanout_view fanout_mig{depth_mig};
+    mockturtle::mig_resubstitution2(fanout_mig, ps_size, &st_size);
+    mig = cleanup_dangling(mig);
+
+    bool const cec = experiments::abc_cec_impl(mig, benchmark_path);
+
+    uint32_t const size_after_post = mig.num_gates();
+    uint32_t const depth_after_post = mockturtle::depth_view(mig).depth();
+    exp(benchmark, size_before, size_after, depth_before, depth_after, mockturtle::to_seconds(st.time_total), size_after_post, depth_after_post, mockturtle::to_seconds(st_size.time_total), cec);
+
+    std::cout << "size_before = " << size_before << ", depth_before = " << depth_before << ", size_after_post = " << size_after_post << std::endl;
+    std::cout << "size_after = " << size_after << ", depth_after = " << depth_after << ", depth_after_post = " << depth_after_post << std::endl;
   }
 
   exp.save();
