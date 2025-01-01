@@ -104,7 +104,7 @@ impl ExtractionResult {
         egraph: &EGraph,
         cost_function: &MIGCostFn_dsi,
     ) -> (String, CCost) {
-        let mut metrics = CCost::default();
+        let mut metrics: CCost = CCost::default();
         let mut result = String::new();
         for root in &egraph.root_eclasses {
             let (term, term_metrics) = self.print_term(egraph, cost_function, root);
@@ -262,9 +262,11 @@ impl ExtractionResult {
         costs.values().sum()
     }
 
-    pub fn dag_cost_size(&self, egraph: &EGraph, roots: &[ClassId]) -> CCost {
+    pub fn dag_cost_size(&self, egraph: &EGraph, roots: &[ClassId]) -> u32 {
         let mut costs: IndexMap<ClassId, Cost> = IndexMap::new();
         let mut todo: Vec<ClassId> = roots.to_vec();
+    
+
         while let Some(cid) = todo.pop() {
             let node_id = &self.choices[&cid];
             let node = &egraph[node_id];
@@ -275,37 +277,33 @@ impl ExtractionResult {
                 todo.push(egraph.nid_to_cid(child).clone());
             }
         }
-        costs.into_iter().fold(Default::default(), |sum, c| {
-            &sum + &CCost::decode(c.1.into())
-        })
+        costs
+            .into_iter()
+            .fold(0, |sum, (_, cost)| sum + CCost::decode(cost.into()).aom)
     }
-
-    pub fn dag_cost_depth(&self, egraph: &EGraph, roots: &[ClassId]) -> Cost {
-        let mut costs: IndexMap<ClassId, Cost> = IndexMap::new();
-        let mut todo: Vec<ClassId> = roots.to_vec();
-        while let Some(cid) = todo.pop() {
-            let node_id = &self.choices[&cid];
-            let node = &egraph[node_id];
-
-            if costs.insert(cid.clone(), node.cost).is_some() {
-                continue;
-            }
-
-            let mut flag = true;
-            let mut best_child: ClassId = cid.clone();
-            let mut best_child_cost = Cost::default();
-            for child in &node.children {
-                let child_cid = egraph.nid_to_cid(child);
-                let cur_child_cost = self.dag_cost_depth(egraph, &[child_cid.clone()]);
-                if flag || cur_child_cost < best_child_cost {
-                    best_child_cost = cur_child_cost;
-                    best_child = child_cid.clone();
-                    flag = false;
-                }
-            }
-            todo.push(best_child);
+    
+    pub fn dag_cost_depth(&self, egraph: &EGraph, roots: &[ClassId]) -> u32 {
+        let mut depth= CCost::default().dep;
+        for root in roots {
+            let depth_new = self.calculate_depth(egraph, root);
+            depth = cmp::max(depth, depth_new); 
         }
-        costs.values().sum()
+    depth
+    }
+    fn calculate_depth(&self, egraph: &EGraph, roots: &ClassId) -> u32 {
+        let node_id = &self.choices[roots];
+        let node = &egraph[node_id];
+        let max_child_depth = node
+            .children
+            .iter() 
+            .map(|child| {
+                let child_cid = egraph.nid_to_cid(child); 
+                self.calculate_depth(egraph, child_cid)  
+            })
+            .max() 
+            .unwrap_or(0); 
+    
+        max_child_depth + CCost::decode(node.cost.into()).dep
     }
 
     pub fn node_sum_cost<M>(&self, egraph: &EGraph, node: &Node, costs: &M) -> Cost

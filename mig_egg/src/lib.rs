@@ -912,12 +912,15 @@ pub fn simplify(s: &str) {
 
     // Get the cost
     // let tree_cost = extraction_result.tree_cost(&serialized_egraph, &egraph_serialize_root);
-    let dag_cost =
-        extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_size =
+    extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_depth =
+    extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
+    
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
     println!(
-        "DAG cost: depth: {}, size: {}, expr: {}",
-        dag_cost.dep, dag_cost.aom, aft_expr
+        "DAG cost: depth: {}, size: {}, expr: {} ",
+        dag_cost_depth, dag_cost_size, aft_expr
     );
     let (aft_expr, tcost) = extraction_result.print_extracted_term(
         &serialized_egraph,
@@ -999,6 +1002,7 @@ mod tests {
         let mut eg: CEGraph = egg::EGraph::default();
         eg.add_expr(&start_expr);
         eg.rebuild();
+        print!("{:?}", end_expr);
         assert!(!eg.equivs(&start_expr, &end_expr).is_empty());
     }
 }
