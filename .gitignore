@@ -3,3 +3,6 @@ target/
 results/
 Cargo.lock
 build
+.aider*
+.DS_Store
+*.diff
