@@ -380,6 +380,20 @@ mod ffi {
     }
 }
 
+impl std::fmt::Display for ffi::CCost {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "(aft_expr: {}, aft_expr_len: {}, aft_dep: {}, aft_size: {}, aft_invs: {})",
+            unsafe { CString::from_raw(self.aft_expr).to_str().unwrap() },
+            self.aft_expr_len,
+            self.aft_dep,
+            self.aft_size,
+            self.aft_invs
+        )
+    }
+}
+
 impl PartialOrd for ffi::CCost {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         let src = (self.aft_dep, self.aft_size);
@@ -507,6 +521,7 @@ pub struct GreedyDagExtractor<'a, CF: egg::CostFunction<L>, L: egg::Language, N:
 }
 
 use std::cmp::Ordering;
+use std::ptr::null;
 fn cmp<T: PartialOrd>(a: &Option<T>, b: &Option<T>) -> Ordering {
     // None is high
     match (a, b) {
@@ -773,21 +788,17 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
     }
 
     // create an e-graph with the given expression
-    let mut initial_egraph = CEGraph::default();
-    let root_id = initial_egraph.add_expr(&expr);
-    initial_egraph.rebuild();
-
     let mut runner = egg::Runner::default()
-        .with_egraph(initial_egraph)
+        .with_expr(&expr)
         .with_iter_limit(10)
         .with_node_limit(100)
         .with_time_limit(std::time::Duration::from_secs(10));
-    runner.roots = vec![root_id];
+    // the Runner knows which e-class the expression given with `with_expr` is in
+    let root_id = runner.roots[0];
 
     // simplify the expression using a Runner, which runs the given rules over it
     runner = runner.run(all_rules);
     let saturated_egraph = runner.egraph;
-    let root_id = runner.roots[0];
 
     // Serialize the egraph to JSON with single root
     let serialized_egraph = egg_to_serialized_egraph(
@@ -797,23 +808,20 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
     );
     // let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
 
-    // #[cfg(feature = "ilp-cbc")]
-    // let extractor = extract::ilp_cbc::CbcExtractor::default();
-    // Extract the result using global_greedy_dag extractor
-    // let extractor = extract::bottom_up::BottomUpExtractor {};
-    // #[cfg(not(feature = "ilp-cbc"))]
     #[cfg(feature = "ilp-cbc")]
     let extractor = extract::ilp_cbc::CbcExtractor::default();
     // Extract the result using global_greedy_dag extractor
-    #[cfg(not(feature = "ilp-cbc"))]
-    let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     // let extractor = extract::bottom_up::BottomUpExtractor {};
+    // #[cfg(not(feature = "ilp-cbc"))]
+    // let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
-
 
     // Get the cost
     // let tree_cost = extraction_result.tree_cost(&serialized_egraph, &egraph_serialize_root);
-    // let dag_cost = extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_size =
+        extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_depth =
+        extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
     /*
     let (aft_expr, dag_cost) = extraction_result.print_extracted_term(
@@ -828,8 +836,8 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
     let cost: ffi::CCost = ffi::CCost {
         aft_expr: aft_expr_cstring.into_raw(),
         aft_expr_len: aft_expr.len(),
-        aft_dep: 0,
-        aft_size: 0,
+        aft_dep: dag_cost_depth,
+        aft_size: dag_cost_size,
         aft_invs: 0,
     };
 
@@ -874,25 +882,24 @@ pub fn simplify(s: &str) {
     // parse the expression, the type annotation tells it which Language to use
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
 
-    let vars: [u32; 26] = [0; 26];
-    let vars_: &[u32] = &vars;
+    let vars_default: [u32; 26] = [0; 26];
+    let vars_: &[u32] = &vars_default;
+
+    let cost_depth = simplify_depth(s, null(), 0);
+    println!("\ntree cost: {} ", unsafe { std::ptr::read(cost_depth) });
 
     // create an e-graph with the given expression
-    let mut initial_egraph = CEGraph::default();
-    let root_id = initial_egraph.add_expr(&expr);
-    initial_egraph.rebuild();
-
     let mut runner = egg::Runner::default()
-        .with_egraph(initial_egraph)
+        .with_expr(&expr)
         .with_iter_limit(10)
         .with_node_limit(100)
         .with_time_limit(std::time::Duration::from_secs(10));
-    runner.roots = vec![root_id];
+    // the Runner knows which e-class the expression given with `with_expr` is in
+    let root_id = runner.roots[0];
 
     // simplify the expression using a Runner, which runs the given rules over it
     runner = runner.run(all_rules);
     let saturated_egraph = runner.egraph;
-    let root_id = runner.roots[0];
 
     // Serialize the egraph to JSON with single root
     let serialized_egraph = egg_to_serialized_egraph(
@@ -905,18 +912,17 @@ pub fn simplify(s: &str) {
     #[cfg(feature = "ilp-cbc")]
     let extractor = extract::ilp_cbc::CbcExtractor::default();
     // Extract the result using global_greedy_dag extractor
-    #[cfg(not(feature = "ilp-cbc"))]
-    let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
+    // #[cfg(not(feature = "ilp-cbc"))]
+    // let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     // let extractor = extract::bottom_up::BottomUpExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
     // Get the cost
     // let tree_cost = extraction_result.tree_cost(&serialized_egraph, &egraph_serialize_root);
     let dag_cost_size =
-    extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
+        extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
     let dag_cost_depth =
-    extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
-    
+        extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
     println!(
         "DAG cost: depth: {}, size: {}, expr: {} ",
@@ -1002,7 +1008,6 @@ mod tests {
         let mut eg: CEGraph = egg::EGraph::default();
         eg.add_expr(&start_expr);
         eg.rebuild();
-        print!("{:?}", end_expr);
         assert!(!eg.equivs(&start_expr, &end_expr).is_empty());
     }
 }

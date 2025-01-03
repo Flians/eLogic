@@ -32,8 +32,6 @@ impl Extractor for CbcExtractor {
 }
 
 fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> ExtractionResult {
-    // print the extractor info
-    println!("Using cbc ilp extractor");
     let mut model = Model::default();
 
     model.set_parameter("seconds", &timeout_seconds.to_string());
