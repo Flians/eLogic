@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::ffi::CString;
 use std::ops::{Add, Mul};
 use std::os::raw::c_char;
+use ordered_float::NotNan;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct CCost {
@@ -912,8 +913,10 @@ pub fn simplify(s: &str) {
     #[cfg(feature = "ilp-cbc")]
     let extractor = extract::ilp_cbc::CbcExtractor::default();
     // Extract the result using global_greedy_dag extractor
-    // #[cfg(not(feature = "ilp-cbc"))]
-    // let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
+    #[cfg(feature = "ilp-cbc")]
+    let extractor = extract::ilp_cbc::CbcExtractor::default();
+    #[cfg(not(feature = "ilp-cbc"))]
+    let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     // let extractor = extract::bottom_up::BottomUpExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
