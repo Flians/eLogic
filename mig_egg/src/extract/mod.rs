@@ -265,7 +265,6 @@ impl ExtractionResult {
     pub fn dag_cost_size(&self, egraph: &EGraph, roots: &[ClassId]) -> u32 {
         let mut costs: IndexMap<ClassId, Cost> = IndexMap::new();
         let mut todo: Vec<ClassId> = roots.to_vec();
-    
 
         while let Some(cid) = todo.pop() {
             let node_id = &self.choices[&cid];
@@ -281,28 +280,28 @@ impl ExtractionResult {
             .into_iter()
             .fold(0, |sum, (_, cost)| sum + CCost::decode(cost.into()).aom)
     }
-    
+
     pub fn dag_cost_depth(&self, egraph: &EGraph, roots: &[ClassId]) -> u32 {
-        let mut depth= CCost::default().dep;
+        let mut depth = CCost::default().dep;
         for root in roots {
             let depth_new = self.calculate_depth(egraph, root);
-            depth = cmp::max(depth, depth_new); 
+            depth = cmp::max(depth, depth_new);
         }
-    depth
+        depth
     }
     fn calculate_depth(&self, egraph: &EGraph, roots: &ClassId) -> u32 {
         let node_id = &self.choices[roots];
         let node = &egraph[node_id];
         let max_child_depth = node
             .children
-            .iter() 
+            .iter()
             .map(|child| {
-                let child_cid = egraph.nid_to_cid(child); 
-                self.calculate_depth(egraph, child_cid)  
+                let child_cid = egraph.nid_to_cid(child);
+                self.calculate_depth(egraph, child_cid)
             })
-            .max() 
-            .unwrap_or(0); 
-    
+            .max()
+            .unwrap_or(0);
+
         max_child_depth + CCost::decode(node.cost.into()).dep
     }
 
