@@ -813,8 +813,8 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
     let extractor = extract::ilp_cbc::CbcExtractor::default();
     // Extract the result using global_greedy_dag extractor
     // let extractor = extract::bottom_up::BottomUpExtractor {};
-    // #[cfg(not(feature = "ilp-cbc"))]
-    // let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
+    #[cfg(not(feature = "ilp-cbc"))]
+    let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
     // Get the cost
@@ -913,8 +913,8 @@ pub fn simplify(s: &str) {
     #[cfg(feature = "ilp-cbc")]
     let extractor = extract::ilp_cbc::CbcExtractor::default();
     // Extract the result using global_greedy_dag extractor
-    #[cfg(feature = "ilp-cbc")]
-    let extractor = extract::ilp_cbc::CbcExtractor::default();
+    // #[cfg(feature = "ilp-cbc")]
+    // let extractor = extract::ilp_cbc::CbcExtractor::default();
     #[cfg(not(feature = "ilp-cbc"))]
     let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     // let extractor = extract::bottom_up::BottomUpExtractor {};
