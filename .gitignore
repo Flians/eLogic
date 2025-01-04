@@ -3,3 +3,8 @@ target/
 results/
 Cargo.lock
 build
+.aider*
+repomix-output.txt
+.DS_Store
+.cursorrules
+*.diff
