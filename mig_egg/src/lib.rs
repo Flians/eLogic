@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::ffi::CString;
 use std::ops::{Add, Mul};
 use std::os::raw::c_char;
-
+use env_logger;
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct CCost {
     dep: u32,
@@ -325,6 +325,8 @@ rule! {comp_and,       "(& ?a (~ ?a))",         "0"                      }
 rule! {dup_and,        "(& ?a ?a)",             "?a"                     }
 rule! {and_true,       "(& ?a 1)",              "?a"                     }
 rule! {and_false,      "(& ?a 0)",              "0"                      }
+// add (M ?a ?a ?b) => ?a
+rule! {maj_dup,        "(M ?a ?a ?b)",          "?a"                     }
 
 fn prove_something(name: &str, start: &str, rewrites: &[CRewrite], goals: &[&str]) {
     println!("Proving {}", name);
@@ -343,6 +345,13 @@ fn prove_something(name: &str, start: &str, rewrites: &[CRewrite], goals: &[&str
     // this is needed for the soundness of lem_imply
     let true_id = runner.egraph.add(MIG::Bool(1u8));
     let root = runner.roots[0];
+    // let (best_cost, best_expr) = egg::Extractor::new(
+    //     &runner.egraph,
+    //     MIGCostFn_dsi::new(&runner.egraph, &[0;26])  // 你的cost
+    // ).find_best(root);
+    
+    // println!("Best cost after rewriting: {:?}", best_cost);
+    // println!("Best expr after rewriting: {}", best_expr);
     runner.egraph.union(root, true_id);
     runner.egraph.rebuild();
 
@@ -457,6 +466,7 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost
         dup_and(),
         and_true(),
         and_false(),
+        maj_dup(),
     ];
     // parse the expression, the type annotation tells it which Language to use
     let bef_expr: egg::RecExpr<MIG> = s.parse().unwrap();
@@ -701,7 +711,7 @@ pub fn find_root_nodes(egraph: &CEGraph) -> Vec<Id> {
     let mut roots = Vec::new();
     let mut has_parent = std::collections::HashSet::new();
 
-    // First collect all nodes that are children
+    // 收集所有被当作 child 的 eclass
     for class in egraph.classes() {
         for node in &class.nodes {
             for child in node.children() {
@@ -709,15 +719,18 @@ pub fn find_root_nodes(egraph: &CEGraph) -> Vec<Id> {
             }
         }
     }
-    // Then find nodes that aren't children of any other node
-    // and contain a Maj node (since that's our root operation)
+    // 找到那些没有父节点的 eclass
     for class in egraph.classes() {
-        if !has_parent.contains(&class.id) && class.nodes.iter().any(|n| matches!(n, MIG::Maj(_))) {
+        if !has_parent.contains(&class.id) {
+            // 不再限制必须是 Maj 节点，可以是 Symbol/Not/And 都行
             roots.push(class.id);
         }
     }
-    // If no roots found, look for the highest-level Maj node
+    // 如果真的一个都没找到，就说明所有 class 都有父节点（极少见）
+    // 你也可以 fallback 找含 Maj 的 eclass 或随便选一个
     if roots.is_empty() {
+        // fallback
+        // 例如选包含 Maj 的第一个 eclass，或者根本就返回空
         for class in egraph.classes() {
             if class.nodes.iter().any(|n| matches!(n, MIG::Maj(_))) {
                 roots.push(class.id);
@@ -790,8 +803,8 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
     // create an e-graph with the given expression
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(10)
-        .with_node_limit(100)
+        .with_iter_limit(100)
+        .with_node_limit(10000)
         .with_time_limit(std::time::Duration::from_secs(10));
     // the Runner knows which e-class the expression given with `with_expr` is in
     let root_id = runner.roots[0];
@@ -878,6 +891,7 @@ pub fn simplify(s: &str) {
         // false_true(),
         neg_false(),
         neg_true(),
+        maj_dup(),
     ];
     // parse the expression, the type annotation tells it which Language to use
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
@@ -891,11 +905,15 @@ pub fn simplify(s: &str) {
     // create an e-graph with the given expression
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(10)
-        .with_node_limit(100)
+        .with_iter_limit(1000)
+        .with_node_limit(5000)
         .with_time_limit(std::time::Duration::from_secs(10));
+    // runner = runner.run(all_rules);
     // the Runner knows which e-class the expression given with `with_expr` is in
     let root_id = runner.roots[0];
+    // let (best_cost, best_expr) = egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &[0;26]))
+    //     .find_best(root_id);
+    // println!("Best expr after rewriting: {}", best_expr);
 
     // simplify the expression using a Runner, which runs the given rules over it
     runner = runner.run(all_rules);
@@ -950,6 +968,7 @@ mod tests {
 
     #[test]
     fn prove_chain() {
+        // env_logger::init();
         /*
         let rules = &[
             // rules needed for contrapositive
@@ -1001,6 +1020,7 @@ mod tests {
 
     #[test]
     fn const_fold() {
+        // env_logger::init();
         let start = "(M 0 1 0)";
         let start_expr: egg::RecExpr<MIG> = start.parse().unwrap();
         let end = "0";
