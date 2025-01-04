@@ -27,7 +27,7 @@ impl Extractor for CbcExtractor {
     fn extract(&self, egraph: &EGraph, roots: &[ClassId]) -> ExtractionResult {
         // return extract(egraph, roots, std::u32::MAX);
         // timeout 10s
-        return extract(egraph, roots, 10);
+        return extract(egraph, roots, 30);
     }
 }
 
@@ -35,6 +35,10 @@ fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> Extracti
     let mut model = Model::default();
     model.set_parameter("log", "0");
     model.set_parameter("seconds", &timeout_seconds.to_string());
+    model.set_parameter("ratio", "0.01");
+    model.set_parameter("allowableGap", "5.0");
+    model.set_parameter("maxSolutions", "1");
+    model.set_parameter("maxNodes", "1000000");
 
     // 给每个 eclass 及其 enodes 建立 binary 变量
     let vars: IndexMap<ClassId, ClassVars> = egraph
@@ -134,6 +138,7 @@ fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> Extracti
 
     // 如果 solver 未完成（例如超时），fallback
     if solution.raw().status() != coin_cbc::raw::Status::Finished {
+        println!("Unfinished CBC solution => fallback to FasterGreedyDag");
         assert!(timeout_seconds != std::u32::MAX);
         let initial_result =
             super::faster_greedy_dag::FasterGreedyDagExtractor.extract(egraph, roots);
