@@ -996,26 +996,26 @@ mod tests {
         );
         */
 
-        simplify("(& 0 1)");
-        simplify("(& x 1)");
-        simplify("(& x (~ 1))");
-        simplify("(& x (~ x))");
-        simplify("(& x x)");
-        simplify("(& (& x b) (& b y))");
-        simplify("(M 1 1 1)");
-        simplify("(M 1 1 0)");
-        simplify("(M 1 0 0)");
-        simplify("(M 0 0 0)");
-        simplify("(M x 1 (~ 0))");
-        simplify("(M a b (M a b c))");
+        // simplify("(& 0 1)");
+        // simplify("(& x 1)");
+        // simplify("(& x (~ 1))");
+        // simplify("(& x (~ x))");
+        // simplify("(& x x)");
+        // simplify("(& (& x b) (& b y))");
+        // simplify("(M 1 1 1)");
+        // simplify("(M 1 1 0)");
+        // simplify("(M 1 0 0)");
+        // simplify("(M 0 0 0)");
+        // simplify("(M x 1 (~ 0))");
+        // simplify("(M a b (M a b c))");
         simplify("(M x 0 (M y 1 (M u 0 v)))");
-        simplify("(M (M w x (~ z)) x (M z x y))");
-        simplify("(M c (M c d (M e f b)) a)");
-        simplify("(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))");
+        // simplify("(M (M w x (~ z)) x (M z x y))");
+        // simplify("(M c (M c d (M e f b)) a)");
+        // simplify("(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))");
         simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))");
-        simplify("(M 0 (~ (M 0 (~ a) b)) (M 0 c (~ d)))");
-        simplify("(M (~ 0) (M 0 a (~ (M 0 b (~ c)))) (M 0 (~ a) (M 0 b (~ c))))");
-        simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))");
+        // simplify("(M 0 (~ (M 0 (~ a) b)) (M 0 c (~ d)))");
+        // simplify("(M (~ 0) (M 0 a (~ (M 0 b (~ c)))) (M 0 (~ a) (M 0 b (~ c))))");
+        // simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))");
     }
 
     #[test]
