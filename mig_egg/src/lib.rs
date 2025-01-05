@@ -909,7 +909,7 @@ pub fn simplify(s: &str) {
         .with_iter_limit(1000)
         .with_node_limit(5000)
         .with_time_limit(std::time::Duration::from_secs(10));
-    // runner = runner.run(all_rules);
+    runner = runner.run(all_rules);
     // the Runner knows which e-class the expression given with `with_expr` is in
     let root_id = runner.roots[0];
     // let (best_cost, best_expr) = egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &[0;26]))
@@ -917,7 +917,7 @@ pub fn simplify(s: &str) {
     // println!("Best expr after rewriting: {}", best_expr);
 
     // simplify the expression using a Runner, which runs the given rules over it
-    runner = runner.run(all_rules);
+    // runner = runner.run(all_rules);
     let saturated_egraph = runner.egraph;
 
     // Serialize the egraph to JSON with single root
