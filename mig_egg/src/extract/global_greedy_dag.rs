@@ -152,9 +152,11 @@ impl TermDag {
     }
 }
 
+#[derive(Default)]
 pub struct GlobalGreedyDagExtractor;
 impl Extractor for GlobalGreedyDagExtractor {
     fn extract(&self, egraph: &EGraph, _roots: &[ClassId]) -> ExtractionResult {
+        println!("GlobalGreedyDagExtractor");
         let mut keep_going = true;
 
         let nodes = egraph.nodes.clone();

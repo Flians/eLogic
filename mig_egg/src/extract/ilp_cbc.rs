@@ -32,6 +32,7 @@ impl Extractor for CbcExtractor {
 }
 
 fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> ExtractionResult {
+    println!("extracting with cbc");
     let mut model = Model::default();
     model.set_parameter("log", "0");
     model.set_parameter("seconds", &timeout_seconds.to_string());
