@@ -822,7 +822,8 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
     // let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
 
     #[cfg(feature = "ilp-cbc")]
-    let extractor = extract::ilp_cbc::CbcExtractor::default();
+    let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
+    // let extractor = extract::ilp_cbc::CbcExtractor::default();
     // Extract the result using global_greedy_dag extractor
     // let extractor = extract::bottom_up::BottomUpExtractor {};
     // #[cfg(not(feature = "ilp-cbc"))]
@@ -928,7 +929,10 @@ pub fn simplify(s: &str) {
     // let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
 
     #[cfg(feature = "ilp-cbc")]
-    let extractor = extract::ilp_cbc::CbcExtractor::default();
+    let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
+    // let extractor = extract::ilp_cbc::CbcExtractor::default();
+    // let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
+    
     // Extract the result using global_greedy_dag extractor
     // #[cfg(not(feature = "ilp-cbc"))]
     // let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
@@ -1012,7 +1016,7 @@ mod tests {
         // simplify("(M (M w x (~ z)) x (M z x y))");
         // simplify("(M c (M c d (M e f b)) a)");
         // simplify("(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))");
-        simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))");
+        // simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))");
         // simplify("(M 0 (~ (M 0 (~ a) b)) (M 0 c (~ d)))");
         // simplify("(M (~ 0) (M 0 a (~ (M 0 b (~ c)))) (M 0 (~ a) (M 0 b (~ c))))");
         // simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))");

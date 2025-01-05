@@ -35,10 +35,10 @@ fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> Extracti
     let mut model = Model::default();
     model.set_parameter("log", "0");
     model.set_parameter("seconds", &timeout_seconds.to_string());
-    model.set_parameter("ratio", "0.01");
-    model.set_parameter("allowableGap", "5.0");
-    model.set_parameter("maxSolutions", "1");
-    model.set_parameter("maxNodes", "1000000");
+    model.set_parameter("allowableGap", "0.2"); // Make more strict
+    model.set_parameter("maxSolutions", "10");     // Increase solutions explored
+    model.set_parameter("maxNodes", "10000");   // Increase search space
+    // model.set_parameter("seconds", "60");          // Increase timeout
 
     // 给每个 eclass 及其 enodes 建立 binary 变量
     let vars: IndexMap<ClassId, ClassVars> = egraph
