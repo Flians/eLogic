@@ -5,6 +5,7 @@ use std::ffi::CString;
 use std::ops::{Add, Mul};
 use std::os::raw::c_char;
 use env_logger;
+use ordered_float::NotNan;
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct CCost {
     dep: u32,
@@ -934,6 +935,9 @@ pub fn simplify(s: &str) {
     // let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
     
     // Extract the result using global_greedy_dag extractor
+
+    // #[cfg(feature = "ilp-cbc")]
+    // let extractor = extract::ilp_cbc::CbcExtractor::default();
     #[cfg(not(feature = "ilp-cbc"))]
     let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     // let extractor = extract::bottom_up::BottomUpExtractor {};
