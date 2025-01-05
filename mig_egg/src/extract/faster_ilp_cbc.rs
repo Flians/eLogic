@@ -1,5 +1,5 @@
 use super::*;
-use coin_cbc::{Col, Model};
+use coin_cbc::{Col, Model, Sense};
 use indexmap::IndexSet;
 use ordered_float::NotNan;
 
@@ -116,9 +116,9 @@ fn extract(
     let mut model = Model::default();
     model.set_parameter("loglevel", "0");
     model.set_parameter("seconds", &timeout.to_string());
-    model.set_parameter("allowableGap", "0.2");
-    model.set_parameter("maxSolutions", "10");
-    model.set_parameter("maxNodes", "10000");
+    // model.set_parameter("allowableGap", "0.2");
+    // model.set_parameter("maxSolutions", "10");
+    // model.set_parameter("maxNodes", "10000");
 
     let mut vars: IndexMap<ClassId, ClassILP> = egraph
         .classes()
@@ -150,15 +150,15 @@ fn extract(
     let mut result = ExtractionResult::default();
 
     // Apply optimizations
-    remove_with_loops(&mut vars, &roots, config);
-    remove_high_cost(&mut vars, initial_result_cost, &roots, config);
-    remove_more_expensive_subsumed_nodes(&mut vars, config);
-    remove_unreachable_classes(&mut vars, &roots, config);
-    pull_up_with_single_parent(&mut vars, &roots, config);
-    pull_up_costs(&mut vars, &roots, config);
-    remove_single_zero_cost(&mut vars, &mut result, &roots, config);
-    find_extra_roots(&mut vars, &mut roots, config);
-    remove_empty_classes(&mut vars, config);
+        remove_with_loops(&mut vars, &roots, config);
+        remove_high_cost(&mut vars, initial_result_cost, &roots, config);
+        remove_more_expensive_subsumed_nodes(&mut vars, config);
+        remove_unreachable_classes(&mut vars, &roots, config);
+        pull_up_with_single_parent(&mut vars, &roots, config);
+        pull_up_costs(&mut vars, &roots, config);
+        remove_single_zero_cost(&mut vars, &mut result, &roots, config);
+        find_extra_roots(&mut vars, &mut roots, config);
+        remove_empty_classes(&mut vars, config);
 
     // Add constraints
     for (classid, class) in &vars {
@@ -180,16 +180,44 @@ fn extract(
         for (childrens_classes, &node_active) in class.childrens_classes.iter().zip(&class.variables) {
             for child_class in childrens_classes {
                 let child_active = vars[child_class].active;
-                let row = model.add_row();
-                model.set_row_upper(row, 0.0);
-                model.set_weight(row, node_active, 1.0);
-                model.set_weight(row, child_active, -1.0);
+                    let row = model.add_row();
+                    model.set_row_upper(row, 0.0);
+                    model.set_weight(row, node_active, 1.0);
+                    model.set_weight(row, child_active, -1.0);
             }
         }
     }
 
     for root in &roots {
         model.set_col_lower(vars[root].active, 1.0);
+    }
+
+    // Set objective function
+    model.set_obj_sense(Sense::Minimize);
+    
+    // Weight factors for different costs
+    let w_dep = 1_000_000.0;
+    let w_aom = 1_000.0;
+    let w_inv = 1.0;
+
+    // Add costs to objective function
+    for class in vars.values() {
+        for (&node_active, &cost) in class.variables.iter().zip(&class.costs) {
+            let cost_bits = cost.into_inner();
+            if cost_bits == 0.0 {
+                continue;
+            }
+            
+            let c = CCost::decode(cost_bits);
+            let dep = c.dep as f64;
+            let aom = c.aom as f64;
+            let inv = c.inv as f64;
+
+            let weighted_cost = dep * w_dep + aom * w_aom + inv * w_inv;
+            if weighted_cost > 0.0 {
+                model.set_obj_coeff(node_active, weighted_cost);
+            }
+        }
     }
 
     loop {
@@ -226,18 +254,18 @@ fn extract(
             let active = solution.col(var.active) > 0.0;
             if active {
                 let node_idx = var
-                    .variables
-                    .iter()
-                    .position(|&n| solution.col(n) > 0.0)
-                    .unwrap();
+                        .variables
+                        .iter()
+                        .position(|&n| solution.col(n) > 0.0)
+                        .unwrap();
                 let node_id = var.members[node_idx].clone();
                 result.choose(id.clone(), node_id);
             }
         }
 
         let cycles = find_cycles_in_result(&result, &vars, &roots);
-        if cycles.is_empty() {
-            return result;
+            if cycles.is_empty() {
+                    return result;
         }
 
         for cycle in &cycles {
@@ -361,9 +389,9 @@ fn remove_with_loops(vars: &mut IndexMap<ClassId, ClassILP>, roots: &[ClassId], 
                     .any(|cid| *cid == *class_id || (roots.len() == 1 && roots[0] == *cid))
                 {
                     class_details.remove(i);
-                    removed += 1;
+                        removed += 1;
+                    }
                 }
-            }
         }
         log::info!("Omitted looping nodes: {}", removed);
     }
@@ -452,8 +480,8 @@ fn reachable(
     for class in classes {
         if is_reachable.insert(class.clone()) {
             if let Some(class_vars) = vars.get(class) {
-                for kids in &class_vars.childrens_classes {
-                    for child_class in kids {
+            for kids in &class_vars.childrens_classes {
+                for child_class in kids {
                         reachable(vars, &[child_class.clone()], is_reachable);
                     }
                 }
@@ -582,7 +610,7 @@ fn remove_single_zero_cost(
 
         if !zero.is_empty() {
             let child_to_parents = child_to_parents(&vars);
-            let mut removed = 0;
+        let mut removed = 0;
 
             for e in &zero {
                 if let Some(parents) = child_to_parents.get(e) {
@@ -590,10 +618,10 @@ fn remove_single_zero_cost(
                         for i in (0..vars[parent].childrens_classes.len()).rev() {
                             if vars[parent].childrens_classes[i].contains(e) {
                                 vars[parent].childrens_classes[i].remove(e);
-                                removed += 1;
-                            }
-                        }
-                    }
+                    removed += 1;
+                }
+            }
+        }
                 }
                 extraction_result.choose(e.clone(), vars[e].members[0].clone());
             }
@@ -705,7 +733,7 @@ fn classes_with_single_parent(vars: &IndexMap<ClassId, ClassILP>) -> IndexMap<Cl
         .filter_map(|(child, parents)| {
             if parents.len() == 1 {
                 Some((child, parents.into_iter().next().unwrap()))
-            } else {
+        } else {
                 None
             }
         })
