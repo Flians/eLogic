@@ -119,6 +119,7 @@ fn extract(
     // model.set_parameter("allowableGap", "0.2");
     // model.set_parameter("maxSolutions", "10");
     // model.set_parameter("maxNodes", "10000");
+    println!("Starting faster ILP extractor");
 
     let mut vars: IndexMap<ClassId, ClassILP> = egraph
         .classes()
