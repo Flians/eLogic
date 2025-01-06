@@ -1,8 +1,6 @@
 /* An ILP extractor that returns the optimal DAG-extraction.
 
-This extractor is simple so that it's easy to see that it's correct.
-
-If the timeout is reached, it will return the result of the faster-greedy-dag extractor.
+   If the timeout is reached, it will return the result of the faster-greedy-dag extractor.
 */
 
 use super::*;
