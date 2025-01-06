@@ -244,7 +244,7 @@ impl egg::Analysis<MIG> for ConstantFold {
         })
     }
 
-    fn make(egraph: &CEGraph, enode: &MIG) -> Self::Data {
+    fn make(egraph: &mut CEGraph, enode: &MIG) -> Self::Data {
         let x = |i: &egg::Id| egraph[*i].data.as_ref().map(|c| c.0);
         let result = match enode {
             MIG::Bool(c) => Some((*c, c.to_string().parse().unwrap())),
@@ -325,6 +325,8 @@ rule! {comp_and,       "(& ?a (~ ?a))",         "0"                      }
 rule! {dup_and,        "(& ?a ?a)",             "?a"                     }
 rule! {and_true,       "(& ?a 1)",              "?a"                     }
 rule! {and_false,      "(& ?a 0)",              "0"                      }
+// add (M ?a ?a ?b) => ?a
+rule! {maj_dup,        "(M ?a ?a ?b)",          "?a"                     }
 
 fn prove_something(name: &str, start: &str, rewrites: &[CRewrite], goals: &[&str]) {
     println!("Proving {}", name);
@@ -457,6 +459,7 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost
         dup_and(),
         and_true(),
         and_false(),
+        maj_dup(),
     ];
     // parse the expression, the type annotation tells it which Language to use
     let bef_expr: egg::RecExpr<MIG> = s.parse().unwrap();
@@ -701,7 +704,7 @@ pub fn find_root_nodes(egraph: &CEGraph) -> Vec<Id> {
     let mut roots = Vec::new();
     let mut has_parent = std::collections::HashSet::new();
 
-    // First collect all nodes that are children
+    // First collect all nodes (eclass) that are children
     for class in egraph.classes() {
         for node in &class.nodes {
             for child in node.children() {
@@ -712,12 +715,13 @@ pub fn find_root_nodes(egraph: &CEGraph) -> Vec<Id> {
     // Then find nodes that aren't children of any other node
     // and contain a Maj node (since that's our root operation)
     for class in egraph.classes() {
-        if !has_parent.contains(&class.id) && class.nodes.iter().any(|n| matches!(n, MIG::Maj(_))) {
+        if !has_parent.contains(&class.id) {
             roots.push(class.id);
         }
     }
     // If no roots found, look for the highest-level Maj node
     if roots.is_empty() {
+        // select the first eclass with Maj，or return null if nothing found
         for class in egraph.classes() {
             if class.nodes.iter().any(|n| matches!(n, MIG::Maj(_))) {
                 roots.push(class.id);
@@ -790,8 +794,8 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
     // create an e-graph with the given expression
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(10)
-        .with_node_limit(100)
+        .with_iter_limit(100)
+        .with_node_limit(10000)
         .with_time_limit(std::time::Duration::from_secs(10));
     // the Runner knows which e-class the expression given with `with_expr` is in
     let root_id = runner.roots[0];
@@ -809,11 +813,12 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
     // let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
 
     #[cfg(feature = "ilp-cbc")]
-    let extractor = extract::ilp_cbc::CbcExtractor::default();
+    let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
+    // let extractor = extract::ilp_cbc::CbcExtractor::default();
     // Extract the result using global_greedy_dag extractor
     // let extractor = extract::bottom_up::BottomUpExtractor {};
-    // #[cfg(not(feature = "ilp-cbc"))]
-    // let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
+    #[cfg(not(feature = "ilp-cbc"))]
+    let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
     // Get the cost
@@ -878,6 +883,7 @@ pub fn simplify(s: &str) {
         // false_true(),
         neg_false(),
         neg_true(),
+        maj_dup(),
     ];
     // parse the expression, the type annotation tells it which Language to use
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
@@ -891,8 +897,8 @@ pub fn simplify(s: &str) {
     // create an e-graph with the given expression
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(10)
-        .with_node_limit(100)
+        .with_iter_limit(1000)
+        .with_node_limit(5000)
         .with_time_limit(std::time::Duration::from_secs(10));
     // the Runner knows which e-class the expression given with `with_expr` is in
     let root_id = runner.roots[0];
@@ -909,11 +915,12 @@ pub fn simplify(s: &str) {
     );
     // let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
 
+    // Extract the result
     #[cfg(feature = "ilp-cbc")]
-    let extractor = extract::ilp_cbc::CbcExtractor::default();
-    // Extract the result using global_greedy_dag extractor
-    // #[cfg(not(feature = "ilp-cbc"))]
-    // let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
+    let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
+    // let extractor = extract::ilp_cbc::CbcExtractor::default();
+    #[cfg(not(feature = "ilp-cbc"))]
+    let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     // let extractor = extract::bottom_up::BottomUpExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
@@ -989,11 +996,11 @@ mod tests {
         simplify("(M 0 0 0)");
         simplify("(M x 1 (~ 0))");
         simplify("(M a b (M a b c))");
-        simplify("(M x 0 (M y 1 (M u 0 v)))");
+        simplify("(M x 0 (M y 1 (M u 0 v)))"); // need fix for ilp
         simplify("(M (M w x (~ z)) x (M z x y))");
         simplify("(M c (M c d (M e f b)) a)");
         simplify("(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))");
-        simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))");
+        simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))"); // need fix for ilp
         simplify("(M 0 (~ (M 0 (~ a) b)) (M 0 c (~ d)))");
         simplify("(M (~ 0) (M 0 a (~ (M 0 b (~ c)))) (M 0 (~ a) (M 0 b (~ c))))");
         simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))");

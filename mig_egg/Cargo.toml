@@ -13,8 +13,8 @@ crate-type = ["staticlib"]
 [dependencies]
 
 cxx = "1.0"
-egg = { version = "0.9.5", features = ["lp"] }
-pyo3 = { version = "0.22.6", features = ["extension-module"] }
+egg = { version = "0.10.0", features = ["lp"] }
+pyo3 = { version = "0.23.3", features = ["extension-module"] }
 coin_cbc = { version = "0.1.8", optional = true }
 rustc-hash = "2.0.0"
 indexmap = "2.0.0"
@@ -27,6 +27,8 @@ log = "0.4.20"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 flussab-aiger = "0.1.1"
+env_logger = "0.11.6"
+rand = "0.8.5"
 
 [features]
 ilp-cbc = ["coin_cbc"]

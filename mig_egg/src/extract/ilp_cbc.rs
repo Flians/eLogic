@@ -27,15 +27,22 @@ pub struct CbcExtractor;
 
 impl Extractor for CbcExtractor {
     fn extract(&self, egraph: &EGraph, roots: &[ClassId]) -> ExtractionResult {
-        return extract(egraph, roots, std::u32::MAX);
+        // return extract(egraph, roots, std::u32::MAX);
+        return extract(egraph, roots, 30);
     }
 }
 
 fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> ExtractionResult {
+    println!("extracting with cbc");
     let mut model = Model::default();
-
+    model.set_parameter("log", "0");
     model.set_parameter("seconds", &timeout_seconds.to_string());
+    model.set_parameter("allowableGap", "0.2"); // Make more strict
+    model.set_parameter("maxSolutions", "10"); // Increase solutions explored
+    model.set_parameter("maxNodes", "10000"); // Increase search space
+                                              // model.set_parameter("seconds", "60");          // Increase timeout
 
+    // 给每个 eclass 及其 enodes 建立 binary 变量
     let vars: IndexMap<ClassId, ClassVars> = egraph
         .classes()
         .values()
@@ -48,16 +55,18 @@ fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> Extracti
         })
         .collect();
 
+    // 约束：class.active == sum(node.active)
     for (class_id, class) in &vars {
-        // class active == some node active
-        // sum(for node_active in class) == class_active
         let row = model.add_row();
         model.set_row_equal(row, 0.0);
         model.set_weight(row, class.active, -1.0);
         for &node_active in &class.nodes {
             model.set_weight(row, node_active, 1.0);
         }
+    }
 
+    // 约束：若 node.active，则它所有 child 的 eclass.active 也要激活
+    for (class_id, class_vars) in &vars {
         let childrens_classes_var = |nid: NodeId| {
             egraph[&nid]
                 .children
@@ -67,11 +76,8 @@ fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> Extracti
                 .collect::<IndexSet<_>>()
         };
 
-        for (node_id, &node_active) in egraph[class_id].nodes.iter().zip(&class.nodes) {
+        for (node_id, &node_active) in egraph[class_id].nodes.iter().zip(&class_vars.nodes) {
             for child_active in childrens_classes_var(node_id.clone()) {
-                // node active implies child active, encoded as:
-                //   node_active <= child_active
-                //   node_active - child_active <= 0
                 let row = model.add_row();
                 model.set_row_upper(row, 0.0);
                 model.set_weight(row, node_active, 1.0);
@@ -80,54 +86,50 @@ fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> Extracti
         }
     }
 
+    // 目标函数：Minimize
     model.set_obj_sense(Sense::Minimize);
+
+    // ------------------【修改部分：decode + 线性加权】------------------ //
+    // 在 baseline 中, CCost::encode() = bits => f64, 但非常小(1e-309量级).
+    // 这里解码后, 对 dep,aom,inv 分别给定 W_dep=1_000_000, W_aom=1_000, W_inv=1 的加权,
+    // 你可以根据需求更改这些权重
+    let w_dep = 1_000_000.0;
+    let w_aom = 1_000.0;
+    let w_inv = 1.0;
+
     for class in egraph.classes().values() {
         for (node_id, &node_active) in class.nodes.iter().zip(&vars[&class.id].nodes) {
             let node = &egraph[node_id];
-            let node_cost = node.cost.into_inner();
-            assert!(node_cost >= 0.0);
+            let node_cost_bits = node.cost.into_inner(); // encode后的f64
 
-            // Skip if cost is zero
-            if node_cost == 0.0 {
+            if node_cost_bits == 0.0 {
+                // 说明 (dep,aom,inv) = (0,0,0) => cost=0, 不需要加到 objective
                 continue;
             }
 
-            // Add node's own cost to both sum and depth objectives
-            model.set_obj_coeff(node_active, node_cost * 2.0); // Base cost affects both metrics
+            // 解码
+            let c = CCost::decode(node_cost_bits);
+            let dep = c.dep as f64;
+            let aom = c.aom as f64;
+            let inv = c.inv as f64;
 
-            // For each child, add constraints for depth-based costs
-            let children_classes: Vec<_> = node
-                .children
-                .iter()
-                .map(|n| egraph[n].eclass.clone())
-                .collect();
-
-            if !children_classes.is_empty() {
-                // Add a variable to represent the max depth cost for this node
-                let depth_var = model.add_col();
-                model.set_col_lower(depth_var, 0.0);
-
-                // Add depth_var to objective
-                model.set_obj_coeff(depth_var, 1.0);
-
-                // For each child, depth_var must be >= child's cost when node is active
-                for child_class in children_classes {
-                    let row = model.add_row();
-                    model.set_row_lower(row, 0.0);
-                    model.set_weight(row, depth_var, 1.0);
-                    model.set_weight(row, vars[&child_class].active, -node_cost);
-                    model.set_weight(row, node_active, -node_cost);
-                }
+            let cost_scalar = dep * w_dep + aom * w_aom + inv * w_inv;
+            // cost_scalar > 0 时才设置到目标函数
+            if cost_scalar > 0.0 {
+                model.set_obj_coeff(node_active, cost_scalar);
             }
         }
     }
 
+    // 对所有 root eclass 设置 active=1 (确保提取)
     for root in roots {
         model.set_col_lower(vars[root].active, 1.0);
     }
 
-    block_cycles(&mut model, &vars, &egraph);
+    // 防环约束
+    block_cycles(&mut model, &vars, egraph);
 
+    // 求解
     let solution = model.solve();
     log::info!(
         "CBC status {:?}, {:?}, obj = {}",
@@ -136,20 +138,23 @@ fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> Extracti
         solution.raw().obj_value(),
     );
 
+    // 如果 solver 未完成（例如超时），fallback
     if solution.raw().status() != coin_cbc::raw::Status::Finished {
+        println!("Unfinished CBC solution => fallback to FasterGreedyDag");
         assert!(timeout_seconds != std::u32::MAX);
-
         let initial_result =
             super::faster_greedy_dag::FasterGreedyDagExtractor.extract(egraph, roots);
-        log::info!("Unfinished CBC solution");
+        log::info!("Unfinished CBC solution => fallback to FasterGreedyDag");
         return initial_result;
     }
 
+    // 根据解的值, 选出激活的 node
     let mut result = ExtractionResult::default();
-
     for (id, var) in &vars {
+        // eclass 的激活
         let active = solution.col(var.active) > 0.0;
         if active {
+            // 找到哪个 node 被选中
             let node_idx = var
                 .nodes
                 .iter()
@@ -160,7 +165,7 @@ fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> Extracti
         }
     }
 
-    return result;
+    result
 }
 
 /*
@@ -168,37 +173,36 @@ fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> Extracti
  To block cycles, we enforce that a topological ordering exists on the extraction.
  Each class is mapped to a variable (called its level).  Then for each node,
  we add a constraint that if a node is active, then the level of the class the node
- belongs to must be less than than the level of each of the node's children.
+ belongs to must be less than the level of each of the node's children.
 
- To create a cycle, the levels would need to decrease, so they're blocked. For example,
- given a two class cycle: if class A, has level 'l', and class B has level 'm', then
- 'l' must be less than 'm', but because there is also an active node in class B that
- has class A as a child, 'm' must be less than 'l', which is a contradiction.
+ This ensures no cycles can form.
+
 */
-
 fn block_cycles(model: &mut Model, vars: &IndexMap<ClassId, ClassVars>, egraph: &EGraph) {
+    // 给每个 eclass 定义一个 level 列 (整型或实数都可).
     let mut levels: IndexMap<ClassId, Col> = Default::default();
     for c in vars.keys() {
         let var = model.add_col();
         levels.insert(c.clone(), var);
-        //model.set_col_lower(var, 0.0);
-        // It solves the benchmarks about 5% faster without this
-        //model.set_col_upper(var, vars.len() as f64);
+        // 可以给 level 设下/上界, 也可以留空
     }
 
-    // If n.variable is true, opposite_col will be false and vice versa.
+    // opposite: node-active 与 node-inactive 互斥
     let mut opposite: IndexMap<Col, Col> = Default::default();
     for c in vars.values() {
-        for n in &c.nodes {
+        for &n in &c.nodes {
             let opposite_col = model.add_binary();
-            opposite.insert(*n, opposite_col);
+            opposite.insert(n, opposite_col);
+
+            // node_active + opposite_col = 1
             let row = model.add_row();
             model.set_row_equal(row, 1.0);
             model.set_weight(row, opposite_col, 1.0);
-            model.set_weight(row, *n, 1.0);
+            model.set_weight(row, n, 1.0);
         }
     }
 
+    // 添加 level 约束: active => level(parent) < level(child)
     for (class_id, c) in vars {
         for i in 0..c.nodes.len() {
             let n_id = &egraph[class_id].nodes[i];
@@ -208,29 +212,28 @@ fn block_cycles(model: &mut Model, vars: &IndexMap<ClassId, ClassVars>, egraph: 
             let children_classes = n
                 .children
                 .iter()
-                .map(|n| egraph[n].eclass.clone())
+                .map(|ch| egraph[ch].eclass.clone())
                 .collect::<IndexSet<_>>();
 
+            // 若出现 self-loop, disable
             if children_classes.contains(class_id) {
-                // Self loop - disable this node.
-                // This is clumsier than calling set_col_lower(var,0.0),
-                // but means it'll be infeasible (rather than producing an
-                // incorrect solution) if var corresponds to a root node.
+                // 强行 node_active = 0
                 let row = model.add_row();
-                model.set_weight(row, var, 1.0);
                 model.set_row_equal(row, 0.0);
+                model.set_weight(row, var, 1.0);
                 continue;
             }
 
+            // block cycles
             for cc in children_classes {
-                assert!(*levels.get(class_id).unwrap() != *levels.get(&cc).unwrap());
-
                 let row = model.add_row();
                 model.set_row_lower(row, 1.0);
-                model.set_weight(row, *levels.get(class_id).unwrap(), -1.0);
-                model.set_weight(row, *levels.get(&cc).unwrap(), 1.0);
 
-                // If n.variable is 0, then disable the contraint.
+                // level(child) - level(parent) >= 1
+                model.set_weight(row, *levels.get(&cc).unwrap(), 1.0);
+                model.set_weight(row, *levels.get(class_id).unwrap(), -1.0);
+
+                // 如果 node_active=0, 则此约束无效 => + (opposite var)*(large number)
                 model.set_weight(row, *opposite.get(&var).unwrap(), (vars.len() + 1) as f64);
             }
         }
