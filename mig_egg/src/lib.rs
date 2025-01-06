@@ -2,8 +2,9 @@ use egg::{Id, Language};
 use std::cmp;
 use std::collections::HashSet;
 use std::ffi::CString;
-use std::ops::Add;
+use std::ops::{Add, Mul};
 use std::os::raw::c_char;
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct CCost {
     dep: u32,
@@ -344,13 +345,6 @@ fn prove_something(name: &str, start: &str, rewrites: &[CRewrite], goals: &[&str
     // this is needed for the soundness of lem_imply
     let true_id = runner.egraph.add(MIG::Bool(1u8));
     let root = runner.roots[0];
-    // let (best_cost, best_expr) = egg::Extractor::new(
-    //     &runner.egraph,
-    //     MIGCostFn_dsi::new(&runner.egraph, &[0;26])  // 你的cost
-    // ).find_best(root);
-
-    // println!("Best cost after rewriting: {:?}", best_cost);
-    // println!("Best expr after rewriting: {}", best_expr);
     runner.egraph.union(root, true_id);
     runner.egraph.rebuild();
 
@@ -718,14 +712,14 @@ pub fn find_root_nodes(egraph: &CEGraph) -> Vec<Id> {
             }
         }
     }
-    // 找到那些没有父节点的 eclass
+    // Then find nodes that aren't children of any other node
+    // and contain a Maj node (since that's our root operation)
     for class in egraph.classes() {
         if !has_parent.contains(&class.id) {
             roots.push(class.id);
         }
     }
-    // 如果真的一个都没找到，就说明所有 class 都有父节点（极少见）
-    // 你也可以 fallback 找含 Maj 的 eclass 或随便选一个
+    // If no roots found, look for the highest-level Maj node
     if roots.is_empty() {
         // select the first eclass with Maj，or return null if nothing found
         for class in egraph.classes() {
@@ -818,12 +812,12 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
     );
     // let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
 
+    // Extract the result
     #[cfg(feature = "ilp-cbc")]
-    let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
     // let extractor = extract::ilp_cbc::CbcExtractor::default();
-    // Extract the result using global_greedy_dag extractor
-    // let extractor = extract::bottom_up::BottomUpExtractor {};
+    let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
     #[cfg(not(feature = "ilp-cbc"))]
+    // let extractor = extract::bottom_up::BottomUpExtractor {};
     let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
@@ -906,15 +900,11 @@ pub fn simplify(s: &str) {
         .with_iter_limit(1000)
         .with_node_limit(5000)
         .with_time_limit(std::time::Duration::from_secs(10));
-    runner = runner.run(all_rules);
     // the Runner knows which e-class the expression given with `with_expr` is in
     let root_id = runner.roots[0];
-    // let (best_cost, best_expr) = egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &[0;26]))
-    //     .find_best(root_id);
-    // println!("Best expr after rewriting: {}", best_expr);
 
     // simplify the expression using a Runner, which runs the given rules over it
-    // runner = runner.run(all_rules);
+    runner = runner.run(all_rules);
     let saturated_egraph = runner.egraph;
 
     // Serialize the egraph to JSON with single root
@@ -927,11 +917,11 @@ pub fn simplify(s: &str) {
 
     // Extract the result
     #[cfg(feature = "ilp-cbc")]
-    let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
     // let extractor = extract::ilp_cbc::CbcExtractor::default();
+    let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
     #[cfg(not(feature = "ilp-cbc"))]
-    let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     // let extractor = extract::bottom_up::BottomUpExtractor {};
+    let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
     // Get the cost
@@ -967,7 +957,6 @@ mod tests {
 
     #[test]
     fn prove_chain() {
-        // env_logger::init();
         /*
         let rules = &[
             // rules needed for contrapositive
@@ -1019,7 +1008,6 @@ mod tests {
 
     #[test]
     fn const_fold() {
-        // env_logger::init();
         let start = "(M 0 1 0)";
         let start_expr: egg::RecExpr<MIG> = start.parse().unwrap();
         let end = "0";
