@@ -2,7 +2,7 @@ use egg::{Id, Language};
 use std::cmp;
 use std::collections::HashSet;
 use std::ffi::CString;
-use std::ops::{Add, Mul};
+use std::ops::Add;
 use std::os::raw::c_char;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -129,6 +129,50 @@ impl AsVariable for MIG {
 type CEGraph = egg::EGraph<MIG, ConstantFold>;
 type CRewrite = egg::Rewrite<MIG, ConstantFold>;
 
+#[derive(Default, Clone)]
+pub struct ConstantFold;
+impl egg::Analysis<MIG> for ConstantFold {
+    type Data = Option<(u8, egg::PatternAst<MIG>)>;
+    fn merge(&mut self, to: &mut Self::Data, from: Self::Data) -> egg::DidMerge {
+        egg::merge_option(to, from, |a, b| {
+            assert_eq!(a.0, b.0, "Merged non-equal constants");
+            egg::DidMerge(false, false)
+        })
+    }
+
+    fn make(egraph: &mut CEGraph, enode: &MIG) -> Self::Data {
+        let x = |i: &egg::Id| egraph[*i].data.as_ref().map(|c| c.0);
+        let result = match enode {
+            MIG::Bool(c) => Some((*c, c.to_string().parse().unwrap())),
+            MIG::Symbol(_) => None,
+            MIG::And([a, b]) => Some((
+                (x(a)? & x(b)? == 1) as u8,
+                format!("(& {} {})", x(a)?, x(b)?).parse().unwrap(),
+            )),
+            MIG::Maj([a, b, c]) => Some((
+                (x(a)? + x(b)? + x(c)? > 1) as u8,
+                format!("(M {} {} {})", x(a)?, x(b)?, x(c)?)
+                    .parse()
+                    .unwrap(),
+            )),
+            MIG::Not(a) => Some((1u8 ^ x(a)?, format!("(~ {})", x(a)?).parse().unwrap())),
+        };
+        // println!("Make: {:?} -> {:?}", enode, result);
+        result
+    }
+
+    fn modify(egraph: &mut CEGraph, id: egg::Id) {
+        if let Some(c) = egraph[id].data.clone() {
+            egraph.union_instantiations(
+                &c.1,
+                &c.0.to_string().parse().unwrap(),
+                &Default::default(),
+                "analysis".to_string(),
+            );
+        }
+    }
+}
+
 pub struct MIGCostFn_dsi<'a> {
     egraph: &'a CEGraph,
     visited: HashSet<egg::Id>,
@@ -233,60 +277,15 @@ impl<'a> egg::CostFunction<MIG> for MIGCostFn_dsi<'a> {
     }
 }
 
-#[derive(Default, Clone)]
-pub struct ConstantFold;
-impl egg::Analysis<MIG> for ConstantFold {
-    type Data = Option<(u8, egg::PatternAst<MIG>)>;
-    fn merge(&mut self, to: &mut Self::Data, from: Self::Data) -> egg::DidMerge {
-        egg::merge_option(to, from, |a, b| {
-            assert_eq!(a.0, b.0, "Merged non-equal constants");
-            egg::DidMerge(false, false)
-        })
-    }
-
-    fn make(egraph: &mut CEGraph, enode: &MIG) -> Self::Data {
-        let x = |i: &egg::Id| egraph[*i].data.as_ref().map(|c| c.0);
-        let result = match enode {
-            MIG::Bool(c) => Some((*c, c.to_string().parse().unwrap())),
-            MIG::Symbol(_) => None,
-            MIG::And([a, b]) => Some((
-                (x(a)? & x(b)? == 1) as u8,
-                format!("(& {} {})", x(a)?, x(b)?).parse().unwrap(),
-            )),
-            MIG::Maj([a, b, c]) => Some((
-                (x(a)? + x(b)? + x(c)? > 1) as u8,
-                format!("(M {} {} {})", x(a)?, x(b)?, x(c)?)
-                    .parse()
-                    .unwrap(),
-            )),
-            MIG::Not(a) => Some((1u8 ^ x(a)?, format!("(~ {})", x(a)?).parse().unwrap())),
-        };
-        // println!("Make: {:?} -> {:?}", enode, result);
-        result
-    }
-
-    fn modify(egraph: &mut CEGraph, id: egg::Id) {
-        if let Some(c) = egraph[id].data.clone() {
-            egraph.union_instantiations(
-                &c.1,
-                &c.0.to_string().parse().unwrap(),
-                &Default::default(),
-                "analysis".to_string(),
-            );
-        }
-    }
-}
-
-pub struct MigcostFnLp;
 #[cfg_attr(docsrs, doc(cfg(feature = "lp")))]
-impl egg::LpCostFunction<MIG, ConstantFold> for MigcostFnLp {
+impl<'a> egg::LpCostFunction<MIG, ConstantFold> for MIGCostFn_dsi<'a> {
     fn node_cost(&mut self, _egraph: &CEGraph, _eclass: egg::Id, _enode: &MIG) -> f64 {
-        let op_depth = match _enode {
+        match _enode {
+            MIG::And(..) => 1 as f64,
             MIG::Maj(..) => 1 as f64,
             MIG::Not(..) => 0 as f64,
             _ => 0 as f64,
-        };
-        op_depth
+        }
     }
 }
 
@@ -481,6 +480,9 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost
 
     // simplify the expression using a Runner, which runs the given rules over it
     runner = runner.run(all_rules);
+
+    // let lp_best = egg::LpExtractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &vars_)).solve(root);
+    // println!("\nlp result: {} ", lp_best);
 
     // use an Extractor to pick the best element of the root eclass
     let (best_cost, best) =
