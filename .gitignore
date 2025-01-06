@@ -3,3 +3,10 @@ target/
 results/
 Cargo.lock
 build
+.aider*
+repomix-output.txt
+.DS_Store
+.cursorrules
+*.diff
+mig_egg/src/egraph-serialize/tests/
+mig_egg/src/egraph-serialize/tests-viz/
