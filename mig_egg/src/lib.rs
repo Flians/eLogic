@@ -1,9 +1,8 @@
 use egg::{Id, Language};
-use std::cmp;
-use std::collections::HashSet;
 use std::ffi::CString;
 use std::ops::Add;
 use std::os::raw::c_char;
+use std::{cmp, default};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct CCost {
@@ -113,6 +112,115 @@ egg::define_language! {
     }
 }
 
+// count (prefix expression, operator size)
+fn to_prefix(expr: &egg::RecExpr<MIG>) -> (String, u32, u32, u32) {
+    fn helper(
+        expr: &egg::RecExpr<MIG>,
+        id: Id,
+        inv_count: &mut u32,
+        ops_count: &mut u32,
+        visited: &mut std::collections::HashMap<Id, (String, u32)>,
+        current_depth: u32,
+        max_depth: &mut u32,
+    ) -> (String, u32) {
+        if let Some(cur_expr) = visited.get(&id) {
+            return cur_expr.clone();
+        }
+
+        let node = &expr[id];
+        let result = match node {
+            MIG::Bool(value) => (format!("{}", value), current_depth),
+            MIG::And(children) => {
+                *ops_count += 1;
+                let children_expr: Vec<String> = children
+                    .iter()
+                    .map(|&child_id| {
+                        let (child_expr, child_depth) = helper(
+                            expr,
+                            child_id,
+                            inv_count,
+                            ops_count,
+                            visited,
+                            current_depth + 1,
+                            max_depth,
+                        );
+                        *max_depth = (*max_depth).max(child_depth);
+                        child_expr
+                    })
+                    .collect();
+                (
+                    format!("({} {})", node.to_string(), children_expr.join(" ")),
+                    current_depth,
+                )
+            }
+            MIG::Maj(children) => {
+                *ops_count += 1;
+                let children_expr: Vec<String> = children
+                    .iter()
+                    .map(|&child_id| {
+                        let (child_expr, child_depth) = helper(
+                            expr,
+                            child_id,
+                            inv_count,
+                            ops_count,
+                            visited,
+                            current_depth + 1,
+                            max_depth,
+                        );
+                        *max_depth = (*max_depth).max(child_depth);
+                        child_expr
+                    })
+                    .collect();
+                (
+                    format!("({} {})", node.to_string(), children_expr.join(" ")),
+                    current_depth,
+                )
+            }
+            MIG::Not(child_id) => {
+                *inv_count += 1;
+                let (child_expr, child_depth) = helper(
+                    expr,
+                    *child_id,
+                    inv_count,
+                    ops_count,
+                    visited,
+                    current_depth,
+                    max_depth,
+                );
+                *max_depth = (*max_depth).max(child_depth);
+                (
+                    format!("({} {})", node.to_string(), child_expr),
+                    current_depth,
+                )
+            }
+            MIG::Symbol(sym) => (format!("{}", sym), current_depth),
+        };
+
+        visited.insert(id, result.clone());
+        result
+    }
+
+    let root_id = expr.as_ref().len() - 1;
+    let root_id = Id::from(root_id);
+
+    let mut max_depth = 0;
+    let mut ops_count = 0;
+    let mut inv_count = 0;
+    let mut visited = std::collections::HashMap::new();
+
+    let (prefix_expr, _) = helper(
+        expr,
+        root_id,
+        &mut inv_count,
+        &mut ops_count,
+        &mut visited,
+        0,
+        &mut max_depth,
+    );
+
+    (prefix_expr, max_depth, ops_count, inv_count)
+}
+
 trait AsVariable {
     fn as_variable(&self) -> Option<&str>;
 }
@@ -173,16 +281,17 @@ impl egg::Analysis<MIG> for ConstantFold {
     }
 }
 
+#[derive(Clone)]
 pub struct MIGCostFn_dsi<'a> {
     egraph: &'a CEGraph,
-    visited: HashSet<egg::Id>,
+    visited: std::collections::HashMap<egg::Id, CCost>,
     original_dep: &'a [u32],
 }
 impl<'a> MIGCostFn_dsi<'a> {
     pub fn new(graph: &'a CEGraph, vars_: &'a [u32]) -> Self {
         Self {
             egraph: graph,
-            visited: HashSet::new(),
+            visited: std::collections::HashMap::default(),
             original_dep: vars_,
         }
     }
@@ -261,12 +370,10 @@ impl<'a> egg::CostFunction<MIG> for MIGCostFn_dsi<'a> {
         C: FnMut(egg::Id) -> Self::Cost,
     {
         let cur_cost = self.cal_cur_cost(enode);
-        // let cid = &self.egraph.lookup(enode.clone()).unwrap();
-
-        cur_cost
+        let new_cost = cur_cost
             + enode.fold(Default::default(), |sum, id| {
                 Self::Cost::merge(&sum, &costs(id))
-            })
+            });
         /*
         Self::Cost {
             dep: op_depth + enode.fold(0, |max, id| max.max(costs(id).dep)),
@@ -274,6 +381,19 @@ impl<'a> egg::CostFunction<MIG> for MIGCostFn_dsi<'a> {
             inv: enode.fold(op_inv, |sum, id| sum + costs(id).inv),
         }
         */
+        /*
+        let cid = self.egraph.lookup(enode.clone()).unwrap();
+        self.visited
+            .entry(cid)
+            .and_modify(|existing_cost| {
+                if new_cost < *existing_cost {
+                    *existing_cost = new_cost;
+                }
+            })
+            .or_insert(new_cost)
+            .to_owned()
+        */
+        new_cost
     }
 }
 
@@ -488,7 +608,9 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost
     let (best_cost, best) =
         egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &vars_))
             .find_best(root);
-    let aft_expr = best.to_string();
+    let (aft_expr, aft_dep, aft_size, aft_inv) = to_prefix(&best);
+    assert_eq!(best_cost.dep, aft_dep);
+    // let aft_expr = best.to_string();
     let aft_expr_cstring = match CString::new(aft_expr.clone()) {
         Ok(s) => s,
         Err(_) => return std::ptr::null_mut(),
@@ -496,148 +618,12 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost
     let cost: ffi::CCost = ffi::CCost {
         aft_expr: aft_expr_cstring.into_raw(),
         aft_expr_len: aft_expr.len(),
-        aft_dep: best_cost.dep,
-        aft_size: best_cost.aom,
-        aft_invs: best_cost.inv,
+        aft_dep: aft_dep,
+        aft_size: aft_size,
+        aft_invs: aft_inv,
     };
 
     Box::into_raw(Box::new(cost))
-}
-
-pub(crate) type BuildHasher = fxhash::FxBuildHasher;
-
-#[cfg(feature = "deterministic")]
-mod hashmap {
-    pub(crate) type HashMap<K, V> = indexmap::IndexMap<K, V>;
-    pub(crate) type HashSet<K> = indexmap::IndexSet<K>;
-}
-#[cfg(not(feature = "deterministic"))]
-mod hashmap {
-    use super::BuildHasher;
-    pub(crate) type HashMap<K, V> = hashbrown::HashMap<K, V, BuildHasher>;
-    pub(crate) type HashSet<K> = hashbrown::HashSet<K, BuildHasher>;
-}
-
-#[derive(Debug)]
-pub struct GreedyDagExtractor<'a, CF: egg::CostFunction<L>, L: egg::Language, N: egg::Analysis<L>> {
-    cost_function: CF,
-    costs: hashmap::HashMap<egg::Id, (CF::Cost, L)>,
-    egraph: &'a egg::EGraph<L, N>,
-}
-
-use std::cmp::Ordering;
-use std::ptr::null;
-fn cmp<T: PartialOrd>(a: &Option<T>, b: &Option<T>) -> Ordering {
-    // None is high
-    match (a, b) {
-        (None, None) => Ordering::Equal,
-        (None, Some(_)) => Ordering::Greater,
-        (Some(_), None) => Ordering::Less,
-        (Some(a), Some(b)) => a.partial_cmp(b).unwrap(),
-    }
-}
-
-impl<'a, CF, L, N> GreedyDagExtractor<'a, CF, L, N>
-where
-    CF: egg::CostFunction<L>,
-    L: egg::Language,
-    N: egg::Analysis<L>,
-{
-    /// Create a new `Extractor` given an `EGraph` and a
-    /// `CostFunction`.
-    ///
-    /// The extraction does all the work on creation, so this function
-    /// performs the greedy search for cheapest representative of each
-    /// eclass.
-    pub fn new(egraph: &'a egg::EGraph<L, N>, cost_function: CF) -> Self {
-        let costs = hashmap::HashMap::default();
-        let mut extractor = GreedyDagExtractor {
-            costs,
-            egraph,
-            cost_function,
-        };
-        extractor.find_costs();
-
-        extractor
-    }
-
-    /// Find the cheapest (lowest cost) represented `RecExpr` in the
-    /// given eclass.
-    pub fn find_best(&self, eclass: egg::Id) -> (CF::Cost, egg::RecExpr<L>) {
-        let (cost, root) = self.costs[&self.egraph.find(eclass)].clone();
-        let expr = root.build_recexpr(|id| self.find_best_node(id).clone());
-        (cost, expr)
-    }
-
-    /// Find the cheapest e-node in the given e-class.
-    pub fn find_best_node(&self, eclass: egg::Id) -> &L {
-        &self.costs[&self.egraph.find(eclass)].1
-    }
-
-    /// Find the cost of the term that would be extracted from this e-class.
-    pub fn find_best_cost(&self, eclass: egg::Id) -> CF::Cost {
-        let (cost, _) = &self.costs[&self.egraph.find(eclass)];
-        cost.clone()
-    }
-
-    fn node_total_cost(&mut self, node: &L) -> Option<CF::Cost> {
-        let eg = &self.egraph;
-        let has_cost = |id| self.costs.contains_key(&eg.find(id));
-        /*
-        let cid = &self.egraph.lookup(node.clone()).unwrap();
-        if has_cost(*cid) {
-            return Some(self.costs[&eg.find(*cid)].0.clone());
-        }
-        */
-        if node.all(has_cost) {
-            let costs = &self.costs;
-            let cost_f = |id| costs[&eg.find(id)].0.clone();
-            Some(self.cost_function.cost(node, cost_f))
-        } else {
-            None
-        }
-    }
-
-    fn find_costs(&mut self) {
-        let mut did_something = true;
-        while did_something {
-            did_something = false;
-
-            for class in self.egraph.classes() {
-                let pass = self.make_pass(class);
-                match (self.costs.get(&class.id), pass) {
-                    (None, Some(new)) => {
-                        self.costs.insert(class.id, new);
-                        did_something = true;
-                    }
-                    (Some(old), Some(new)) if new.0 < old.0 => {
-                        self.costs.insert(class.id, new);
-                        did_something = true;
-                    }
-                    _ => (),
-                }
-            }
-        }
-
-        for class in self.egraph.classes() {
-            if !self.costs.contains_key(&class.id) {
-                log::warn!(
-                    "Failed to compute cost for eclass {}: {:?}",
-                    class.id,
-                    class.nodes
-                )
-            }
-        }
-    }
-
-    fn make_pass(&mut self, eclass: &egg::EClass<L, N::Data>) -> Option<(CF::Cost, L)> {
-        let (cost, node) = eclass
-            .iter()
-            .map(|n| (self.node_total_cost(n), n))
-            .min_by(|a, b| cmp(&a.0, &b.0))
-            .unwrap_or_else(|| panic!("Can't extract, eclass is empty: {:#?}", eclass));
-        cost.map(|c| (c, node.clone()))
-    }
 }
 
 mod extract;
@@ -893,7 +879,7 @@ pub fn simplify(s: &str) {
     let vars_default: [u32; 26] = [0; 26];
     let vars_: &[u32] = &vars_default;
 
-    let cost_depth = simplify_depth(s, null(), 0);
+    let cost_depth = simplify_depth(s, std::ptr::null(), 0);
     println!("\ntree cost: {} ", unsafe { std::ptr::read(cost_depth) });
 
     // create an e-graph with the given expression
