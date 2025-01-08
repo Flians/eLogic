@@ -54,8 +54,13 @@ void main_aig() {
 
 void main_mig() {
 
-  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, uint32_t, uint32_t, float, bool>
-      exp(fmt::format("rewrite_elo_mig_k{}_post2", CutSize), "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "size_post", "depth_post", "runtime_post", "equivalent");
+  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, uint32_t, uint32_t, float, uint32_t, uint32_t, float, bool>
+      exp(fmt::format("rewrite_elo_mig_k{}_post2", CutSize), "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "size_post_rw", "depth_post_rw", "runtime_post_rw","size_post_resub", "depth_post_resub", "runtime_post_resub", "equivalent");
+
+  mockturtle::mig_npn_resynthesis resyn;
+  mockturtle::exact_library_params ps_exact;
+  ps_exact.compute_dc_classes = true;
+  mockturtle::exact_library<mockturtle::mig_network, 4u> exact_lib(resyn, ps_exact);
 
   for (auto const &benchmark : experiments::epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
@@ -80,27 +85,53 @@ void main_mig() {
     mockturtle::depth_view depth_mig{mig};
     uint32_t const depth_after = depth_mig.depth();
 
-    // post optimizaiton using resubstitution
-    mockturtle::resubstitution_params ps_size;
-    mockturtle::resubstitution_stats st_size;
-    ps_size.max_pis = CutSize;
-    ps_size.max_inserts = 1u;
-    ps_size.progress = false;
-    ps_size.window_size = 12u;
-    ps_size.use_dont_cares = true;
-    // ps.preserve_depth = true;
-    mockturtle::fanout_view fanout_mig{depth_mig};
-    mockturtle::mig_resubstitution2(fanout_mig, ps_size, &st_size);
-    mig = cleanup_dangling(mig);
+    double runtime_after_post_rw = 0;
+    mockturtle::mig_network mig_post_rw = mig.clone();
+    {
+      // post optimizaiton using rewrite
+      baseline::rewrite_params ps_size;
+      baseline::rewrite_stats st_size;
+      ps.use_dont_cares = true;
+      ps.window_size = 8u;
+      ps.cut_enumeration_ps.cut_size = 4u;
+      ps.cut_enumeration_ps.cut_limit = 8u;
+      baseline::rewrite(mig_post_rw, exact_lib, ps_size, &st_size);
+      runtime_after_post_rw = mockturtle::to_seconds(st_size.time_total);
+    }
+    uint32_t const size_after_post_rw = mig_post_rw.num_gates();
+    uint32_t const depth_after_post_rw = mockturtle::depth_view(mig_post_rw).depth();
+
+    double runtime_after_post_resub = 0;
+    {
+      // post optimizaiton using resubstitution
+      mockturtle::resubstitution_params ps_size;
+      mockturtle::resubstitution_stats st_size;
+      ps_size.max_pis = CutSize;
+      ps_size.max_inserts = 1u;
+      ps_size.progress = false;
+      ps_size.window_size = 12u;
+      ps_size.use_dont_cares = true;
+      // ps.preserve_depth = true;
+      mockturtle::fanout_view fanout_mig{depth_mig};
+      mockturtle::mig_resubstitution2(fanout_mig, ps_size, &st_size);
+      mig = cleanup_dangling(mig);
+      runtime_after_post_resub = mockturtle::to_seconds(st_size.time_total);
+    }
 
     bool const cec = experiments::abc_cec_impl(mig, benchmark_path);
 
-    uint32_t const size_after_post = mig.num_gates();
-    uint32_t const depth_after_post = mockturtle::depth_view(mig).depth();
-    exp(benchmark, size_before, size_after, depth_before, depth_after, mockturtle::to_seconds(st.time_total), size_after_post, depth_after_post, mockturtle::to_seconds(st_size.time_total), cec);
+    uint32_t const size_after_post_resub = mig.num_gates();
+    uint32_t const depth_after_post_resub = mockturtle::depth_view(mig).depth();
+    exp(benchmark, size_before, 
+      size_after, depth_before, depth_after, mockturtle::to_seconds(st.time_total),
+      size_after_post_rw, depth_after_post_rw, runtime_after_post_rw,
+      size_after_post_resub, depth_after_post_resub, runtime_after_post_resub, 
+      cec);
 
-    std::cout << "size_before = " << size_before << ", depth_before = " << depth_before << ", size_after_post = " << size_after_post << std::endl;
-    std::cout << "size_after = " << size_after << ", depth_after = " << depth_after << ", depth_after_post = " << depth_after_post << std::endl;
+    std::cout << "size_before = " << size_before << ", depth_before = " << depth_before << std::endl;
+    std::cout << "size_after = " << size_after << ", depth_after = " << depth_after << std::endl;
+    std::cout << "size_after_post_rw = " << size_after_post_rw << ", depth_after_post_rw = " << depth_after_post_rw << std::endl;
+    std::cout << "size_after_post_resub = " << size_after_post_resub << ", depth_after_post_resub = " << depth_after_post_resub << std::endl;
   }
 
   exp.save();
@@ -116,7 +147,7 @@ int main(int argc, char *argv[]) {
   } else if (op == 1) {
     main_mig();
   } else {
-    auto cost = std::unique_ptr<CCost, decltype(&free_ccost)>(simplify_size("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))", nullptr, 0), free_ccost);
+    auto cost = std::make_unique<CCost>(simplify_size("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))", nullptr, 0));
     std::cout << "Size: " << cost->aft_size << ", Depth: " << cost->aft_dep << ", Expr: " << cost->aft_expr << std::endl;
   }
   return 0;
