@@ -113,7 +113,7 @@ egg::define_language! {
 }
 
 // count (prefix expression, operator size)
-fn to_prefix(expr: &egg::RecExpr<MIG>) -> (String, u32, u32, u32) {
+fn to_prefix(expr: &egg::RecExpr<MIG>, var_dep: &[u32]) -> (String, u32, u32, u32) {
     fn helper(
         expr: &egg::RecExpr<MIG>,
         id: Id,
@@ -122,14 +122,26 @@ fn to_prefix(expr: &egg::RecExpr<MIG>) -> (String, u32, u32, u32) {
         visited: &mut std::collections::HashMap<Id, (String, u32)>,
         current_depth: u32,
         max_depth: &mut u32,
+        var_dep: &[u32],
     ) -> (String, u32) {
         if let Some(cur_expr) = visited.get(&id) {
             return cur_expr.clone();
         }
 
         let node = &expr[id];
+        let op_depth = match node {
+            MIG::And(..) => 1 as u32,
+            MIG::Maj(..) => 1 as u32,
+            MIG::Not(..) => 0 as u32,
+            MIG::Symbol(v) => {
+                let chr_v = v.as_str().as_bytes();
+                let index = (chr_v[0] as u8) - ('a' as u8);
+                var_dep[index as usize]
+            }
+            _ => 0 as u32,
+        };
         let result = match node {
-            MIG::Bool(value) => (format!("{}", value), current_depth),
+            MIG::Bool(value) => (format!("{}", value), current_depth + op_depth),
             MIG::And(children) => {
                 *ops_count += 1;
                 let children_expr: Vec<String> = children
@@ -141,8 +153,9 @@ fn to_prefix(expr: &egg::RecExpr<MIG>) -> (String, u32, u32, u32) {
                             inv_count,
                             ops_count,
                             visited,
-                            current_depth + 1,
+                            current_depth + op_depth,
                             max_depth,
+                            var_dep,
                         );
                         *max_depth = (*max_depth).max(child_depth);
                         child_expr
@@ -164,8 +177,9 @@ fn to_prefix(expr: &egg::RecExpr<MIG>) -> (String, u32, u32, u32) {
                             inv_count,
                             ops_count,
                             visited,
-                            current_depth + 1,
+                            current_depth + op_depth,
                             max_depth,
+                            var_dep,
                         );
                         *max_depth = (*max_depth).max(child_depth);
                         child_expr
@@ -184,8 +198,9 @@ fn to_prefix(expr: &egg::RecExpr<MIG>) -> (String, u32, u32, u32) {
                     inv_count,
                     ops_count,
                     visited,
-                    current_depth,
+                    current_depth + op_depth,
                     max_depth,
+                    var_dep,
                 );
                 *max_depth = (*max_depth).max(child_depth);
                 (
@@ -193,7 +208,7 @@ fn to_prefix(expr: &egg::RecExpr<MIG>) -> (String, u32, u32, u32) {
                     current_depth,
                 )
             }
-            MIG::Symbol(sym) => (format!("{}", sym), current_depth),
+            MIG::Symbol(sym) => (format!("{}", sym), current_depth + op_depth),
         };
 
         visited.insert(id, result.clone());
@@ -216,6 +231,7 @@ fn to_prefix(expr: &egg::RecExpr<MIG>) -> (String, u32, u32, u32) {
         &mut visited,
         0,
         &mut max_depth,
+        var_dep,
     );
 
     (prefix_expr, max_depth, ops_count, inv_count)
@@ -486,18 +502,16 @@ mod ffi {
         // bef_dep: u32,
         // bef_size: u32,
         // bef_invs: u32,
-        aft_expr: *mut c_char,
-        aft_expr_len: usize,
+        aft_expr: String,
         aft_dep: u32,
         aft_size: u32,
         aft_invs: u32,
     }
 
     extern "Rust" {
-        unsafe fn simplify_depth(s: &str, vars: *const u32, size: usize) -> *mut CCost;
-        unsafe fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut CCost;
+        unsafe fn simplify_depth(s: &str, vars: *const u32, size: usize) -> CCost;
+        unsafe fn simplify_size(s: &str, vars: *const u32, size: usize) -> CCost;
         unsafe fn free_string(s: *mut c_char);
-        unsafe fn free_ccost(cost: *mut CCost);
     }
 }
 
@@ -505,12 +519,8 @@ impl std::fmt::Display for ffi::CCost {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "(aft_expr: {}, aft_expr_len: {}, aft_dep: {}, aft_size: {}, aft_invs: {})",
-            unsafe { CString::from_raw(self.aft_expr).to_str().unwrap() },
-            self.aft_expr_len,
-            self.aft_dep,
-            self.aft_size,
-            self.aft_invs
+            "(aft_expr: {},  aft_dep: {}, aft_size: {}, aft_invs: {})",
+            self.aft_expr, self.aft_dep, self.aft_size, self.aft_invs
         )
     }
 }
@@ -541,19 +551,7 @@ fn free_string(s: *mut c_char) {
     }
 }
 
-fn free_ccost(cost: *mut ffi::CCost) {
-    if !cost.is_null() {
-        unsafe {
-            // println!("{}", (*cost).aft_expr);
-            // Free the CString memory
-            free_string((*cost).aft_expr);
-            // Convert the raw pointer back to Box<MyStruct> to drop it
-            let _ = Box::from_raw(cost);
-        }
-    }
-}
-
-pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost {
+pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     let all_rules = &[
         // rules needed for contrapositive
         double_neg(),
@@ -608,22 +606,17 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost
     let (best_cost, best) =
         egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &vars_))
             .find_best(root);
-    let (aft_expr, aft_dep, aft_size, aft_inv) = to_prefix(&best);
+    let (aft_expr, aft_dep, aft_size, aft_inv) = to_prefix(&best, &vars_);
     assert_eq!(best_cost.dep, aft_dep);
     // let aft_expr = best.to_string();
-    let aft_expr_cstring = match CString::new(aft_expr.clone()) {
-        Ok(s) => s,
-        Err(_) => return std::ptr::null_mut(),
-    };
     let cost: ffi::CCost = ffi::CCost {
-        aft_expr: aft_expr_cstring.into_raw(),
-        aft_expr_len: aft_expr.len(),
+        aft_expr: aft_expr,
         aft_dep: aft_dep,
         aft_size: aft_size,
         aft_invs: aft_inv,
     };
 
-    Box::into_raw(Box::new(cost))
+    cost
 }
 
 mod extract;
@@ -742,7 +735,7 @@ fn save_serialized_egraph_to_json(
     Ok(())
 }
 
-pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost {
+pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     let all_rules = &[
         // rules needed for contrapositive
         double_neg(),
@@ -822,13 +815,8 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
         &MIGCostFn_dsi::new(&saturated_egraph, vars_),
     );
     */
-    let aft_expr_cstring = match CString::new(aft_expr.clone()) {
-        Ok(s) => s,
-        Err(_) => return std::ptr::null_mut(),
-    };
     let cost: ffi::CCost = ffi::CCost {
-        aft_expr: aft_expr_cstring.into_raw(),
-        aft_expr_len: aft_expr.len(),
+        aft_expr: aft_expr,
         aft_dep: dag_cost_depth,
         aft_size: dag_cost_size,
         aft_invs: 0,
@@ -836,7 +824,7 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> *mut ffi::CCost 
 
     // println!("Depth: {}, Size: {}, term: {}", cost.aft_dep, cost.aft_size, aft_expr);
 
-    Box::into_raw(Box::new(cost))
+    cost
 }
 
 // use pyo3::prelude::*;
@@ -880,7 +868,7 @@ pub fn simplify(s: &str) {
     let vars_: &[u32] = &vars_default;
 
     let cost_depth = simplify_depth(s, std::ptr::null(), 0);
-    println!("\ntree cost: {} ", unsafe { std::ptr::read(cost_depth) });
+    println!("\ntree cost: {} ", cost_depth);
 
     // create an e-graph with the given expression
     let mut runner = egg::Runner::default()
@@ -991,6 +979,7 @@ mod tests {
         simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))"); // need fix for ilp
         simplify("(M 0 (~ (M 0 (~ a) b)) (M 0 c (~ d)))");
         simplify("(M (~ 0) (M 0 a (~ (M 0 b (~ c)))) (M 0 (~ a) (M 0 b (~ c))))");
+        simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))");
         simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))");
     }
 

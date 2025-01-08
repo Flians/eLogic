@@ -575,7 +575,6 @@ namespace mockturtle {
         });
         const uint32_t min_leaves = NumVars >> 1;
         */
-        const uint32_t min_depth_gap = 3;
         ntk.foreach_gate([&](auto const &n, auto i) {
           if (ntk.fanout_size(n) == 0u || ntk.is_dead(n))
             return;
@@ -642,33 +641,29 @@ namespace mockturtle {
               continue;
 
             /* measure the MFFC contained in the cut */
-            const uint32_t mffc_size = measure_mffc_deref(n, cut);
+            // const uint32_t mffc_size = measure_mffc_deref(n, cut);
             /* restore contained MFFC */
-            measure_mffc_ref(n, cut);
-            if (mffc_size <= 1)
-              continue;
+            // measure_mffc_ref(n, cut);
+            // if (mffc_size <= 1) continue;
 
             // build egg graph
             egg_view<Ntk> eview(ntk, leaves, ntk.make_signal(n));
-            // const uint32_t mffc_size = eview._mffc_size;
+            const uint32_t mffc_size = eview._mffc_size;
 
             // skip bad cut
             if (mffc_size <= 1 || eview._original_size < 2 || eview.has_bug)
               continue;
 
             // optimize by egg
-            const auto dcost = eview.optimize_by_egg_lib(leaf_levels);
-            if (!dcost) {
+            const CCost* dcost = eview.optimize_by_egg_lib(leaf_levels);
+            if (!dcost || dcost->aft_size > eview._original_size)
               continue;
-            }
             uint32_t aft_dep = dcost->aft_dep;
-            const std::string aft_expr(dcost->aft_expr, dcost->aft_expr_len);
-            // free_ccost(dcost);
+            const std::string aft_expr(dcost->aft_expr.data());
 
             // skip bad cut
-            if (eview._original_expr == aft_expr) { // || original_level < aft_dep) {
+            if (eview._original_expr == aft_expr)
               continue;
-            }
 
             // rewrite using egg
             const uint32_t size_bef = ntk.size();
@@ -677,7 +672,6 @@ namespace mockturtle {
             const int32_t nodes_added = size_aft - size_bef;
             const int32_t gain = mffc_size - nodes_added;
             if constexpr (has_level_v<Ntk>) {
-              // assert(ft_dep == ntk.level(ntk.get_node(new_f)));
               aft_dep = ntk.level(ntk.get_node(new_f));
             }
 
