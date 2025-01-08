@@ -26,7 +26,7 @@ namespace mockturtle {
 
   class StrCostTable {
   private:
-    std::unordered_map<std::string, std::unique_ptr<CCost, decltype(&free_ccost)>> table;
+    std::unordered_map<std::string, std::unique_ptr<CCost>> table;
     std::unordered_set<std::string> bad_exprs;
 
     bool is_bad(const std::string &key) const {
@@ -53,13 +53,13 @@ namespace mockturtle {
       // size_t tn = table.size();
       // if (tn > 100000 && tn % 100000 == 0) std::cout << ">>> " << tn << std::endl;
 
-      auto [it, inserted] = table.try_emplace(key_deps, nullptr, free_ccost);
+      auto [it, inserted] = table.try_emplace(key_deps, nullptr);
 
       if (inserted) {
-        it->second = std::unique_ptr<CCost, decltype(&free_ccost)>(simplify_depth(key, leaf_levels.data(), leaf_levels.size()), free_ccost);
+        it->second = std::make_unique<CCost>(simplify_depth(key, leaf_levels.data(), leaf_levels.size()));
       }
 
-      if (strcmp(it->second->aft_expr, key.c_str()) == 0) { // no improvement
+      if (std::string(it->second->aft_expr.c_str()) == key.c_str()) { // no improvement
         bad_exprs.insert(key_deps);
         table.erase(key);
         return nullptr;
@@ -178,6 +178,33 @@ namespace mockturtle {
       }
     }
 
+    std::vector<uint32_t> depth_ranking(const std::vector<uint32_t> &leaf_levels) const {
+      std::size_t leaf_size = leaf_levels.size();
+      assert(leaf_size==_num_leaves);
+
+      std::vector<std::pair<uint32_t, uint32_t>> value_index_pairs;
+      value_index_pairs.reserve(leaf_size);
+      for (size_t i = 0; i < leaf_size; ++i) {
+        value_index_pairs.emplace_back(leaf_levels[i], i);
+      }
+
+      std::sort(value_index_pairs.begin(), value_index_pairs.end(),
+              [](const std::pair<uint32_t, uint32_t>& a, const std::pair<uint32_t, uint32_t>& b) {
+                  return a.first < b.first;
+              });
+
+      std::vector<uint32_t> sorted_indices(leaf_size);
+      for (size_t i = 0; i < leaf_size; ++i) {
+          if (i > 0 && value_index_pairs[i].first == value_index_pairs[i - 1].first) {
+              sorted_indices[value_index_pairs[i].second] = sorted_indices[value_index_pairs[i - 1].second];
+          } else {
+              sorted_indices[value_index_pairs[i].second] = i;
+          }
+      }
+
+      return sorted_indices;
+    }
+
   public:
     inline auto num_pis() const { return _num_leaves; }
     inline auto num_pos() const { return 1; }
@@ -208,11 +235,12 @@ namespace mockturtle {
     }
 
     const CCost *optimize_by_egg_lib(const std::vector<uint32_t> &leaf_levels) const {
-      return exp_map.insert(_original_expr, leaf_levels);
+      return exp_map.insert(_original_expr, this->depth_ranking(leaf_levels));
     }
 
-    CCost *optimize_by_egg(const std::vector<uint32_t> &leaf_levels) const {
-      return simplify_depth(_original_expr, leaf_levels.data(), leaf_levels.size());
+    CCost optimize_by_egg(const std::vector<uint32_t> &leaf_levels) const {
+      std::vector<uint32_t> const depth_ranking = this->depth_ranking(leaf_levels);
+      return simplify_depth(_original_expr, depth_ranking.data(), depth_ranking.size());
     }
 
     void feedback(bool is_bad) const {
@@ -304,7 +332,6 @@ namespace mockturtle {
 
     size_t traverse(node const &n) {
       if (this->visited(n) == this->trav_id()) {
-        ++_out_degs[node_to_index(n)];
         return 0;
       }
 
@@ -327,12 +354,15 @@ namespace mockturtle {
         if (this->is_complemented(f)) {
           cur_node_expr += "(~ ";
         }
-        size_t td = traverse(this->get_node(f));
-        cur_node_expr += get_egg_expr(this->get_node(f));
+        node fanin_node = this->get_node(f);
+        size_t td = traverse(fanin_node);
+        cur_node_expr += get_egg_expr(fanin_node);
         if (this->is_complemented(f)) {
           cur_node_expr += ")";
         }
         depth = std::max(depth, td);
+        // Update out-degree of the fanin node
+        ++_out_degs[node_to_index(fanin_node)];
       });
 
       cur_node_expr += ")";
@@ -343,7 +373,6 @@ namespace mockturtle {
       }
 
       add_node(n, cur_node_expr);
-      ++_out_degs[node_to_index(n)];
       this->set_visited(n, this->trav_id());
       return depth + 1;
     }
