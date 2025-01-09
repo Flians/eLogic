@@ -126,8 +126,12 @@ fn to_prefix(expr: &egg::RecExpr<MIG>, var_dep: &[u32]) -> (String, u32, u32, u3
     ) -> String {
         let node = &expr[id];
 
-        if let Some(cur_expr) = visited.get_mut(&id) {
-            let cur_dep = match node {
+        let mut existed = false;
+        let mut reupdate = false;
+        let mut cur_dep = current_depth;
+        let mut cur_exp = String::default();
+        if let Some((expr_str, cached_depth)) = visited.get_mut(&id) {
+            cur_dep = match node {
                 MIG::Symbol(sym) => {
                     let chr_v = sym.as_str().as_bytes();
                     let index = (chr_v[0] as u8) - ('a' as u8);
@@ -135,11 +139,60 @@ fn to_prefix(expr: &egg::RecExpr<MIG>, var_dep: &[u32]) -> (String, u32, u32, u3
                 }
                 _ => current_depth,
             };
-            if cur_expr.1 < cur_dep {
-                cur_expr.1 = cur_dep;
+
+            if *cached_depth < cur_dep {
+                reupdate = true;
+                *cached_depth = cur_dep;
                 *max_depth = (*max_depth).max(cur_dep);
             }
-            return cur_expr.0.clone();
+
+            existed = true;
+            cur_exp = expr_str.clone();
+        };
+
+        if existed {
+            if reupdate {
+                // continue to update children's depth
+                match node {
+                    MIG::And(children) => {
+                        for &child_id in children.iter() {
+                            helper(
+                                expr,
+                                child_id,
+                                inv_count,
+                                ops_count,
+                                visited,
+                                cur_dep + 1,
+                                max_depth,
+                                var_dep,
+                            );
+                        }
+                    }
+                    MIG::Maj(children) => {
+                        for &child_id in children.iter() {
+                            helper(
+                                expr,
+                                child_id,
+                                inv_count,
+                                ops_count,
+                                visited,
+                                cur_dep + 1,
+                                max_depth,
+                                var_dep,
+                            );
+                        }
+                    }
+                    MIG::Not(child_id) => {
+                        helper(
+                            expr, *child_id, inv_count, ops_count, visited, cur_dep, max_depth,
+                            var_dep,
+                        );
+                    }
+                    _ => {}
+                }
+            }
+
+            return cur_exp;
         }
 
         let result = match node {
@@ -149,7 +202,7 @@ fn to_prefix(expr: &egg::RecExpr<MIG>, var_dep: &[u32]) -> (String, u32, u32, u3
                 let children_expr: Vec<String> = children
                     .iter()
                     .map(|&child_id| {
-                        let child_expr = helper(
+                        helper(
                             expr,
                             child_id,
                             inv_count,
@@ -158,8 +211,7 @@ fn to_prefix(expr: &egg::RecExpr<MIG>, var_dep: &[u32]) -> (String, u32, u32, u3
                             current_depth + 1,
                             max_depth,
                             var_dep,
-                        );
-                        child_expr
+                        )
                     })
                     .collect();
                 (
@@ -172,7 +224,7 @@ fn to_prefix(expr: &egg::RecExpr<MIG>, var_dep: &[u32]) -> (String, u32, u32, u3
                 let children_expr: Vec<String> = children
                     .iter()
                     .map(|&child_id| {
-                        let child_expr = helper(
+                        helper(
                             expr,
                             child_id,
                             inv_count,
@@ -181,8 +233,7 @@ fn to_prefix(expr: &egg::RecExpr<MIG>, var_dep: &[u32]) -> (String, u32, u32, u3
                             current_depth + 1,
                             max_depth,
                             var_dep,
-                        );
-                        child_expr
+                        )
                     })
                     .collect();
                 (
@@ -992,7 +1043,7 @@ mod tests {
         simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))");
         simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))");
         simplify("(M (~ 0) (M (~ e) (M (~ 0) c (M 0 (~ a) b)) (M 0 (M 0 c (M 0 (~ a) b)) (M (~ 0) c (M 0 (~ a) b)))) (M (M 0 (~ d) g) h (M 0 (~ f) h)))");
-        //[0, 0, 0, 4, 6, 3, 5, 6]
+        simplify("(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))");
     }
 
     #[test]
@@ -1009,9 +1060,8 @@ mod tests {
 
     #[test]
     fn test_depth() {
-        let mut expr = egg::RecExpr::<MIG>::default();
-
         /*
+        let mut expr = egg::RecExpr::<MIG>::default();
         let a = expr.add(MIG::Symbol(egg::Symbol::from("a")));
         let b = expr.add(MIG::Symbol(egg::Symbol::from("b")));
         let c = expr.add(MIG::Symbol(egg::Symbol::from("c")));
@@ -1022,7 +1072,6 @@ mod tests {
         let h = expr.add(MIG::Symbol(egg::Symbol::from("h")));
         let zero = expr.add(MIG::Bool(0));
 
-        // 构建表达式
         let maj1 = expr.add(MIG::Maj([zero, a, b]));
         let not_a = expr.add(MIG::Not(a));
         let maj2 = expr.add(MIG::Maj([zero, not_a, b]));
@@ -1075,6 +1124,12 @@ mod tests {
                 .parse()
                 .unwrap();
 
+        let var_dep = vec![0, 0, 0, 3, 6, 4, 5]; // 对应 a, b, c, d, e, f, g
+        let expr: egg::RecExpr<MIG> =
+            "(M (~ 0) d (M (~ (M c (M e (M a (~ f) (M 0 a (~ b))) (M a g (M 0 a (~ b)))) (M (~ e) (M 0 f (M 0 c (M 0 (~ a) b))) (M 0 (~ g) (M 0 c (M 0 (~ a) b)))))) (M c (M (~ 0) c (M 0 (~ a) b)) (~ (M e (~ f) g))) (M 0 (~ c) (M e (M a (~ f) (M 0 a (~ b))) (M a g (M 0 a (~ b)))))))"
+                .parse()
+                .unwrap();
+
         // create an e-graph with the given expression
         let mut runner = egg::Runner::default().with_expr(&expr);
         // the Runner knows which e-class the expression given with `with_expr` is in
@@ -1090,6 +1145,7 @@ mod tests {
 
         let (prefix_expr, depth, ops_count, inv_count) = to_prefix(&best, &var_dep);
 
+        println!("cost: {:?}", best_cost);
         println!("前缀表达式: {}", prefix_expr);
         println!("表达式深度: {}", depth);
         println!("操作符总数: {}", ops_count);
