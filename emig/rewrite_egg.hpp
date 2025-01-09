@@ -656,7 +656,7 @@ namespace mockturtle {
 
             // optimize by egg
             const CCost* dcost = eview.optimize_by_egg_lib(leaf_levels);
-            if (!dcost || dcost->aft_size > eview._original_size)
+            if (!dcost)
               continue;
             uint32_t aft_dep = dcost->aft_dep;
             const std::string aft_expr(dcost->aft_expr.data());

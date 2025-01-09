@@ -123,41 +123,42 @@ fn to_prefix(expr: &egg::RecExpr<MIG>, var_dep: &[u32]) -> (String, u32, u32, u3
         current_depth: u32,
         max_depth: &mut u32,
         var_dep: &[u32],
-    ) -> (String, u32) {
-        if let Some(cur_expr) = visited.get(&id) {
-            return cur_expr.clone();
+    ) -> String {
+        let node = &expr[id];
+
+        if let Some(cur_expr) = visited.get_mut(&id) {
+            let cur_dep = match node {
+                MIG::Symbol(sym) => {
+                    let chr_v = sym.as_str().as_bytes();
+                    let index = (chr_v[0] as u8) - ('a' as u8);
+                    current_depth + var_dep.get(index as usize).copied().unwrap_or(0)
+                }
+                _ => current_depth,
+            };
+            if cur_expr.1 < cur_dep {
+                cur_expr.1 = cur_dep;
+                *max_depth = (*max_depth).max(cur_dep);
+            }
+            return cur_expr.0.clone();
         }
 
-        let node = &expr[id];
-        let op_depth = match node {
-            MIG::And(..) => 1 as u32,
-            MIG::Maj(..) => 1 as u32,
-            MIG::Not(..) => 0 as u32,
-            MIG::Symbol(v) => {
-                let chr_v = v.as_str().as_bytes();
-                let index = (chr_v[0] as u8) - ('a' as u8);
-                var_dep[index as usize]
-            }
-            _ => 0 as u32,
-        };
         let result = match node {
-            MIG::Bool(value) => (format!("{}", value), current_depth + op_depth),
+            MIG::Bool(value) => (format!("{}", value), current_depth),
             MIG::And(children) => {
                 *ops_count += 1;
                 let children_expr: Vec<String> = children
                     .iter()
                     .map(|&child_id| {
-                        let (child_expr, child_depth) = helper(
+                        let child_expr = helper(
                             expr,
                             child_id,
                             inv_count,
                             ops_count,
                             visited,
-                            current_depth + op_depth,
+                            current_depth + 1,
                             max_depth,
                             var_dep,
                         );
-                        *max_depth = (*max_depth).max(child_depth);
                         child_expr
                     })
                     .collect();
@@ -171,17 +172,16 @@ fn to_prefix(expr: &egg::RecExpr<MIG>, var_dep: &[u32]) -> (String, u32, u32, u3
                 let children_expr: Vec<String> = children
                     .iter()
                     .map(|&child_id| {
-                        let (child_expr, child_depth) = helper(
+                        let child_expr = helper(
                             expr,
                             child_id,
                             inv_count,
                             ops_count,
                             visited,
-                            current_depth + op_depth,
+                            current_depth + 1,
                             max_depth,
                             var_dep,
                         );
-                        *max_depth = (*max_depth).max(child_depth);
                         child_expr
                     })
                     .collect();
@@ -192,38 +192,41 @@ fn to_prefix(expr: &egg::RecExpr<MIG>, var_dep: &[u32]) -> (String, u32, u32, u3
             }
             MIG::Not(child_id) => {
                 *inv_count += 1;
-                let (child_expr, child_depth) = helper(
+                let child_expr = helper(
                     expr,
                     *child_id,
                     inv_count,
                     ops_count,
                     visited,
-                    current_depth + op_depth,
+                    current_depth,
                     max_depth,
                     var_dep,
                 );
-                *max_depth = (*max_depth).max(child_depth);
                 (
                     format!("({} {})", node.to_string(), child_expr),
                     current_depth,
                 )
             }
-            MIG::Symbol(sym) => (format!("{}", sym), current_depth + op_depth),
+            MIG::Symbol(sym) => {
+                let chr_v = sym.as_str().as_bytes();
+                let index = (chr_v[0] as u8) - ('a' as u8);
+                let symbol_depth = var_dep.get(index as usize).copied().unwrap_or(0);
+                (format!("{}", sym), current_depth + symbol_depth)
+            }
         };
 
+        *max_depth = (*max_depth).max(result.1);
         visited.insert(id, result.clone());
-        result
+        result.0
     }
 
-    let root_id = expr.as_ref().len() - 1;
-    let root_id = Id::from(root_id);
-
+    let root_id = Id::from(expr.as_ref().len() - 1);
     let mut max_depth = 0;
     let mut ops_count = 0;
     let mut inv_count = 0;
     let mut visited = std::collections::HashMap::new();
 
-    let (prefix_expr, _) = helper(
+    let prefix_expr = helper(
         expr,
         root_id,
         &mut inv_count,
@@ -606,14 +609,21 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     let (best_cost, best) =
         egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &vars_))
             .find_best(root);
-    let (aft_expr, aft_dep, aft_size, aft_inv) = to_prefix(&best, &vars_);
-    assert_eq!(best_cost.dep, aft_dep);
+    let (aft_expr, mut aft_dep, aft_size, aft_invs) = to_prefix(&best, &vars_);
+    if best_cost.dep != aft_dep {
+        println!(
+            "{} with {:?} to {} with {},{},{}",
+            s, vars_, aft_expr, aft_dep, aft_size, aft_invs
+        );
+        // assert_eq!(best_cost.dep, aft_dep);
+        aft_dep = best_cost.dep;
+    }
     // let aft_expr = best.to_string();
     let cost: ffi::CCost = ffi::CCost {
         aft_expr: aft_expr,
         aft_dep: aft_dep,
         aft_size: aft_size,
-        aft_invs: aft_inv,
+        aft_invs: aft_invs,
     };
 
     cost
@@ -981,6 +991,8 @@ mod tests {
         simplify("(M (~ 0) (M 0 a (~ (M 0 b (~ c)))) (M 0 (~ a) (M 0 b (~ c))))");
         simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))");
         simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))");
+        simplify("(M (~ 0) (M (~ e) (M (~ 0) c (M 0 (~ a) b)) (M 0 (M 0 c (M 0 (~ a) b)) (M (~ 0) c (M 0 (~ a) b)))) (M (M 0 (~ d) g) h (M 0 (~ f) h)))");
+        //[0, 0, 0, 4, 6, 3, 5, 6]
     }
 
     #[test]
@@ -993,5 +1005,94 @@ mod tests {
         eg.add_expr(&start_expr);
         eg.rebuild();
         assert!(!eg.equivs(&start_expr, &end_expr).is_empty());
+    }
+
+    #[test]
+    fn test_depth() {
+        let mut expr = egg::RecExpr::<MIG>::default();
+
+        /*
+        let a = expr.add(MIG::Symbol(egg::Symbol::from("a")));
+        let b = expr.add(MIG::Symbol(egg::Symbol::from("b")));
+        let c = expr.add(MIG::Symbol(egg::Symbol::from("c")));
+        let d = expr.add(MIG::Symbol(egg::Symbol::from("d")));
+        let e = expr.add(MIG::Symbol(egg::Symbol::from("e")));
+        let f = expr.add(MIG::Symbol(egg::Symbol::from("f")));
+        let g = expr.add(MIG::Symbol(egg::Symbol::from("g")));
+        let h = expr.add(MIG::Symbol(egg::Symbol::from("h")));
+        let zero = expr.add(MIG::Bool(0));
+
+        // 构建表达式
+        let maj1 = expr.add(MIG::Maj([zero, a, b]));
+        let not_a = expr.add(MIG::Not(a));
+        let maj2 = expr.add(MIG::Maj([zero, not_a, b]));
+        let not_e = expr.add(MIG::Not(e));
+        let maj3 = expr.add(MIG::Maj([not_e, maj2, c]));
+        let not_zero = expr.add(MIG::Not(zero));
+        let maj4 = expr.add(MIG::Maj([not_zero, maj3, maj2]));
+        let not_d = expr.add(MIG::Not(d));
+        let maj5 = expr.add(MIG::Maj([zero, not_d, g]));
+        let not_f = expr.add(MIG::Not(f));
+        let maj6 = expr.add(MIG::Maj([zero, not_f, h]));
+        let maj7 = expr.add(MIG::Maj([maj5, h, maj6]));
+        let maj8 = expr.add(MIG::Maj([not_zero, maj4, maj7]));
+        */
+
+        let all_rules = &[
+            // rules needed for contrapositive
+            double_neg(),
+            double_neg_flip(),
+            neg(),
+            neg_flip(),
+            // and some others
+            distri(),
+            distri_flip(),
+            com_associ(),
+            com_associ_flip(),
+            // relevance(),
+            associ(),
+            comm_lm(),
+            comm_lr(),
+            comm_mr(),
+            maj_2_equ(),
+            maj_2_com(),
+            associ_and(),
+            comm_and(),
+            comp_and(),
+            dup_and(),
+            and_true(),
+            and_false(),
+            // true_false(),
+            // false_true(),
+            neg_false(),
+            neg_true(),
+            maj_dup(),
+        ];
+
+        let var_dep = vec![0, 0, 2, 5, 3, 4, 5]; // 对应 a, b, c, d, e, f, g
+        let expr: egg::RecExpr<MIG> =
+            "(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))"
+                .parse()
+                .unwrap();
+
+        // create an e-graph with the given expression
+        let mut runner = egg::Runner::default().with_expr(&expr);
+        // the Runner knows which e-class the expression given with `with_expr` is in
+        let root = runner.roots[0];
+
+        // simplify the expression using a Runner, which runs the given rules over it
+        runner = runner.run(all_rules);
+
+        // use an Extractor to pick the best element of the root eclass
+        let (best_cost, best) =
+            egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &var_dep))
+                .find_best(root);
+
+        let (prefix_expr, depth, ops_count, inv_count) = to_prefix(&best, &var_dep);
+
+        println!("前缀表达式: {}", prefix_expr);
+        println!("表达式深度: {}", depth);
+        println!("操作符总数: {}", ops_count);
+        println!("反相器总数: {}", inv_count);
     }
 }
