@@ -3,7 +3,8 @@ use std::ffi::CString;
 use std::ops::Add;
 use std::os::raw::c_char;
 use std::{cmp, default};
-
+use std::fmt;
+use std::ops::AddAssign;
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct CCost {
     dep: u32,
@@ -18,6 +19,17 @@ impl Default for CCost {
             aom: 0,
             inv: 0,
         }
+    }
+}
+impl AddAssign for CCost {
+    fn add_assign(&mut self, other: Self) {
+        self.aom += other.aom;
+        self.inv += other.inv;
+    }
+}
+impl fmt::Display for CCost {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "dep={}, aom={}, inv={}", self.dep, self.aom, self.inv)
     }
 }
 impl CCost {
@@ -953,30 +965,48 @@ pub fn simplify(s: &str) {
     // let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
 
     // Extract the result
-    #[cfg(feature = "ilp-cbc")]
-    // let extractor = extract::ilp_cbc::CbcExtractor::default();
-    let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
-    #[cfg(not(feature = "ilp-cbc"))]
-    // let extractor = extract::bottom_up::BottomUpExtractor {};
+    //#[cfg(feature = "ilp-cbc")]
+    //let extractor = extract::ilp_cbc::CbcExtractor::default();
+    // Extract the result using global_greedy_dag extractor
+    //#[cfg(not(feature = "ilp-cbc"))]
     let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
+   // let extractor = extract::bottom_up::BottomUpExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
     // Get the cost
     // let tree_cost = extraction_result.tree_cost(&serialized_egraph, &egraph_serialize_root);
     let dag_cost_size =
-        extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
+    extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
     let dag_cost_depth =
-        extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
+    extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
+    
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
     println!(
-        "DAG cost: depth: {}, size: {}, expr: {} ",
+        "DAG cost_DAG: depth: {}, size: {}, expr: {} ",
         dag_cost_depth, dag_cost_size, aft_expr
     );
-    let (aft_expr, tcost) = extraction_result.print_extracted_term(
-        &serialized_egraph,
-        &MIGCostFn_dsi::new(&saturated_egraph, vars_),
+
+    let extractor1 = extract::bottom_up::BottomUpExtractor {};
+    let extraction_result1 = extractor1.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
+
+    let dag_cost_size1 =
+    extraction_result1.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_depth1 =
+    extraction_result1.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
+    
+    let aft_expr1 = extraction_result1.print_aft_expr(&serialized_egraph);
+    println!(
+        "DAG cost_Tree: depth: {}, size: {}, expr: {} ",
+        dag_cost_depth1, dag_cost_size1, aft_expr1
     );
-    println!("Simplified {} to {} with cost {:?}", expr, aft_expr, tcost);
+
+
+
+    // let (aft_expr, tcost) = extraction_result.print_extracted_term(
+    //     &serialized_egraph,
+    //     &MIGCostFn_dsi::new(&saturated_egraph, vars_),
+    // );
+    // println!("Simplified {} to {} with cost {:?}", expr, aft_expr, tcost);
 }
 
 /*
