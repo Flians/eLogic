@@ -10,3 +10,14 @@ repomix-output.txt
 *.diff
 mig_egg/src/egraph-serialize/tests/
 mig_egg/src/egraph-serialize/tests-viz/
+abc.history
+emig/CMakeFiles/
+emig/emig/
+emig/mig_egg/
+emig/tools/
+emig_aig_k4_size_dag.log
+emig_aig_k4_size_ilp.log
+emig_mig_k4_dep_dag.log
+emig_mig_k4_size_dag.log
+rewrite_elo_aig_k8.json
+rewrite_elo_mig_k8_post2.json
