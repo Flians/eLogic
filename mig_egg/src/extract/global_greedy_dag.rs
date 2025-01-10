@@ -85,32 +85,33 @@ impl TermDag {
                 }
             }
 
-            // Calculate initial cost considering all dimensions
-            let mut total_cost = node_cost;
-            // Early cost check - compare all dimensions
-            if total_cost > target {
-                return None;
-            }
+            let biggest_child = (0..children.len())
+                .max_by_key(|i| self.info[children[*i]].size)
+                .unwrap();
 
-            let mut reachable = HashTrieSet::new();
+            let mut cost = node_cost + self.total_cost(children[biggest_child]);
+            let mut reachable = self.info[children[biggest_child]].reachable.clone();
             let next_id = self.nodes.len();
 
-            // Calculate costs for children
             for child in children.iter() {
-                let child_cost = self.get_cost(&mut reachable, *child);
-                total_cost = CCost::merge(&total_cost, &child_cost);
-                if total_cost > target {
+                if cost > target {
                     return None;
                 }
+                let child_cost = self.get_cost(&mut reachable, *child);
+                cost += child_cost;
+            }
+
+            if cost > target {
+                return None;
             }
 
             reachable = reachable.insert(node.eclass.clone());
 
             self.info.push(TermInfo {
                 node: node_id,
+                node_cost,
                 eclass: node.eclass.clone(),
-                node_cost: node_cost,
-                total_cost: total_cost,
+                total_cost: cost,
                 reachable,
                 size: 1 + children.iter().map(|c| self.info[*c].size).sum::<usize>(),
             });
@@ -136,7 +137,7 @@ impl TermDag {
             let mut cost = self.node_cost(id);
             for child in &self.nodes[id].children {
                 let child_cost = self.get_cost(shared, *child);
-                cost = CCost::merge(&cost, &child_cost);
+                cost += child_cost;
             }
             *shared = shared.insert(eclass);
             cost
@@ -215,7 +216,14 @@ impl Extractor for GlobalGreedyDagExtractor {
                 }
             }
         }
-
+        for root in _roots {
+            if let Some(term_id) = best_in_class.get(root) {
+                let total_cost = termdag.total_cost(*term_id);
+                println!("Root {:?} has total cost: {:?}", root, total_cost);
+            } else {
+                println!("Root {:?} is not in best_in_class", root);
+            }
+        }
         let mut result = ExtractionResult::default();
         for (class, term) in best_in_class {
             result.choose(class, termdag.info[term].node.clone());
