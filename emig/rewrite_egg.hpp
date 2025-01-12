@@ -641,14 +641,15 @@ namespace mockturtle {
               continue;
 
             /* measure the MFFC contained in the cut */
-            // const uint32_t mffc_size = measure_mffc_deref(n, cut);
+            const uint32_t mffc_size = measure_mffc_deref(n, cut);
             /* restore contained MFFC */
-            // measure_mffc_ref(n, cut);
-            // if (mffc_size <= 1) continue;
+            measure_mffc_ref(n, cut);
+            if (mffc_size <= 1) continue;
 
             // build egg graph
             egg_view<Ntk> eview(ntk, leaves, ntk.make_signal(n));
-            const uint32_t mffc_size = eview._mffc_size;
+            // const uint32_t mffc_size2 = eview._mffc_size;
+            // assert(mffc_size == mffc_size2 && "mffc_size == mffc_size2");
 
             // skip bad cut
             if (mffc_size <= 1 || eview._original_size < 2 || eview.has_bug)
