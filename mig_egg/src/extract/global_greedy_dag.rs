@@ -157,7 +157,7 @@ impl TermDag {
 pub struct GlobalGreedyDagExtractor;
 impl Extractor for GlobalGreedyDagExtractor {
     fn extract(&self, egraph: &EGraph, _roots: &[ClassId]) -> ExtractionResult {
-        println!("GlobalGreedyDagExtractor");
+        // println!("GlobalGreedyDagExtractor");
         let mut keep_going = true;
 
         let nodes = egraph.nodes.clone();
@@ -216,6 +216,7 @@ impl Extractor for GlobalGreedyDagExtractor {
                 }
             }
         }
+        /*
         for root in _roots {
             if let Some(term_id) = best_in_class.get(root) {
                 let total_cost = termdag.total_cost(*term_id);
@@ -224,6 +225,7 @@ impl Extractor for GlobalGreedyDagExtractor {
                 println!("Root {:?} is not in best_in_class", root);
             }
         }
+        */
         let mut result = ExtractionResult::default();
         for (class, term) in best_in_class {
             result.choose(class, termdag.info[term].node.clone());

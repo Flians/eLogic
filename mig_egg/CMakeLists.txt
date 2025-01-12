@@ -7,7 +7,7 @@ pkg_check_modules(OSI_CBC REQUIRED osi-cbc IMPORTED_TARGET GLOBAL)
 add_library(Coin::OsiCbc ALIAS PkgConfig::OSI_CBC)
 message(STATUS "${CBC_LIBRARIES}")
 
-set(CARGO_CMD cargo build --release)
+set(CARGO_CMD cargo build --release --no-default-features)
 set(TARGET_DIR "release")
 set(RUST_GEN_LIB "${CMAKE_CURRENT_BINARY_DIR}/${TARGET_DIR}/libmig_egg.a")
 set(RUST_GEN_CXX "${CMAKE_CURRENT_BINARY_DIR}//cxxbridge/mig_egg/src/lib.rs.cc")

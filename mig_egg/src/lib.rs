@@ -1,10 +1,10 @@
 use egg::{Id, Language};
 use std::ffi::CString;
+use std::fmt;
 use std::ops::Add;
+use std::ops::AddAssign;
 use std::os::raw::c_char;
 use std::{cmp, default};
-use std::fmt;
-use std::ops::AddAssign;
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct CCost {
     dep: u32,
@@ -848,8 +848,8 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     // create an e-graph with the given expression
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(100)
-        .with_node_limit(10000)
+        .with_iter_limit(1000)
+        .with_node_limit(5000)
         .with_time_limit(std::time::Duration::from_secs(10));
     // the Runner knows which e-class the expression given with `with_expr` is in
     let root_id = runner.roots[0];
@@ -867,10 +867,10 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     // let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
 
     // Extract the result
-    #[cfg(feature = "ilp-cbc")]
+    // #[cfg(feature = "ilp-cbc")]
     // let extractor = extract::ilp_cbc::CbcExtractor::default();
-    let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
-    #[cfg(not(feature = "ilp-cbc"))]
+    // let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
+    // #[cfg(not(feature = "ilp-cbc"))]
     // let extractor = extract::bottom_up::BottomUpExtractor {};
     let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
@@ -903,7 +903,7 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
 // use pyo3::prelude::*;
 /// parse an expression, simplify it using egg, and pretty print it back out
 // #[pyfunction]
-pub fn simplify(s: &str) {
+pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     let all_rules = &[
         // rules needed for contrapositive
         double_neg(),
@@ -938,9 +938,14 @@ pub fn simplify(s: &str) {
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
 
     let vars_default: [u32; 26] = [0; 26];
-    let vars_: &[u32] = &vars_default;
+    let mut vars_ = vars_default.as_ptr();
+    let mut var_len = 26;
+    if !var_dep.is_empty() {
+        vars_ = var_dep.as_ptr();
+        var_len = var_dep.len();
+    }
 
-    let cost_depth = simplify_depth(s, std::ptr::null(), 0);
+    let cost_depth = simplify_depth(s, vars_, var_len);
     println!("\ntree cost: {} ", cost_depth);
 
     // create an e-graph with the given expression
@@ -959,7 +964,9 @@ pub fn simplify(s: &str) {
     // Serialize the egraph to JSON with single root
     let serialized_egraph = egg_to_serialized_egraph(
         &saturated_egraph,
-        &MIGCostFn_dsi::new(&saturated_egraph, vars_),
+        &MIGCostFn_dsi::new(&saturated_egraph, unsafe {
+            std::slice::from_raw_parts(vars_, var_len)
+        }),
         root_id,
     );
     // let egraph_serialize_root = [egraph_serialize::ClassId::from(root_id.to_string())];
@@ -969,17 +976,17 @@ pub fn simplify(s: &str) {
     //let extractor = extract::ilp_cbc::CbcExtractor::default();
     // Extract the result using global_greedy_dag extractor
     //#[cfg(not(feature = "ilp-cbc"))]
+    // let extractor = extract::bottom_up::BottomUpExtractor {};
     let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
-   // let extractor = extract::bottom_up::BottomUpExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
     // Get the cost
     // let tree_cost = extraction_result.tree_cost(&serialized_egraph, &egraph_serialize_root);
     let dag_cost_size =
-    extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
+        extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
     let dag_cost_depth =
-    extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
-    
+        extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
+
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
     println!(
         "DAG cost_DAG: depth: {}, size: {}, expr: {} ",
@@ -987,20 +994,19 @@ pub fn simplify(s: &str) {
     );
 
     let extractor1 = extract::bottom_up::BottomUpExtractor {};
-    let extraction_result1 = extractor1.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let extraction_result1 =
+        extractor1.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
     let dag_cost_size1 =
-    extraction_result1.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
+        extraction_result1.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
     let dag_cost_depth1 =
-    extraction_result1.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
-    
+        extraction_result1.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
+
     let aft_expr1 = extraction_result1.print_aft_expr(&serialized_egraph);
     println!(
         "DAG cost_Tree: depth: {}, size: {}, expr: {} ",
         dag_cost_depth1, dag_cost_size1, aft_expr1
     );
-
-
 
     // let (aft_expr, tcost) = extraction_result.print_extracted_term(
     //     &serialized_egraph,
@@ -1050,30 +1056,36 @@ mod tests {
             &["(M x 0 (M y x (M u 0 v)))", "(M (M y x 0) x (M 0 u v))"],
         );
         */
+        let empty_vec: Vec<u32> = Vec::new();
 
-        simplify("(& 0 1)");
-        simplify("(& x 1)");
-        simplify("(& x (~ 1))");
-        simplify("(& x (~ x))");
-        simplify("(& x x)");
-        simplify("(& (& x b) (& b y))");
-        simplify("(M 1 1 1)");
-        simplify("(M 1 1 0)");
-        simplify("(M 1 0 0)");
-        simplify("(M 0 0 0)");
-        simplify("(M x 1 (~ 0))");
-        simplify("(M a b (M a b c))");
-        simplify("(M x 0 (M y 1 (M u 0 v)))"); // need fix for ilp
-        simplify("(M (M w x (~ z)) x (M z x y))");
-        simplify("(M c (M c d (M e f b)) a)");
-        simplify("(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))");
-        simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))"); // need fix for ilp
-        simplify("(M 0 (~ (M 0 (~ a) b)) (M 0 c (~ d)))");
-        simplify("(M (~ 0) (M 0 a (~ (M 0 b (~ c)))) (M 0 (~ a) (M 0 b (~ c))))");
-        simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))");
-        simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))");
-        simplify("(M (~ 0) (M (~ e) (M (~ 0) c (M 0 (~ a) b)) (M 0 (M 0 c (M 0 (~ a) b)) (M (~ 0) c (M 0 (~ a) b)))) (M (M 0 (~ d) g) h (M 0 (~ f) h)))");
-        simplify("(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))");
+        simplify("(& 0 1)", &empty_vec);
+        simplify("(& x 1)", &empty_vec);
+        simplify("(& x (~ 1))", &empty_vec);
+        simplify("(& x (~ x))", &empty_vec);
+        simplify("(& x x)", &empty_vec);
+        simplify("(& (& x b) (& b y))", &empty_vec);
+        simplify("(M 1 1 1)", &empty_vec);
+        simplify("(M 1 1 0)", &empty_vec);
+        simplify("(M 1 0 0)", &empty_vec);
+        simplify("(M 0 0 0)", &empty_vec);
+        simplify("(M x 1 (~ 0))", &empty_vec);
+        simplify("(M a b (M a b c))", &empty_vec);
+        simplify("(M x 0 (M y 1 (M u 0 v)))", &empty_vec); // need fix for ilp
+        simplify("(M (M w x (~ z)) x (M z x y))", &empty_vec);
+        simplify("(M c (M c d (M e f b)) a)", &empty_vec);
+        simplify("(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))",&empty_vec);
+        simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))",&empty_vec); // need fix for ilp
+        simplify("(M 0 (~ (M 0 (~ a) b)) (M 0 c (~ d)))", &empty_vec);
+        simplify(
+            "(M (~ 0) (M 0 a (~ (M 0 b (~ c)))) (M 0 (~ a) (M 0 b (~ c))))",
+            &empty_vec,
+        );
+        simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))", &empty_vec);
+        simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))", &empty_vec);
+        simplify("(M (~ 0) (M (~ e) (M (~ 0) c (M 0 (~ a) b)) (M 0 (M 0 c (M 0 (~ a) b)) (M (~ 0) c (M 0 (~ a) b)))) (M (M 0 (~ d) g) h (M 0 (~ f) h)))",&empty_vec);
+        simplify("(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))",&empty_vec);
+        simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))",&empty_vec);
+        // simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))", &vec![0, 0, 2, 2, 4, 6, 5, 7]);
     }
 
     #[test]
