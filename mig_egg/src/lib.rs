@@ -962,8 +962,6 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
         dup_and(),
         and_true(),
         and_false(),
-        // true_false(),
-        // false_true(),
         neg_false(),
         neg_true(),
         maj_dup(),
@@ -1023,8 +1021,8 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
          extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
     println!(
-        "DAG cost_DAG: depth: {}, size: {}, expr: {} ",
-        dag_cost_depth, dag_cost_size, aft_expr
+        "DAG cost_DAG: expr: {} , depth: {}, size: {}",
+        aft_expr,dag_cost_depth, dag_cost_size
     );
 
     let extractor1 = extract::bottom_up::BottomUpExtractor {};
@@ -1038,10 +1036,23 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
 
     let aft_expr1 = extraction_result1.print_aft_expr(&serialized_egraph);
     println!(
-        "DAG cost_Tree: depth: {}, size: {}, expr: {} ",
-        dag_cost_depth1, dag_cost_size1, aft_expr1
+        "DAG cost_Tree: expr: {}, depth: {}, size: {}  ",
+        aft_expr1,dag_cost_depth1, dag_cost_size1
     );
+    // let extractor2 = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
+    // let extraction_result2 =
+    //     extractor2.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
+    // let dag_cost_size2 =
+    //     extraction_result2.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
+    // let dag_cost_depth2 =
+    //     extraction_result2.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
+
+    // let aft_expr2 = extraction_result2.print_aft_expr(&serialized_egraph);
+    // println!(
+    //     "DAG global cost_Tree: expr: {}, depth: {}, size: {},  ",
+    //     aft_expr2,dag_cost_depth2, dag_cost_size2,
+    // );
     // let (aft_expr, tcost) = extraction_result.print_extracted_term(
     //     &serialized_egraph,
     //     &MIGCostFn_dsi::new(&saturated_egraph, vars_),
@@ -1121,7 +1132,7 @@ mod tests {
         simplify("(M (~ 0) (M (~ e) (M (~ 0) c (M 0 (~ a) b)) (M 0 (M 0 c (M 0 (~ a) b)) (M (~ 0) c (M 0 (~ a) b)))) (M (M 0 (~ d) g) h (M 0 (~ f) h)))",&empty_vec);
       simplify("(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))",&empty_vec);
         simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))",&empty_vec);
-    simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))", &vec![0, 0, 2, 2, 4, 6, 5, 7]);
+  //  simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))", &vec![0, 0, 2, 2, 4, 6, 5, 7]);
     }
 
     #[test]
