@@ -1,14 +1,13 @@
-// Calculates the cost where shared nodes are just costed once,
-// For example (+ (* x x ) (* x x )) has one mulitplication
-// included in the cost.
-
 use super::*;
 use rustc_hash::{FxHashMap, FxHashSet};
+use indexmap::IndexMap;
+use super::ExtractionResult; // 使用统一的 ExtractionResult
 
+#[derive(Clone)]
 struct CostSet {
-    // It's slightly faster if this is an HashMap rather than an fxHashMap.
-    costs: HashMap<ClassId, Cost>,
-    total: Cost,
+    // It's slightly faster if this is an HashMap rather than an FxHashMap.
+    costs: HashMap<ClassId, CCost>,
+    total: CCost,
     choice: NodeId,
 }
 
@@ -19,20 +18,22 @@ impl FasterGreedyDagExtractor {
         egraph: &EGraph,
         node_id: NodeId,
         costs: &FxHashMap<ClassId, CostSet>,
-        best_cost: Cost,
+        best_cost: CCost,
+        extraction_result: &ExtractionResult, // 传入 ExtractionResult
     ) -> CostSet {
         let node = &egraph[&node_id];
         let cid = egraph.nid_to_cid(&node_id);
 
+        // 处理叶子节点
         if node.children.is_empty() {
             return CostSet {
-                costs: HashMap::from([(cid.clone(), node.cost)]),
-                total: node.cost,
+                costs: HashMap::from([(cid.clone(), CCost::decode(node.cost.into()))]),
+                total: CCost::decode(node.cost.into()),
                 choice: node_id.clone(),
             };
         }
 
-        // Get unique classes of children.
+        // 获取子节点的唯一等价类
         let mut childrens_classes = node
             .children
             .iter()
@@ -43,18 +44,18 @@ impl FasterGreedyDagExtractor {
 
         let first_cost = costs.get(&childrens_classes[0]).unwrap();
 
+        // 剪枝逻辑
         if childrens_classes.contains(cid)
-            || (childrens_classes.len() == 1 && (node.cost + first_cost.total > best_cost))
+            || (childrens_classes.len() == 1 && (CCost::decode(node.cost.into()) + first_cost.total > best_cost))
         {
-            // Shortcut. Can't be cheaper so return junk.
             return CostSet {
                 costs: Default::default(),
-                total: INFINITY,
+                total: CCost::max(),
                 choice: node_id.clone(),
             };
         }
 
-        // Clone the biggest set and insert the others into it.
+        // 合并子节点的成本集合
         let id_of_biggest = childrens_classes
             .iter()
             .max_by_key(|s| costs.get(s).unwrap().costs.len())
@@ -72,12 +73,38 @@ impl FasterGreedyDagExtractor {
         }
 
         let contains = result.contains_key(&cid);
-        result.insert(cid.clone(), node.cost);
+        result.insert(cid.clone(), CCost::decode(node.cost.into()));
 
-        let result_cost = if contains {
-            INFINITY
+        // 使用 ExtractionResult 的 calculate_depth 方法计算深度
+        let max_child_depth = node
+            .children
+            .iter()
+            .map(|child| {
+                let child_cid = egraph.nid_to_cid(child);
+                extraction_result.calculate_depth(egraph, child_cid) // 调用 ExtractionResult 的递归深度计算
+            })
+            .max()
+            .unwrap_or(0);
+
+        // 如果当前节点的操作符是 "M"，深度加 1
+        let max_depth = if node.op == "M" {
+            max_child_depth + 1
         } else {
-            result.values().sum()
+            max_child_depth
+        };
+
+        // 计算 DAG 的大小
+        let total_size = result.values().map(|cost| cost.aom).sum::<u32>() + CCost::decode(node.cost.into()).aom;
+
+        // 构造结果
+        let result_cost = if contains {
+            CCost::max()
+        } else {
+            CCost {
+                aom: total_size, // 总大小
+                dep: max_depth,  // 最大深度
+                inv: 0,          // 假设 inv 不变
+            }
         };
 
         return CostSet {
@@ -89,7 +116,7 @@ impl FasterGreedyDagExtractor {
 }
 
 impl Extractor for FasterGreedyDagExtractor {
-    fn extract(&self, egraph: &EGraph, _roots: &[ClassId]) -> ExtractionResult {
+    fn extract(&self, egraph: &EGraph, _roots: &[ClassId]) -> extract::ExtractionResult {
         let mut parents = IndexMap::<ClassId, Vec<NodeId>>::with_capacity(egraph.classes().len());
         let n2c = |nid: &NodeId| egraph.nid_to_cid(nid);
         let mut analysis_pending = UniqueQueue::default();
@@ -112,6 +139,7 @@ impl Extractor for FasterGreedyDagExtractor {
             }
         }
 
+        // 初始化结果数据结构
         let mut result = ExtractionResult::default();
         let mut costs = FxHashMap::<ClassId, CostSet>::with_capacity_and_hasher(
             egraph.classes().len(),
@@ -121,14 +149,25 @@ impl Extractor for FasterGreedyDagExtractor {
         while let Some(node_id) = analysis_pending.pop() {
             let class_id = n2c(&node_id);
             let node = &egraph[&node_id];
+
             if node.children.iter().all(|c| costs.contains_key(n2c(c))) {
                 let lookup = costs.get(class_id);
-                let mut prev_cost = INFINITY;
-                if lookup.is_some() {
-                    prev_cost = lookup.unwrap().total;
+                let mut prev_cost = CCost::max();
+                if let Some(existing) = lookup {
+                    prev_cost = existing.total;
                 }
+                for (cid, cost_set) in costs.clone() {
+                    result.choose(cid, cost_set.choice);
+                }
+                // 调用 calculate_cost_set，传入 ExtractionResult
+                let cost_set = FasterGreedyDagExtractor::calculate_cost_set(
+                    egraph,
+                    node_id.clone(),
+                    &costs,
+                    prev_cost,
+                    &result, // 传递 ExtractionResult 的引用
+                );
 
-                let cost_set = Self::calculate_cost_set(egraph, node_id.clone(), &costs, prev_cost);
                 if cost_set.total < prev_cost {
                     costs.insert(class_id.clone(), cost_set);
                     analysis_pending.extend(parents[class_id].iter().cloned());
@@ -136,13 +175,26 @@ impl Extractor for FasterGreedyDagExtractor {
             }
         }
 
+        // 遍历根节点，打印结果
+        for root in _roots {
+            if let Some(cost_set) = costs.get(root) {
+                println!("Root {:?} -> CCost: {:?}", root, cost_set.total);
+            } else {
+                println!("Root {:?} has no cost calculated", root);
+            }
+        }
+
+        // 将选择的节点加入 ExtractionResult
         for (cid, cost_set) in costs {
             result.choose(cid, cost_set.choice);
         }
 
+        // 返回 ExtractionResult
         result
     }
 }
+
+
 
 /** A data structure to maintain a queue of unique elements.
 
