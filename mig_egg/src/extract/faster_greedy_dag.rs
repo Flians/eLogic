@@ -176,7 +176,7 @@ impl Extractor for FasterGreedyDagExtractor {
             }
         }
 
-        // 遍历根节点，打印结果
+        /*
         for root in _roots {
             if let Some(cost_set) = costs.get(root) {
                 println!("Root {:?} -> CCost: {:?}", root, cost_set.total);
@@ -184,6 +184,7 @@ impl Extractor for FasterGreedyDagExtractor {
                 println!("Root {:?} has no cost calculated", root);
             }
         }
+        */
 
         // 将选择的节点加入 ExtractionResult
         for (cid, cost_set) in costs {

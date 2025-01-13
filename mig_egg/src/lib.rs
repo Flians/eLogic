@@ -668,7 +668,6 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
         dup_and(),
         and_true(),
         and_false(),
-        maj_dup(),
     ];
     // parse the expression, the type annotation tells it which Language to use
     let bef_expr: egg::RecExpr<MIG> = s.parse().unwrap();
@@ -898,8 +897,8 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     // let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
     // #[cfg(not(feature = "ilp-cbc"))]
     // let extractor = extract::bottom_up::BottomUpExtractor {};
-    // let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
-    let extractor = extract::faster_greedy_dag::FasterGreedyDagExtractor {};
+    let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
+    // let extractor = extract::faster_greedy_dag::FasterGreedyDagExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
     // Get the cost
@@ -1001,8 +1000,6 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     //let extractor = extract::ilp_cbc::CbcExtractor::default();
     // Extract the result using global_greedy_dag extractor
     //#[cfg(not(feature = "ilp-cbc"))]
-    // let extractor = extract::bottom_up::BottomUpExtractor {};
-    // let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     let extractor = extract::faster_greedy_dag::FasterGreedyDagExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
@@ -1125,6 +1122,10 @@ mod tests {
         simplify("(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))",&empty_vec);
         simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))",&empty_vec);
         simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))", &vec![0, 0, 2, 2, 4, 6, 5, 7]);
+        simplify(
+            "(M (~ 0) b (M (~ (M a (~ c) e)) f (M 0 d f)))",
+            &vec![0, 0, 3, 4, 2, 4],
+        );
     }
 
     #[test]
@@ -1196,7 +1197,6 @@ mod tests {
             // false_true(),
             neg_false(),
             neg_true(),
-            maj_dup(),
         ];
 
         let var_dep = vec![0, 0, 2, 5, 3, 4, 5]; // 对应 a, b, c, d, e, f, g

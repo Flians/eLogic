@@ -147,7 +147,12 @@ int main(int argc, char *argv[]) {
   } else if (op == 1) {
     main_mig();
   } else {
-    auto cost = std::make_unique<CCost>(simplify_size("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))", nullptr, 0));
+    std::vector<uint32_t> leaf_levels = {0, 0, 2, 2, 4, 6, 5, 7};
+    auto cost = std::make_unique<CCost>(simplify_size("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))", leaf_levels.data(), leaf_levels.size()));
+    std::cout << "Size: " << cost->aft_size << ", Depth: " << cost->aft_dep << ", Expr: " << cost->aft_expr << std::endl;
+
+    std::vector<uint32_t> leaf_levels2 = {0,0,3,4,2,4};
+    cost = std::make_unique<CCost>(simplify_size("(M (~ 0) b (M (~ (M a (~ c) e)) f (M 0 d f)))", leaf_levels2.data(), leaf_levels2.size()));
     std::cout << "Size: " << cost->aft_size << ", Depth: " << cost->aft_dep << ", Expr: " << cost->aft_expr << std::endl;
   }
   return 0;
