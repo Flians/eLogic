@@ -1023,85 +1023,90 @@ mod tests {
     use super::*;
 
     #[test]
-    fn prove_chain() {
-        let empty_vec: Vec<u32> = Vec::new();
+    fn test_all() {
+        // 1. test_depth
+        println!("Running test_depth...");
+        {
+            let var_dep = vec![0, 0, 2, 5, 3, 4, 5];
+            let expr: egg::RecExpr<MIG> = "(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))".parse().unwrap();
 
-        simplify("(& 0 1)", &empty_vec);
-        simplify("(& x 1)", &empty_vec);
-        simplify("(& x (~ 1))", &empty_vec);
-        simplify("(& x (~ x))", &empty_vec);
-        simplify("(& x x)", &empty_vec);
-        simplify("(& (& x b) (& b y))", &empty_vec);
-        simplify("(M 1 1 1)", &empty_vec);
-        simplify("(M 1 1 0)", &empty_vec);
-        simplify("(M 1 0 0)", &empty_vec);
-        simplify("(M 0 0 0)", &empty_vec);
-        simplify("(M x 1 (~ 0))", &empty_vec);
-        simplify("(M a b (M a b c))", &empty_vec);
-        simplify("(M x 0 (M y 1 (M u 0 v)))", &empty_vec);
-        simplify("(M (M w x (~ z)) x (M z x y))", &empty_vec);
-        simplify("(M c (M c d (M e f b)) a)", &empty_vec);
-        simplify("(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))",&empty_vec);
-        simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))",&empty_vec);
-        simplify("(M 0 (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))",&empty_vec);
-        simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))",&empty_vec);
-    }
+            let mut runner = egg::Runner::default().with_expr(&expr);
+            let root = runner.roots[0];
 
-    #[test]
-    fn const_fold() {
-        let start = "(M 0 1 0)";
-        let start_expr: egg::RecExpr<MIG> = start.parse().unwrap();
-        let end = "0";
-        let end_expr: egg::RecExpr<MIG> = end.parse().unwrap();
+            let all_rules = &[
+                double_neg(),
+                double_neg_flip(),
+                neg(),
+                neg_flip(),
+                distri(),
+                distri_flip(),
+                com_associ(),
+                com_associ_flip(),
+                associ(),
+                comm_lm(),
+                comm_lr(),
+                comm_mr(),
+                maj_2_equ(),
+                maj_2_com(),
+                associ_and(),
+                comm_and(),
+                comp_and(),
+                dup_and(),
+                and_true(),
+                and_false(),
+            ];
+            runner = runner.run(all_rules);
 
-        let mut eg: CEGraph = egg::EGraph::default();
-        eg.add_expr(&start_expr);
-        eg.rebuild();
+            let (best_cost, best) =
+                egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &var_dep))
+                    .find_best(root);
 
-        // We expect "0" to be proven equivalent because (M 0 1 0) should fold to 0
-        assert!(!eg.equivs(&start_expr, &end_expr).is_empty());
-    }
+            let (prefix_expr, depth, ops_count, inv_count) = to_prefix(&best, &var_dep);
+            println!(
+                "Best cost: {:?}, prefix: {}, depth: {}, ops: {}, invs: {}",
+                best_cost, prefix_expr, depth, ops_count, inv_count
+            );
+        }
 
-    #[test]
-    fn test_depth() {
-        let var_dep = vec![0, 0, 2, 5, 3, 4, 5];
-        let expr: egg::RecExpr<MIG> = "(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))".parse().unwrap();
+        // 2. const_fold
+        println!("\nRunning const_fold...");
+        {
+            let start = "(M 0 1 0)";
+            let start_expr: egg::RecExpr<MIG> = start.parse().unwrap();
+            let end = "0";
+            let end_expr: egg::RecExpr<MIG> = end.parse().unwrap();
 
-        let mut runner = egg::Runner::default().with_expr(&expr);
-        let root = runner.roots[0];
+            let mut eg: CEGraph = egg::EGraph::default();
+            eg.add_expr(&start_expr);
+            eg.rebuild();
 
-        let all_rules = &[
-            double_neg(),
-            double_neg_flip(),
-            neg(),
-            neg_flip(),
-            distri(),
-            distri_flip(),
-            com_associ(),
-            com_associ_flip(),
-            associ(),
-            comm_lm(),
-            comm_lr(),
-            comm_mr(),
-            maj_2_equ(),
-            maj_2_com(),
-            associ_and(),
-            comm_and(),
-            comp_and(),
-            dup_and(),
-            and_true(),
-            and_false(),
-        ];
-        runner = runner.run(all_rules);
+            assert!(!eg.equivs(&start_expr, &end_expr).is_empty());
+        }
 
-        let (best_cost, best) =
-            egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &var_dep))
-                .find_best(root);
+        // 3. prove_chain
+        println!("\nRunning prove_chain...");
+        {
+            let empty_vec: Vec<u32> = Vec::new();
 
-        let (prefix_expr, depth, ops_count, inv_count) = to_prefix(&best, &var_dep);
-        println!(
-            "Best cost: {:?}, prefix: {}, depth: {}, ops: {}, invs: {}",
-            best_cost, prefix_expr, depth, ops_count, inv_count
-        );
+            simplify("(& 0 1)", &empty_vec);
+            simplify("(& x 1)", &empty_vec);
+            simplify("(& x (~ 1))", &empty_vec);
+            simplify("(& x (~ x))", &empty_vec);
+            simplify("(& x x)", &empty_vec);
+            simplify("(& (& x b) (& b y))", &empty_vec);
+            simplify("(M 1 1 1)", &empty_vec);
+            simplify("(M 1 1 0)", &empty_vec);
+            simplify("(M 1 0 0)", &empty_vec);
+            simplify("(M 0 0 0)", &empty_vec);
+            simplify("(M x 1 (~ 0))", &empty_vec);
+            simplify("(M a b (M a b c))", &empty_vec);
+            simplify("(M x 0 (M y 1 (M u 0 v)))", &empty_vec);
+            simplify("(M (M w x (~ z)) x (M z x y))", &empty_vec);
+            simplify("(M c (M c d (M e f b)) a)", &empty_vec);
+            simplify("(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))", &empty_vec);
+            simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))", &empty_vec);
+            simplify("(M 0 (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))", &empty_vec);
+            simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))", &empty_vec);
+        }
     }
 }
