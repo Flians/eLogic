@@ -1,7 +1,7 @@
-use super::*;
-use rustc_hash::{FxHashMap, FxHashSet};
-use indexmap::IndexMap;
 use super::ExtractionResult; // 使用统一的 ExtractionResult
+use super::*;
+use indexmap::IndexMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 #[derive(Clone)]
 struct CostSet {
@@ -46,7 +46,8 @@ impl FasterGreedyDagExtractor {
 
         // 剪枝逻辑
         if childrens_classes.contains(cid)
-            || (childrens_classes.len() == 1 && (CCost::decode(node.cost.into()) + first_cost.total > best_cost))
+            || (childrens_classes.len() == 1
+                && (CCost::decode(node.cost.into()) + first_cost.total > best_cost))
         {
             return CostSet {
                 costs: Default::default(),
@@ -193,8 +194,6 @@ impl Extractor for FasterGreedyDagExtractor {
         result
     }
 }
-
-
 
 /** A data structure to maintain a queue of unique elements.
 
