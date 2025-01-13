@@ -81,5 +81,10 @@
     "variant": "cpp",
     "ranges": "cpp",
     "*.inc": "cpp"
-  }
+  },
+  "rust-analyzer.runnables.extraTestBinaryArgs": [
+    "--show-output",
+    "--nocapture"
+  ],
+  "rust-analyzer.cargo.noDefaultFeatures": true
 }
