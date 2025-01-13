@@ -98,7 +98,7 @@ impl TermDag {
                     return None;
                 }
                 let child_cost = self.get_cost(&mut reachable, *child);
-                cost += child_cost;
+                cost = CCost::merge(&cost, &child_cost);
             }
 
             if cost > target {
@@ -137,7 +137,7 @@ impl TermDag {
             let mut cost = self.node_cost(id);
             for child in &self.nodes[id].children {
                 let child_cost = self.get_cost(shared, *child);
-                cost += child_cost;
+                cost = CCost::merge(&cost, &child_cost);
             }
             *shared = shared.insert(eclass);
             cost
