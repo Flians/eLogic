@@ -261,7 +261,24 @@ impl ExtractionResult {
         }
         costs.values().sum()
     }
-
+    pub fn dag_cost_size_from_node(&self, egraph: &EGraph, node_id: &NodeId, visited: &mut FxHashSet<NodeId>) -> u32 {
+        // 如果节点已经访问过（环检测），直接返回 0
+        if !visited.insert(node_id.clone()) {
+            return 0;
+        }
+    
+        let node = &egraph[node_id];
+    
+        // 递归计算所有子节点的总大小
+        let total_child_size: u32 = node
+            .children
+            .iter()
+            .map(|child| self.dag_cost_size_from_node(egraph, child, visited)) // 对每个子节点递归调用
+            .sum();
+    
+        // 当前节点的大小贡献
+        total_child_size + CCost::decode(node.cost.into()).aom
+    }
     pub fn dag_cost_size(&self, egraph: &EGraph, roots: &[ClassId]) -> u32 {
         let mut costs: IndexMap<ClassId, Cost> = IndexMap::new();
         let mut todo: Vec<ClassId> = roots.to_vec();
