@@ -5,6 +5,8 @@ use std::ops::Add;
 use std::ops::AddAssign;
 use std::os::raw::c_char;
 use std::{cmp, default};
+use std::collections::VecDeque;
+use std::iter::Sum;
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct CCost {
     dep: u32,
@@ -21,12 +23,53 @@ impl Default for CCost {
         }
     }
 }
+impl Add<&CCost> for &CCost {
+    type Output = CCost;
+
+    fn add(self, other: &CCost) -> Self::Output {
+        CCost {
+            dep: self.dep.max(other.dep), // 取子节点的最大深度
+            aom: self.aom + other.aom,
+            inv: self.inv + other.inv,
+        }
+    }
+}
 impl AddAssign for CCost {
     fn add_assign(&mut self, other: Self) {
+        self.dep = self.dep.max(other.dep); // 取子节点的最大深度
         self.aom += other.aom;
         self.inv += other.inv;
     }
 }
+impl Sum for CCost {
+    fn sum<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = Self>,
+    {
+        iter.fold(CCost::default(), |acc, cost| acc + cost)
+    }
+}
+
+impl<'a> Sum<&'a CCost> for CCost {
+    fn sum<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = &'a CCost>,
+    {
+        iter.fold(CCost::default(), |mut acc, cost| {
+            acc += cost.clone();
+            acc
+        })
+    }
+}
+
+
+// impl AddAssign for CCost {
+//     fn add_assign(&mut self, other: Self) {
+//         self.dep = self.dep.max(other.dep);
+//         self.aom += other.aom;
+//         self.inv += other.inv;
+//     }
+// }
 impl fmt::Display for CCost {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "dep={}, aom={}, inv={}", self.dep, self.aom, self.inv)
@@ -86,17 +129,7 @@ impl Add for CCost {
         }
     }
 }
-impl Add<&CCost> for &CCost {
-    type Output = CCost;
 
-    fn add(self, other: &CCost) -> Self::Output {
-        CCost {
-            dep: self.dep + other.dep,
-            aom: self.aom + other.aom,
-            inv: self.inv + other.inv,
-        }
-    }
-}
 impl PartialOrd for CCost {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         let src = (self.dep, self.aom, self.inv);
@@ -871,8 +904,8 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     // let extractor = extract::ilp_cbc::CbcExtractor::default();
     // let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
     // #[cfg(not(feature = "ilp-cbc"))]
-    // let extractor = extract::bottom_up::BottomUpExtractor {};
-    let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
+    let extractor = extract::bottom_up::BottomUpExtractor {};
+    //let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
     // Get the cost
@@ -904,6 +937,7 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
 /// parse an expression, simplify it using egg, and pretty print it back out
 // #[pyfunction]
 pub fn simplify(s: &str, var_dep: &Vec<u32>) {
+
     let all_rules = &[
         // rules needed for contrapositive
         double_neg(),
@@ -977,16 +1011,16 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     // Extract the result using global_greedy_dag extractor
     //#[cfg(not(feature = "ilp-cbc"))]
     // let extractor = extract::bottom_up::BottomUpExtractor {};
-    let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
+    // let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
+   let extractor = extract::faster_greedy_dag::FasterGreedyDagExtractor  {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
-    // Get the cost
-    // let tree_cost = extraction_result.tree_cost(&serialized_egraph, &egraph_serialize_root);
+    // // Get the cost
+    // // let tree_cost = extraction_result.tree_cost(&serialized_egraph, &egraph_serialize_root);
     let dag_cost_size =
-        extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
+         extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
     let dag_cost_depth =
-        extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
-
+         extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
     println!(
         "DAG cost_DAG: depth: {}, size: {}, expr: {} ",
@@ -1030,7 +1064,9 @@ mod tests {
 
     #[test]
     fn prove_chain() {
+        
         /*
+        
         let rules = &[
             // rules needed for contrapositive
             double_neg(),
@@ -1083,9 +1119,9 @@ mod tests {
         simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))", &empty_vec);
         simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))", &empty_vec);
         simplify("(M (~ 0) (M (~ e) (M (~ 0) c (M 0 (~ a) b)) (M 0 (M 0 c (M 0 (~ a) b)) (M (~ 0) c (M 0 (~ a) b)))) (M (M 0 (~ d) g) h (M 0 (~ f) h)))",&empty_vec);
-        simplify("(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))",&empty_vec);
+      simplify("(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))",&empty_vec);
         simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))",&empty_vec);
-        // simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))", &vec![0, 0, 2, 2, 4, 6, 5, 7]);
+    simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))", &vec![0, 0, 2, 2, 4, 6, 5, 7]);
     }
 
     #[test]
