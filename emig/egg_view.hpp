@@ -14,6 +14,7 @@
 #include <vector>
 
 #include <parallel_hashmap/phmap.h>
+#include <fstream>
 
 #include <mockturtle/networks/detail/foreach.hpp>
 #include <mockturtle/traits.hpp>
@@ -21,6 +22,7 @@
 
 #include "mig_egg/src/lib.rs.h"
 #include "rust/cxx.h"
+#include "json.hpp"
 
 namespace mockturtle {
 
@@ -31,6 +33,67 @@ namespace mockturtle {
 
     bool is_bad(const std::string &key) const {
       return bad_exprs.find(key) != bad_exprs.end();
+    }
+
+    void serialize_to_file(const std::string& filename,
+                          const std::unordered_map<std::string, std::unique_ptr<CCost>>& table,
+                          const std::unordered_set<std::string>& bad_exprs) {
+        nlohmann::json j;
+        for (const auto& [key, cost] : table) {
+            j["table"][key] = {
+                {"aft_expr", cost->aft_expr},
+                {"aft_dep", cost->aft_dep},
+                {"aft_size", cost->aft_size},
+                {"aft_invs", cost->aft_invs},
+            };
+        }
+        j["bad_exprs"] = bad_exprs;
+
+        std::ofstream out(filename);
+        out << j.dump(4); 
+        out.close();
+    }
+
+    void deserialize_from_file(const std::string& filename,
+                              std::unordered_map<std::string, std::unique_ptr<CCost>>& table,
+                              std::unordered_set<std::string>& bad_exprs) {
+        table.clear();
+        bad_exprs.clear();
+
+        std::ifstream in(filename);
+        if (!in) {
+            std::cerr << "Failed to open file: " << filename << std::endl;
+            return;
+        }
+
+        nlohmann::json j;
+        try {
+            in >> j;
+        } catch (const nlohmann::json::parse_error& e) {
+            std::cerr << "JSON parse error: " << e.what() << std::endl;
+            return;
+        }
+        in.close();
+
+        try {
+            for (const auto& [key, value] : j["table"].items()) {
+                auto cost = std::make_unique<CCost>();
+                cost->aft_expr = value["aft_expr"].get<std::string>();;
+                cost->aft_dep = value["aft_dep"];
+                cost->aft_size = value["aft_size"];
+                cost->aft_invs = value["aft_invs"];
+
+                table.try_emplace(key, std::move(cost));
+            }
+
+            for (const auto& expr : j["bad_exprs"]) {
+                bad_exprs.insert(expr);
+            }
+        } catch (const nlohmann::json::exception& e) {
+            std::cerr << "JSON error: " << e.what() << std::endl;
+            table.clear(); 
+            bad_exprs.clear();
+        }
     }
 
   public:
@@ -56,7 +119,7 @@ namespace mockturtle {
       auto [it, inserted] = table.try_emplace(key_deps, nullptr);
 
       if (inserted) {
-        it->second = std::make_unique<CCost>(simplify_depth(key, leaf_levels.data(), leaf_levels.size()));
+        it->second = std::make_unique<CCost>(simplify_size(key, leaf_levels.data(), leaf_levels.size()));
       }
 
       if (std::string(it->second->aft_expr.c_str()) == key.c_str()) { // no improvement
