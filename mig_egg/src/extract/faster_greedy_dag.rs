@@ -94,7 +94,7 @@ impl FasterGreedyDagExtractor {
         };
 
         // 计算 DAG 的大小
-        let total_size = result.values().map(|cost| cost.aom).sum::<u32>() + CCost::decode(node.cost.into()).aom;
+        let total_size: u32 = result.values().map(|cost| cost.aom).sum();
 
         // 构造结果
         let result_cost = if contains {
