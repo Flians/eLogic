@@ -606,7 +606,7 @@ impl std::fmt::Display for ffi::CCost {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "(aft_expr: {}, aft_dep: {}, aft_size: {}, aft_invs: {})",
+            "    - expr: {}, depth: {}, size: {}, invs: {})",
             self.aft_expr, self.aft_dep, self.aft_size, self.aft_invs
         )
     }
@@ -908,6 +908,9 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
 //     (simplify() calls both a tree-based approach and a DAG-based approach).
 // -----------------------------------------------------------------------------------
 pub fn simplify(s: &str, var_dep: &Vec<u32>) {
+    // print simplify which expression
+    println!("-----------------------------------------");
+    println!("Simplifying expression: {}", s);
     // Rewrites for the tree-based approach
     let all_rules = &[
         double_neg(),
@@ -946,7 +949,7 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
 
     // 1. Simplify with tree-based approach and get cost
     let cost_depth = unsafe { simplify_depth(s, vars_, var_len) };
-    println!("\nTree-based cost (simplify_depth): {}", cost_depth);
+    println!("\nBaseline (simplify_depth) {}", cost_depth);
 
     // 2. Build and saturate an e-graph
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
@@ -1007,6 +1010,9 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
         "DAG-based (global greedy)     - expr: {} , depth: {}, size: {}",
         aft_expr2, dag_cost_depth2, dag_cost_size2
     );
+    // print new lines
+    println!("---------------------------------------------------");
+    println!("\n\n");
 }
 
 // -----------------------------------------------------------------------------------
