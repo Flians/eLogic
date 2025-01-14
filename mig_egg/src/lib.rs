@@ -5,6 +5,8 @@ use std::iter::Sum;
 use std::ops::{Add, AddAssign};
 use std::os::raw::c_char;
 use std::{cmp, default};
+use log::{info, warn};
+use colored::*;
 
 // -----------------------------------------------------------------------------------
 // 1. Define a cost struct (CCost) to keep track of depth (dep), area (aom), and inversions (inv).
@@ -977,9 +979,11 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
 //     (simplify() calls both a tree-based approach and a DAG-based approach).
 // -----------------------------------------------------------------------------------
 pub fn simplify(s: &str, var_dep: &Vec<u32>) {
-    // print simplify which expression
-    println!("-----------------------------------------");
-    println!("Simplifying expression: {}", s);
+    // Initialize logger if not already initialized
+    let _ = env_logger::try_init();
+
+    info!("{}", "=".repeat(50).blue());
+    info!("{} {}\n", "Simplifying expression:".bright_blue(), s);
     // Rewrites for the tree-based approach
     let all_rules = &[
         double_neg(),
@@ -1019,7 +1023,17 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
 
     // 1. Get baseline results
     let cost_depth = simplify_depth(s, vars_, var_len);
-    println!("\nBaseline (simplify_depth) {}", cost_depth);
+    info!("{} {} {}",
+        "Baseline".bright_green(),
+        "(simplify_depth)".green(),
+        format!("- expr: {}, depth: {}, size: {}, invs: {}",
+            cost_depth.aft_expr,
+            cost_depth.aft_dep,
+            cost_depth.aft_size,
+            cost_depth.aft_invs
+        ).green()
+    );
+    
     let baseline_size = cost_depth.aft_size;
     let baseline_depth = cost_depth.aft_dep;
 
@@ -1063,13 +1077,24 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
 
     // Helper function to print results and collect them
     let mut print_result = |method: &str, expr: &str, depth: u32, size: u32| {
-        let is_worse = size > baseline_size || (size == baseline_size && depth > baseline_depth); 
+        let is_worse = size > baseline_size || (size == baseline_size && depth > baseline_depth);
+        
         if is_worse {
-            println!("⚠️  {:<30} - expr: {}, depth: {}, size: {} (worse than baseline)", 
-                method, expr, depth, size);
+            warn!("{:<35} {} {}",
+                method.bright_red(),
+                "- expr:".bright_red(),
+                format!("{}, depth: {}, size: {} (worse than baseline)",
+                    expr, depth, size
+                ).red()
+            );
         } else {
-            println!("{:<30} - expr: {}, depth: {}, size: {}", 
-                method, expr, depth, size);
+            info!("{:<35} {} {}",
+                method.bright_green(),
+                "- expr:".bright_green(),
+                format!("{}, depth: {}, size: {}",
+                    expr, depth, size
+                ).green()
+            );
         }
         results.push(MethodResult {
             method: method.to_string(),
@@ -1134,10 +1159,12 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     let best_result = results.iter().min_by_key(|r| (r.size, r.depth)).unwrap();
 
     // 6. Print summary
-    println!("\nSummary:");
-    println!(
-        "Best result from {} - size: {}, depth: {}",
-        best_result.method, best_result.size, best_result.depth
+    info!("\n{}", "Summary".bright_blue().bold());
+    info!("{} {} - size: {}, depth: {}",
+        "Best result from".bright_green(),
+        best_result.method.bright_green(),
+        best_result.size.to_string().green(),
+        best_result.depth.to_string().green()
     );
 
     // Check if ALL methods are worse than baseline
@@ -1145,13 +1172,19 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
         r.size > baseline_size || (r.size == baseline_size && r.depth > baseline_depth)
     });
 
-
     if all_worse {
-    println!("⚠️  Note: All DAG-based methods performed worse than baseline for this expression");
+        warn!("{}",
+            "⚠️  Note: All DAG-based methods performed worse than baseline for this expression"
+                .bright_red()
+        );
     }
 
-    println!("Best expression: {}", best_result.expr);
-    println!("---------------------------------------------------\n");
+    info!("{} {}",
+        "Best expression:".bright_green(),
+        best_result.expr.green()
+    );
+    
+    info!("{}\n", "=".repeat(50).blue());
 }
 
 // -----------------------------------------------------------------------------------
@@ -1162,70 +1195,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn prove_chain() {
-        /*
-        let rules = &[
-            // rules needed for contrapositive
-            double_neg(),
-            double_neg_flip(),
-            neg(),
-            neg_flip(),
-            // and some others
-            distri(),
-            distri_flip(),
-            com_associ(),
-            com_associ_flip(),
-            associ(),
-            comm_lm(),
-            comm_lr(),
-            comm_mr(),
-            maj_2_equ(),
-            maj_2_com(),
-        ];
-        prove_something(
-            "chain",
-            "(M x 0 (M y 1 (M u 0 v)))",
-            rules,
-            &["(M x 0 (M y x (M u 0 v)))", "(M (M y x 0) x (M 0 u v))"],
-        );
-        */
-        let empty_vec: Vec<u32> = Vec::new();
-
-        simplify("(& 0 1)", &empty_vec);
-        simplify("(& x 1)", &empty_vec);
-        simplify("(& x (~ 1))", &empty_vec);
-        simplify("(& x (~ x))", &empty_vec);
-        simplify("(& x x)", &empty_vec);
-        simplify("(& (& x b) (& b y))", &empty_vec);
-        simplify("(M 1 1 1)", &empty_vec);
-        simplify("(M 1 1 0)", &empty_vec);
-        simplify("(M 1 0 0)", &empty_vec);
-        simplify("(M 0 0 0)", &empty_vec);
-        simplify("(M x 1 (~ 0))", &empty_vec);
-        simplify("(M a b (M a b c))", &empty_vec);
-        simplify("(M x 0 (M y 1 (M u 0 v)))", &empty_vec);
-        simplify("(M (M w x (~ z)) x (M z x y))", &empty_vec);
-        simplify("(M c (M c d (M e f b)) a)", &empty_vec);
-        simplify("(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))",&empty_vec);
-        simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))",&empty_vec);
-        simplify("(M 0 (~ (M 0 (~ a) b)) (M 0 c (~ d)))", &empty_vec);
-        simplify(
-            "(M (~ 0) (M 0 a (~ (M 0 b (~ c)))) (M 0 (~ a) (M 0 b (~ c))))",
-            &empty_vec,
-        );
-        simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))", &empty_vec);
-        simplify("(M (~ 0) (M (~ e) (M (~ 0) c (M 0 (~ a) b)) (M 0 (M 0 c (M 0 (~ a) b)) (M (~ 0) c (M 0 (~ a) b)))) (M (M 0 (~ d) g) h (M 0 (~ f) h)))",&empty_vec);
-        simplify("(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))",&empty_vec);
-        simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))",&empty_vec);
-        simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))", &vec![0, 0, 2, 2, 4, 6, 5, 7]);
-        simplify(
-            "(M (~ 0) b (M (~ (M a (~ c) e)) f (M 0 d f)))",
-            &vec![0, 0, 3, 4, 2, 4],
-        );
-    }
-
-    #[test]
     fn const_fold() {
+        // Initialize logger with default configuration
+        let _ = env_logger::builder()
+            .filter_level(log::LevelFilter::Info)
+            .filter_module("egg", log::LevelFilter::Error)
+            .is_test(true)
+            .try_init();
         let start = "(M 0 1 0)";
         let start_expr: egg::RecExpr<MIG> = start.parse().unwrap();
         let end = "0";
@@ -1241,6 +1217,12 @@ mod tests {
 
     #[test]
     fn test_depth() {
+        // Initialize logger with default configuration
+        let _ = env_logger::builder()
+            .filter_level(log::LevelFilter::Info)
+            .filter_module("egg", log::LevelFilter::Error)
+            .is_test(true)
+            .try_init();
         /*
         let mut expr = egg::RecExpr::<MIG>::default();
         let a = expr.add(MIG::Symbol(egg::Symbol::from("a")));
@@ -1316,9 +1298,85 @@ mod tests {
                 .find_best(root);
 
         let (prefix_expr, depth, ops_count, inv_count) = to_prefix(&best, &var_dep);
-        println!(
-            "Best cost: {:?}, prefix: {}, depth: {}, ops: {}, invs: {}",
-            best_cost, prefix_expr, depth, ops_count, inv_count
+        info!("{} {} {}",
+            "Test result:".bright_blue().bold(),
+            format!(
+                "cost: {}",
+                best_cost
+            ).bright_green(),
+            format!(
+                "prefix: {}, depth: {}, ops: {}, invs: {}",
+                prefix_expr, depth, ops_count, inv_count
+            ).green()
+        );
+    }
+
+    #[test]
+    fn prove_chain() {
+        // Initialize logger with default configuration
+        let _ = env_logger::builder()
+            .filter_level(log::LevelFilter::Info)
+            .filter_module("egg", log::LevelFilter::Error)
+            .is_test(true)
+            .try_init();
+        /*
+        let rules = &[
+            // rules needed for contrapositive
+            double_neg(),
+            double_neg_flip(),
+            neg(),
+            neg_flip(),
+            // and some others
+            distri(),
+            distri_flip(),
+            com_associ(),
+            com_associ_flip(),
+            associ(),
+            comm_lm(),
+            comm_lr(),
+            comm_mr(),
+            maj_2_equ(),
+            maj_2_com(),
+        ];
+        prove_something(
+            "chain",
+            "(M x 0 (M y 1 (M u 0 v)))",
+            rules,
+            &["(M x 0 (M y x (M u 0 v)))", "(M (M y x 0) x (M 0 u v))"],
+        );
+        */
+        let empty_vec: Vec<u32> = Vec::new();
+
+        simplify("(& 0 1)", &empty_vec);
+        simplify("(& x 1)", &empty_vec);
+        simplify("(& x (~ 1))", &empty_vec);
+        simplify("(& x (~ x))", &empty_vec);
+        simplify("(& x x)", &empty_vec);
+        simplify("(& (& x b) (& b y))", &empty_vec);
+        simplify("(M 1 1 1)", &empty_vec);
+        simplify("(M 1 1 0)", &empty_vec);
+        simplify("(M 1 0 0)", &empty_vec);
+        simplify("(M 0 0 0)", &empty_vec);
+        simplify("(M x 1 (~ 0))", &empty_vec);
+        simplify("(M a b (M a b c))", &empty_vec);
+        simplify("(M x 0 (M y 1 (M u 0 v)))", &empty_vec);
+        simplify("(M (M w x (~ z)) x (M z x y))", &empty_vec);
+        simplify("(M c (M c d (M e f b)) a)", &empty_vec);
+        simplify("(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))",&empty_vec);
+        simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))",&empty_vec);
+        simplify("(M 0 (~ (M 0 (~ a) b)) (M 0 c (~ d)))", &empty_vec);
+        simplify(
+            "(M (~ 0) (M 0 a (~ (M 0 b (~ c)))) (M 0 (~ a) (M 0 b (~ c))))",
+            &empty_vec,
+        );
+        simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))", &empty_vec);
+        simplify("(M (~ 0) (M (~ e) (M (~ 0) c (M 0 (~ a) b)) (M 0 (M 0 c (M 0 (~ a) b)) (M (~ 0) c (M 0 (~ a) b)))) (M (M 0 (~ d) g) h (M 0 (~ f) h)))",&empty_vec);
+        simplify("(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))",&empty_vec);
+        simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))",&empty_vec);
+        simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))", &vec![0, 0, 2, 2, 4, 6, 5, 7]);
+        simplify(
+            "(M (~ 0) b (M (~ (M a (~ c) e)) f (M 0 d f)))",
+            &vec![0, 0, 3, 4, 2, 4],
         );
     }
 }

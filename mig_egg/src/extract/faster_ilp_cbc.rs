@@ -1,7 +1,14 @@
 use super::*;
 use coin_cbc::{Col, Model, Sense};
+use colored::Colorize;
 use indexmap::IndexSet;
+use log::info;
 use ordered_float::NotNan;
+
+// Cost serialization constants
+const W_DEP: f64 = 1_000_000.0;  // 10^6: ensures depth is minimized first
+const W_AOM: f64 = 1_000.0;      // 10^3: secondary priority for area
+const W_INV: f64 = 1.0;          // 10^0: least significant factor
 
 pub struct Config {
     pub pull_up_costs: bool,
@@ -119,7 +126,7 @@ fn extract(
     // model.set_parameter("allowableGap", "0.2");
     // model.set_parameter("maxSolutions", "10");
     // model.set_parameter("maxNodes", "10000");
-    println!("Starting faster ILP extractor");
+    info!("\n{}", "Starting faster ILP extractor".bright_blue());
 
     let mut vars: IndexMap<ClassId, ClassILP> = egraph
         .classes()
@@ -196,12 +203,7 @@ fn extract(
     // Set objective function
     model.set_obj_sense(Sense::Minimize);
     
-    // Weight factors for different costs
-    let w_dep = 1_000_000.0;
-    let w_aom = 1_000.0;
-    let w_inv = 1.0;
-
-    // Add costs to objective function
+    // Add costs to objective function using dimension-specific weights
     for class in vars.values() {
         for (&node_active, &cost) in class.variables.iter().zip(&class.costs) {
             let cost_bits = cost.into_inner();
@@ -214,7 +216,8 @@ fn extract(
             let aom = c.aom as f64;
             let inv = c.inv as f64;
 
-            let weighted_cost = dep * w_dep + aom * w_aom + inv * w_inv;
+            // Compute weighted sum using dimension-specific weights
+            let weighted_cost = dep * W_DEP + aom * W_AOM + inv * W_INV;
             if weighted_cost > 0.0 {
                 model.set_obj_coeff(node_active, weighted_cost);
             }
@@ -230,11 +233,11 @@ fn extract(
         }
 
         let solution = model.solve();
-        log::info!(
-            "CBC status {:?}, {:?}, obj = {}",
-            solution.raw().status(),
-            solution.raw().secondary_status(),
-            solution.raw().obj_value(),
+        info!("{} {} {} {}",
+            "CBC Status:".bright_blue().bold(),
+            format!("status={:?}", solution.raw().status()).green(),
+            format!("secondary={:?}", solution.raw().secondary_status()).green(),
+            format!("obj={}", solution.raw().obj_value()).bright_green()
         );
 
         if solution.raw().is_proven_infeasible() {
@@ -279,6 +282,7 @@ fn block_cycle(model: &mut Model, cycle: &Vec<ClassId>, vars: &IndexMap<ClassId,
     if cycle.is_empty() {
         return;
     }
+    info!("{} {:?}", "Found cycle:".bright_blue(), cycle);
     let mut blocking = Vec::new();
     for i in 0..cycle.len() {
         let current_class_id = &cycle[i];
@@ -394,7 +398,7 @@ fn remove_with_loops(vars: &mut IndexMap<ClassId, ClassILP>, roots: &[ClassId], 
                     }
                 }
         }
-        log::info!("Omitted looping nodes: {}", removed);
+        info!("{} {}", "Optimization:".bright_blue().bold(), format!("Omitted {} looping nodes", removed).green());
     }
 }
 
@@ -427,7 +431,7 @@ fn remove_high_cost(
                 }
             }
         }
-        log::info!("Removed high-cost nodes: {}", removed);
+        info!("{} {}", "Optimization:".bright_blue().bold(), format!("Removed {} high-cost nodes", removed).green());
     }
 }
 
@@ -455,7 +459,8 @@ fn remove_more_expensive_subsumed_nodes(vars: &mut IndexMap<ClassId, ClassILP>, 
                 i += 1;
             }
         }
-        log::info!("Removed more expensive subsumed nodes: {}", removed);
+        info!("{} {}", "Optimization:".bright_blue().bold(),
+            format!("Removed {} more expensive subsumed nodes", removed).green());
     }
 }
 
@@ -469,7 +474,8 @@ fn remove_unreachable_classes(
         reachable(&*vars, roots, &mut reachable_classes);
         let initial_size = vars.len();
         vars.retain(|class_id, _| reachable_classes.contains(class_id));
-        log::info!("Unreachable classes: {}", initial_size - vars.len());
+        info!("{} {}", "Optimization:".bright_blue().bold(),
+            format!("Removed {} unreachable classes", initial_size - vars.len()).green());
     }
 }
 
@@ -586,7 +592,8 @@ fn pull_up_with_single_parent(
             if pull_up_count == 0 {
                 break;
             }
-            log::info!("Pull up count: {pull_up_count}");
+            info!("{} {}", "Optimization:".bright_blue().bold(),
+                format!("Pulled up {} nodes with single parent", pull_up_count).green());
         }
     }
 }
@@ -628,7 +635,8 @@ fn remove_single_zero_cost(
             }
 
             vars.retain(|class_id, _| !zero.contains(class_id));
-            log::info!("Zero cost & zero children removed: {}, links removed: {}", zero.len(), removed);
+            info!("{} {}", "Optimization:".bright_blue().bold(),
+                format!("Removed {} zero cost nodes ({} links removed)", zero.len(), removed).green());
         }
     }
 }
@@ -660,7 +668,8 @@ fn find_extra_roots(
             }
             i += 1;
         }
-        log::info!("Extra roots discovered: {extra}");
+        info!("{} {}", "Optimization:".bright_blue().bold(),
+            format!("Discovered {} extra root nodes", extra).green());
     }
 }
 
@@ -697,7 +706,8 @@ fn remove_empty_classes(vars: &mut IndexMap<ClassId, ClassILP>, config: &Config)
                 }
             }
         }
-        log::info!("Nodes removed that point to empty classes: {}", removed);
+        info!("{} {}", "Optimization:".bright_blue().bold(),
+            format!("Removed {} nodes pointing to empty classes", removed).green());
     }
 }
 
