@@ -317,7 +317,7 @@ impl ExtractionResult {
             let node = &egraph[node_id];
 
             match node.op.as_str() {
-                "M" | "&" | "~" => total_ops += 1,
+                "M"  => total_ops += 1,
                 _ => {} // 变量和常量不增加计数
             }
 
