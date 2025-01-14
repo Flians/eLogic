@@ -32,4 +32,4 @@ colored = "2.0"
 
 [features]
 ilp-cbc = ["coin_cbc"]
-#default = ["ilp-cbc"]
+default = ["ilp-cbc"]
