@@ -7,10 +7,10 @@ use ordered_float::NotNan;
 use std::collections::VecDeque;
 
 // -------------------------------------------------------------------------
-// Two-phase ILP approach example: first minimize depth, then minimize size while keeping depth constant
+// Two-phase ILP approach example: first minimize size, then minimize depth while keeping size constant
 // -------------------------------------------------------------------------
 
-// Original weighting coefficients set to 0 here, just for demonstration
+// These weighting constants are kept at 0 to demonstrate the two-phase approach
 const W_DEP: f64 = 0.0;
 const W_AOM: f64 = 0.0;
 const W_INV: f64 = 0.0;
@@ -100,6 +100,7 @@ impl ClassILP {
 
 // ============ Two-phase ILP Extractor ============
 
+/// First minimize size, then minimize depth while keeping size constant
 pub struct TwoPhaseCbcExtractorWithTimeout<const TIMEOUT_IN_SECONDS: u32>;
 
 impl<const TIMEOUT_IN_SECONDS: u32> Extractor for TwoPhaseCbcExtractorWithTimeout<TIMEOUT_IN_SECONDS> {
@@ -108,7 +109,7 @@ impl<const TIMEOUT_IN_SECONDS: u32> Extractor for TwoPhaseCbcExtractorWithTimeou
     }
 }
 
-// If keeping the original Extractor name
+/// To keep the original naming
 #[derive(Default)]
 pub struct FasterCbcExtractor;
 impl Extractor for FasterCbcExtractor {
@@ -117,7 +118,7 @@ impl Extractor for FasterCbcExtractor {
     }
 }
 
-/// Core logic of two-phase extraction
+/// Core logic: first size, then depth
 fn two_phase_extract(
     egraph: &EGraph,
     roots_slice: &[ClassId],
@@ -128,23 +129,23 @@ fn two_phase_extract(
     roots.sort();
     roots.dedup();
 
-    // First minimize depth
-    let (vars, initial_result, min_depth_solution, min_depth_objval) =
-        solve_min_depth(egraph, &roots, config, timeout);
+    // Phase1: minimize size
+    let (vars, initial_result, min_size_solution, min_size_objval) =
+        solve_min_size(egraph, &roots, config, timeout);
 
-    // Then minimize size while keeping depth constraint
-    let mut result = solve_min_size_with_depth_constraint(
+    // Phase2: fix size, then minimize depth
+    let mut result = solve_min_depth_with_size_constraint(
         egraph,
         &roots,
         config,
         timeout,
         &vars,
-        &min_depth_solution,
-        min_depth_objval,
+        &min_size_solution,
+        min_size_objval,
         &initial_result,
     );
 
-    // If no solution in second phase, use initial_result
+    // If phase 2 has no solution, use phase 1 result
     if result.choices.is_empty() {
         result = initial_result;
     }
@@ -153,9 +154,9 @@ fn two_phase_extract(
 }
 
 /* ----------------------------------------------------------------
- * Phase 1: Minimize depth only (using sum of dep as example here)
+ * Phase 1: Minimize size (sum of aom)
  * ----------------------------------------------------------------*/
-fn solve_min_depth(
+fn solve_min_size(
     egraph: &EGraph,
     roots: &[ClassId],
     config: &Config,
@@ -196,11 +197,11 @@ fn solve_min_depth(
         })
         .collect();
 
-    // Use Greedy DAG for initial solution
+    // Use Greedy DAG as initial solution
     let initial_result = super::faster_greedy_dag::FasterGreedyDagExtractor.extract(egraph, roots);
     let initial_result_cost = initial_result.dag_cost(egraph, roots);
 
-    // Some preprocessing
+    // Preprocessing
     remove_with_loops(&mut vars, roots, config);
     remove_high_cost(&mut vars, initial_result_cost, roots, config);
     remove_more_expensive_subsumed_nodes(&mut vars, config);
@@ -208,16 +209,14 @@ fn solve_min_depth(
     pull_up_with_single_parent(&mut vars, roots, config);
     pull_up_costs(&mut vars, roots, config);
 
-    // Keep consistent even if not needed
     let mut dummy_extraction = ExtractionResult::default();
     remove_single_zero_cost(&mut vars, &mut dummy_extraction, roots, config);
 
-    // Note: needs mutable Vec
     let mut roots_vec = roots.to_vec();
     find_extra_roots(&mut vars, &mut roots_vec, config);
     remove_empty_classes(&mut vars, config);
 
-    // Build constraints: class.active = sum(node_active)
+    // Add constraint: class.active = sum(node_active)
     for (classid, class) in &vars {
         if class.members() == 0 {
             model.set_col_upper(class.active, 0.0);
@@ -229,11 +228,11 @@ fn solve_min_depth(
         for &node_active in &class.variables {
             model.set_weight(row, node_active, 1.0);
         }
-        // Link child classes
+        // link child classes
         for (childrens_classes, &node_active) in class.childrens_classes.iter().zip(&class.variables)
         {
             for child_class in childrens_classes {
-                let child_active = vars[child_class].active; // Fix: directly index with child_class
+                let child_active = vars[child_class].active;
                 let row = model.add_row();
                 model.set_row_upper(row, 0.0);
                 model.set_weight(row, node_active, 1.0);
@@ -241,11 +240,12 @@ fn solve_min_depth(
             }
         }
     }
+
     for root in roots_vec {
         model.set_col_lower(vars[&root].active, 1.0);
     }
 
-    // Only minimize depth
+    // Objective: minimize size(aom)
     model.set_obj_sense(Sense::Minimize);
     for class in vars.values() {
         for (&node_active, &cost) in class.variables.iter().zip(&class.costs) {
@@ -254,9 +254,9 @@ fn solve_min_depth(
                 continue;
             }
             let c = CCost::decode(cost_bits);
-            let dep = c.dep as f64;
-            if dep > 0.0 {
-                model.set_obj_coeff(node_active, dep);
+            let aom = c.aom as f64;
+            if aom > 0.0 {
+                model.set_obj_coeff(node_active, aom);
             }
         }
     }
@@ -264,7 +264,7 @@ fn solve_min_depth(
     let solution = model.solve();
     info!(
         "{} {} {} {}",
-        "CBC Status(Phase1):".bright_blue().bold(),
+        "CBC Status(Phase1-size):".bright_blue().bold(),
         format!("status={:?}", solution.raw().status()).green(),
         format!("secondary={:?}", solution.raw().secondary_status()).green(),
         format!("obj={}", solution.raw().obj_value()).bright_green()
@@ -273,7 +273,7 @@ fn solve_min_depth(
         return (vars, initial_result, vec![], f64::MAX);
     }
 
-    let mut min_depth_solution = vec![];
+    let mut min_size_solution = vec![];
     let obj_val = solution.raw().obj_value();
     for (id, var) in &vars {
         let active = solution.col(var.active) > 0.0;
@@ -283,30 +283,31 @@ fn solve_min_depth(
                 .iter()
                 .position(|&n| solution.col(n) > 0.0)
                 .unwrap_or(0);
-            min_depth_solution.push((id.clone(), node_idx));
+            min_size_solution.push((id.clone(), node_idx));
         }
     }
-    (vars, initial_result, min_depth_solution, obj_val)
+
+    (vars, initial_result, min_size_solution, obj_val)
 }
 
 /* ----------------------------------------------------------------
- * Phase 2: Minimize size with depth constraint
+ * Phase 2: Minimize depth with size constraint
  * ----------------------------------------------------------------*/
-fn solve_min_size_with_depth_constraint(
+fn solve_min_depth_with_size_constraint(
     egraph: &EGraph,
     roots: &[ClassId],
     config: &Config,
     timeout: u32,
     old_vars: &IndexMap<ClassId, ClassILP>,
-    depth_solution: &Vec<(ClassId, usize)>,
-    best_depth_obj: f64,
+    size_solution: &Vec<(ClassId, usize)>,
+    best_size_obj: f64,
     initial_result: &ExtractionResult,
 ) -> ExtractionResult {
     let mut model = Model::default();
     model.set_parameter("loglevel", "0");
     model.set_parameter("seconds", &timeout.to_string());
 
-    // clone old_vars
+    // Clone variables
     let mut vars: IndexMap<ClassId, ClassILP> = IndexMap::default();
     for (cid, class_old) in old_vars {
         let mut class_new = ClassILP {
@@ -322,7 +323,7 @@ fn solve_min_size_with_depth_constraint(
         vars.insert(cid.clone(), class_new);
     }
 
-    // Same active constraints as phase 1
+    // Same active constraints as Phase1
     for (classid, class) in &vars {
         if class.members() == 0 {
             model.set_col_upper(class.active, 0.0);
@@ -349,37 +350,38 @@ fn solve_min_size_with_depth_constraint(
         model.set_col_lower(vars[root].active, 1.0);
     }
 
-    // Add "sum of dep <= best_depth_obj" constraint (example only)
-    let sum_dep_col = model.add_col();
+    // Add "sum_of_aom <= best_size_obj" constraint (example)
+    let sum_aom_col = model.add_col();
+    // First set sum_aom_col = sum(aom_i * node_active_i)
     let big_row = model.add_row();
     model.set_row_equal(big_row, 0.0);
-    model.set_weight(big_row, sum_dep_col, -1.0);
+    model.set_weight(big_row, sum_aom_col, -1.0);
 
     for (cid, class) in &vars {
         for (&node_active, &cost) in class.variables.iter().zip(&class.costs) {
             let c = CCost::decode(cost.into_inner());
-            let dep = c.dep as f64;
-            if dep > 0.0 {
-                // sum_dep_col - dep * node_active = 0
+            let aom = c.aom as f64;
+            if aom > 0.0 {
+                // sum_aom_col - aom * node_active = 0
                 let row = model.add_row();
                 model.set_row_equal(row, 0.0);
-                model.set_weight(row, sum_dep_col, 1.0);
-                model.set_weight(row, node_active, -dep);
+                model.set_weight(row, sum_aom_col, 1.0);
+                model.set_weight(row, node_active, -aom);
             }
         }
     }
-    let sum_dep_con = model.add_row();
-    model.set_row_upper(sum_dep_con, best_depth_obj);
-    model.set_weight(sum_dep_con, sum_dep_col, 1.0);
+    let sum_aom_con = model.add_row();
+    model.set_row_upper(sum_aom_con, best_size_obj);
+    model.set_weight(sum_aom_con, sum_aom_col, 1.0);
 
-    // Objective: minimize size
+    // Objective: minimize depth
     model.set_obj_sense(Sense::Minimize);
     for class in vars.values() {
         for (&node_active, &cost) in class.variables.iter().zip(&class.costs) {
             let c = CCost::decode(cost.into_inner());
-            let aom = c.aom as f64;
-            if aom > 0.0 {
-                model.set_obj_coeff(node_active, aom);
+            let dep = c.dep as f64;
+            if dep > 0.0 {
+                model.set_obj_coeff(node_active, dep);
             }
         }
     }
@@ -387,7 +389,7 @@ fn solve_min_size_with_depth_constraint(
     let solution = model.solve();
     info!(
         "{} {} {} {}",
-        "CBC Status(Phase2):".bright_blue().bold(),
+        "CBC Status(Phase2-depth):".bright_blue().bold(),
         format!("status={:?}", solution.raw().status()).green(),
         format!("secondary={:?}", solution.raw().secondary_status()).green(),
         format!("obj={}", solution.raw().obj_value()).bright_green()
@@ -399,8 +401,7 @@ fn solve_min_size_with_depth_constraint(
     // Read solution
     let mut result = ExtractionResult::default();
     for (id, var) in &vars {
-        let active = solution.col(var.active) > 0.0;
-        if active {
+        if solution.col(var.active) > 0.0 {
             let node_idx = var
                 .variables
                 .iter()
@@ -411,9 +412,10 @@ fn solve_min_size_with_depth_constraint(
         }
     }
 
+    // Check for cycles
     let cycles = find_cycles_in_result(&result, &vars, roots);
     if !cycles.is_empty() {
-        // Can perform block_cycle, here simply return empty
+        // Simply return empty
         return ExtractionResult::default();
     }
 
@@ -421,7 +423,7 @@ fn solve_min_size_with_depth_constraint(
 }
 
 /* ----------------------------------------------------------------
- * Below are helper functions similar to the original ones
+ * 以下辅助函数与原先类似
  * ----------------------------------------------------------------*/
 
 fn block_cycle(model: &mut Model, cycle: &Vec<ClassId>, vars: &IndexMap<ClassId, ClassILP>) {
@@ -509,11 +511,7 @@ fn cycle_dfs(
 
             if let Some(node_id) = extraction_result.choices.get(class_id) {
                 let classvars = &vars[class_id];
-                if let Some(idx) = classvars
-                    .members
-                    .iter()
-                    .position(|m| m == node_id)
-                {
+                if let Some(idx) = classvars.members.iter().position(|m| m == node_id) {
                     let childs = &classvars.childrens_classes[idx];
                     for child_cid in childs {
                         cycle_dfs(extraction_result, vars, child_cid, status, cycles, stack);
@@ -527,7 +525,7 @@ fn cycle_dfs(
     }
 }
 
-// Some preprocessing
+// Below are some preprocessing steps similar to before
 fn remove_with_loops(vars: &mut IndexMap<ClassId, ClassILP>, roots: &[ClassId], config: &Config) {
     if config.remove_self_loops {
         let mut removed = 0;
@@ -598,9 +596,7 @@ fn remove_more_expensive_subsumed_nodes(vars: &mut IndexMap<ClassId, ClassILP>, 
                 for j in ((i + 1)..children.len()).rev() {
                     let node_b = &children[j];
                     if children[i].cost <= node_b.cost
-                        && children[i]
-                            .children_classes
-                            .is_subset(&node_b.children_classes)
+                        && children[i].children_classes.is_subset(&node_b.children_classes)
                     {
                         class.remove_node(&node_b.member.clone());
                         children.remove(j);
@@ -803,8 +799,8 @@ fn find_extra_roots(
         let mut i = 0;
         let mut extra = 0;
         while i < roots.len() {
-            let r = &roots[i];
-            let details = &vars[r];
+            let r = roots[i].clone();
+            let details = &vars[&r];
             if !details.childrens_classes.is_empty() {
                 let mut intersection = details.childrens_classes[0].clone();
                 for other in &details.childrens_classes[1..] {
@@ -869,7 +865,8 @@ fn child_to_parents(vars: &IndexMap<ClassId, ClassILP>) -> IndexMap<ClassId, Ind
     for (class_id, class_vars) in vars {
         for kids in &class_vars.childrens_classes {
             for child_class in kids {
-                result.entry(child_class.clone()).or_default().insert(class_id.clone());
+                let child_class = child_class.clone();
+                result.entry(child_class).or_default().insert(class_id.clone());
             }
         }
     }
@@ -880,7 +877,8 @@ fn classes_with_single_parent(vars: &IndexMap<ClassId, ClassILP>) -> IndexMap<Cl
     let mut c2p = IndexMap::<ClassId, IndexSet<ClassId>>::new();
     for (cid, class_vars) in vars {
         for kids in &class_vars.childrens_classes {
-            for child_class in kids {
+            for child_class in kids.iter() {
+                let child_class = child_class.clone();
                 c2p.entry(child_class.clone()).or_default().insert(cid.clone());
             }
         }
