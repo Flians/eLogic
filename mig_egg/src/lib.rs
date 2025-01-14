@@ -1,13 +1,12 @@
+use colored::*;
 use egg::{Id, Language};
-use serde::Serialize;
+use log::{info, warn};
 use std::ffi::CString;
 use std::fmt;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign};
 use std::os::raw::c_char;
 use std::{cmp, default};
-use log::{info, warn};
-use colored::*;
 
 // -----------------------------------------------------------------------------------
 // 1. Define a cost struct (CCost) to keep track of depth (dep), area (aom), and inversions (inv).
@@ -662,7 +661,7 @@ impl std::fmt::Display for ffi::CCost {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "    - expr: {}, depth: {}, size: {}, invs: {})",
+            "expr: {}, depth: {}, size: {}, invs: {}",
             self.aft_expr, self.aft_dep, self.aft_size, self.aft_invs
         )
     }
@@ -848,11 +847,23 @@ pub fn egg_to_serialized_egraph_for_ilp(
     fn cal_ilp_cost(node: &MIG) -> CCost {
         match node {
             // M操作：面积定为2，depth=1，用来让Phase1更严格地减少M的数量
-            MIG::Maj(..) => CCost { dep: 1, aom: 2, inv: 0 },
+            MIG::Maj(..) => CCost {
+                dep: 1,
+                aom: 2,
+                inv: 0,
+            },
             // And操作：面积=1，depth=1，也会被考虑进Phase1与Phase2
-            MIG::And(..) => CCost { dep: 1, aom: 1, inv: 0 },
+            MIG::And(..) => CCost {
+                dep: 1,
+                aom: 1,
+                inv: 0,
+            },
             // Not操作：面积=1, depth=0, inv=1 (只是在ILP里区分一下)
-            MIG::Not(..) => CCost { dep: 0, aom: 1, inv: 1 },
+            MIG::Not(..) => CCost {
+                dep: 0,
+                aom: 1,
+                inv: 1,
+            },
             // 其他(常量0,1, Symbol)都免费
             _ => CCost::default(),
         }
@@ -879,7 +890,8 @@ pub fn egg_to_serialized_egraph_for_ilp(
             for child in node.children() {
                 let cid = egraph_serialize::ClassId::from(format!("{}", child));
                 if !out.class_data.contains_key(&cid) {
-                    out.class_data.insert(cid, egraph_serialize::ClassData { typ: None });
+                    out.class_data
+                        .insert(cid, egraph_serialize::ClassData { typ: None });
                 }
             }
 
@@ -1082,6 +1094,7 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
         maj_dup(),
     ];
 
+    // Convert the var_dep to a raw pointer if needed
     let vars_default: [u32; 26] = [0; 26];
     let mut vars_ = vars_default.as_ptr();
     let mut var_len = 26;
@@ -1092,17 +1105,13 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
 
     // 1. Get baseline results
     let cost_depth = simplify_depth(s, vars_, var_len);
-    info!("{} {} {}",
+    info!(
+        "{} {} - {}",
         "Baseline".bright_green(),
         "(simplify_depth)".green(),
-        format!("- expr: {}, depth: {}, size: {}, invs: {}",
-            cost_depth.aft_expr,
-            cost_depth.aft_dep,
-            cost_depth.aft_size,
-            cost_depth.aft_invs
-        ).green()
+        format!("{}", cost_depth).green()
     );
-    
+
     let baseline_size = cost_depth.aft_size;
     let baseline_depth = cost_depth.aft_dep;
 
@@ -1130,16 +1139,6 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
 
     #[cfg(feature = "ilp-cbc")]
     let serialized_egraph = egg_to_serialized_egraph_for_ilp(&saturated_egraph, root_id);
-    // let serialized_egraph = egg_to_serialized_egraph(
-    //     &saturated_egraph,
-    //     &MIGCostFn_dsi::new(&saturated_egraph, unsafe {
-    //         std::slice::from_raw_parts(vars_, var_len)
-    //     }),
-    //     root_id,
-    // );
-    // let serialized_egraph = egg_to_serialized_egraph_for_ilp(&saturated_egraph, root_id);
-
-    // serialized_egraph.to_json_file("serd_egraph.json");
 
     // 4. Track best results across all methods
     #[derive(Clone)]
@@ -1161,22 +1160,24 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     // Helper function to print results and collect them
     let mut print_result = |method: &str, expr: &str, depth: u32, size: u32| {
         let is_worse = size > baseline_size || (size == baseline_size && depth > baseline_depth);
-        
+
         if is_worse {
-            warn!("{:<35} {} {}",
+            warn!(
+                "{:<35} {} {}",
                 method.bright_red(),
                 "- expr:".bright_red(),
-                format!("{}, depth: {}, size: {} (worse than baseline)",
+                format!(
+                    "{}, depth: {}, size: {} (worse than baseline)",
                     expr, depth, size
-                ).red()
+                )
+                .red()
             );
         } else {
-            info!("{:<35} {} {}",
+            info!(
+                "{:<35} {} {}",
                 method.bright_green(),
                 "- expr:".bright_green(),
-                format!("{}, depth: {}, size: {}",
-                    expr, depth, size
-                ).green()
+                format!("{}, depth: {}, size: {}", expr, depth, size).green()
             );
         }
         results.push(MethodResult {
@@ -1190,31 +1191,32 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     // 5. Compare different extractors
     #[cfg(feature = "ilp-cbc")]
     let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
-    #[cfg(not(feature = "ilp-cbc"))]
-    let extractor = extract::faster_greedy_dag::FasterGreedyDagExtractor {};
 
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_size = extraction_result.dag_cost_size_enhanced(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_depth = extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_size = extraction_result
+        .dag_cost_size_enhanced(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_depth =
+        extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
     print_result(
-        "DAG-based (faster ILP/greedy)",
+        "DAG-based (faster ILP)",
         &aft_expr,
         dag_cost_depth,
         dag_cost_size,
     );
 
-    // Test bottom-up extractor
-    let extractor1 = extract::bottom_up::BottomUpExtractor {};
+    // Another extractor for demonstration
+    let extractor1 = extract::faster_greedy_dag::FasterGreedyDagExtractor {};
     let extraction_result1 =
         extractor1.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_size1 =
-        extraction_result1.dag_cost_size_enhanced(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_size1 = extraction_result1
+        .dag_cost_size_enhanced(&serialized_egraph, &serialized_egraph.root_eclasses);
     let dag_cost_depth1 =
         extraction_result1.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr1 = extraction_result1.print_aft_expr(&serialized_egraph);
+
     print_result(
-        "DAG-based (bottom-up)",
+        "DAG-based (faster greedy)",
         &aft_expr1,
         dag_cost_depth1,
         dag_cost_size1,
@@ -1224,8 +1226,8 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     let extractor2 = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     let extraction_result2 =
         extractor2.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_size2 =
-        extraction_result2.dag_cost_size_enhanced(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_size2 = extraction_result2
+        .dag_cost_size_enhanced(&serialized_egraph, &serialized_egraph.root_eclasses);
     let dag_cost_depth2 =
         extraction_result2.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr2 = extraction_result2.print_aft_expr(&serialized_egraph);
@@ -1241,7 +1243,8 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
 
     // 6. Print summary
     info!("\n{}", "Summary".bright_blue().bold());
-    info!("{} {} - size: {}, depth: {}",
+    info!(
+        "{} {} - size: {}, depth: {}",
         "Best result from".bright_green(),
         best_result.method.bright_green(),
         best_result.size.to_string().green(),
@@ -1249,22 +1252,25 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     );
 
     // Check if ALL methods are worse than baseline
-    let all_worse = results.iter().skip(1).all(|r| {
-        r.size > baseline_size || (r.size == baseline_size && r.depth > baseline_depth)
-    });
+    let all_worse = results
+        .iter()
+        .skip(1)
+        .all(|r| r.size > baseline_size || (r.size == baseline_size && r.depth > baseline_depth));
 
     if all_worse {
-        warn!("{}",
+        warn!(
+            "{}",
             "⚠️  Note: All DAG-based methods performed worse than baseline for this expression"
                 .bright_red()
         );
     }
 
-    info!("{} {}",
+    info!(
+        "{} {}",
         "Best expression:".bright_green(),
         best_result.expr.green()
     );
-    
+
     info!("{}\n", "=".repeat(50).blue());
 }
 
@@ -1381,16 +1387,15 @@ mod tests {
                 .find_best(root);
 
         let (prefix_expr, depth, ops_count, inv_count) = to_prefix(&best, &var_dep);
-        info!("{} {} {}",
+        info!(
+            "{} {} {}",
             "Test result:".bright_blue().bold(),
-            format!(
-                "cost: {}",
-                best_cost
-            ).bright_green(),
+            format!("cost: {}", best_cost).bright_green(),
             format!(
                 "prefix: {}, depth: {}, ops: {}, invs: {}",
                 prefix_expr, depth, ops_count, inv_count
-            ).green()
+            )
+            .green()
         );
     }
 
