@@ -2,6 +2,7 @@ use egraph_serialize::{ClassId, Cost, EGraph, Node, NodeId};
 use indexmap::IndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::HashMap;
+use std::ops::Index;
 
 pub use crate::*;
 
@@ -261,21 +262,26 @@ impl ExtractionResult {
         }
         costs.values().sum()
     }
-    pub fn dag_cost_size_from_node(&self, egraph: &EGraph, node_id: &NodeId, visited: &mut FxHashSet<NodeId>) -> u32 {
+    pub fn dag_cost_size_from_node(
+        &self,
+        egraph: &EGraph,
+        node_id: &NodeId,
+        visited: &mut FxHashSet<NodeId>,
+    ) -> u32 {
         // 如果节点已经访问过（环检测），直接返回 0
         if !visited.insert(node_id.clone()) {
             return 0;
         }
-    
+
         let node = &egraph[node_id];
-    
+
         // 递归计算所有子节点的总大小
         let total_child_size: u32 = node
             .children
             .iter()
             .map(|child| self.dag_cost_size_from_node(egraph, child, visited)) // 对每个子节点递归调用
             .sum();
-    
+
         // 当前节点的大小贡献
         total_child_size + CCost::decode(node.cost.into()).aom
     }
@@ -296,6 +302,31 @@ impl ExtractionResult {
         costs
             .into_iter()
             .fold(0, |sum, (_, cost)| sum + CCost::decode(cost.into()).aom)
+    }
+
+    pub fn dag_cost_size_enhanced(&self, egraph: &EGraph, roots: &[ClassId]) -> u32 {
+        let mut visited = FxHashSet::default();
+        let mut stack = roots.to_vec();
+        let mut total_ops = 0;
+
+        while let Some(cid) = stack.pop() {
+            if !visited.insert(cid.clone()) {
+                continue;
+            }
+            let node_id = &self.choices[&cid];
+            let node = &egraph[node_id];
+
+            match node.op.as_str() {
+                "M"  => total_ops += 1,
+                _ => {} // 变量和常量不增加计数
+            }
+
+            for child_nid in &node.children {
+                let child_cid = egraph.nid_to_cid(child_nid).clone();
+                stack.push(child_cid);
+            }
+        }
+        total_ops
     }
 
     pub fn dag_cost_depth(&self, egraph: &EGraph, roots: &[ClassId]) -> u32 {
