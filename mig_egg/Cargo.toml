@@ -30,4 +30,4 @@ flussab-aiger = "0.1.1"
 
 [features]
 ilp-cbc = ["coin_cbc"]
-#default = ["ilp-cbc"]
+default = ["ilp-cbc"]
