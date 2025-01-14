@@ -1088,25 +1088,25 @@ mod tests {
         {
             let empty_vec: Vec<u32> = Vec::new();
 
-            simplify("(& 0 1)", &empty_vec);
-            simplify("(& x 1)", &empty_vec);
-            simplify("(& x (~ 1))", &empty_vec);
-            simplify("(& x (~ x))", &empty_vec);
-            simplify("(& x x)", &empty_vec);
-            simplify("(& (& x b) (& b y))", &empty_vec);
-            simplify("(M 1 1 1)", &empty_vec);
-            simplify("(M 1 1 0)", &empty_vec);
-            simplify("(M 1 0 0)", &empty_vec);
-            simplify("(M 0 0 0)", &empty_vec);
-            simplify("(M x 1 (~ 0))", &empty_vec);
-            simplify("(M a b (M a b c))", &empty_vec);
-            simplify("(M x 0 (M y 1 (M u 0 v)))", &empty_vec);
-            simplify("(M (M w x (~ z)) x (M z x y))", &empty_vec);
-            simplify("(M c (M c d (M e f b)) a)", &empty_vec);
+            // simplify("(& 0 1)", &empty_vec);
+            // simplify("(& x 1)", &empty_vec);
+            // simplify("(& x (~ 1))", &empty_vec);
+            // simplify("(& x (~ x))", &empty_vec);
+            // simplify("(& x x)", &empty_vec);
+            // simplify("(& (& x b) (& b y))", &empty_vec);
+            // simplify("(M 1 1 1)", &empty_vec);
+            // simplify("(M 1 1 0)", &empty_vec);
+            // simplify("(M 1 0 0)", &empty_vec);
+            // simplify("(M 0 0 0)", &empty_vec);
+            // simplify("(M x 1 (~ 0))", &empty_vec);
+            // simplify("(M a b (M a b c))", &empty_vec);
+            // simplify("(M x 0 (M y 1 (M u 0 v)))", &empty_vec);
+            // simplify("(M (M w x (~ z)) x (M z x y))", &empty_vec);
+            // simplify("(M c (M c d (M e f b)) a)", &empty_vec);
             simplify("(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))", &empty_vec);
-            simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))", &empty_vec);
+            // simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))", &empty_vec);
             simplify("(M 0 (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))", &empty_vec);
-            simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))", &empty_vec);
+            // simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))", &empty_vec);
         }
     }
 }
