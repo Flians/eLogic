@@ -1009,7 +1009,6 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
         maj_dup(),
     ];
 
-    // Convert the var_dep to a raw pointer if needed
     let vars_default: [u32; 26] = [0; 26];
     let mut vars_ = vars_default.as_ptr();
     let mut var_len = 26;
@@ -1018,9 +1017,11 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
         var_len = var_dep.len();
     }
 
-    // 1. Simplify with tree-based approach and get cost
+    // 1. Get baseline results
     let cost_depth = simplify_depth(s, vars_, var_len);
     println!("\nBaseline (simplify_depth) {}", cost_depth);
+    let baseline_size = cost_depth.aft_size;
+    let baseline_depth = cost_depth.aft_dep;
 
     // 2. Build and saturate an e-graph
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
@@ -1034,7 +1035,7 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     runner = runner.run(all_rules);
     let saturated_egraph = runner.egraph;
 
-    // 3. Convert to a structure suitable for ILP or greedy DAG extraction
+    // 3. Convert for ILP/greedy extraction
     let serialized_egraph = egg_to_serialized_egraph(
         &saturated_egraph,
         &MIGCostFn_dsi::new(&saturated_egraph, unsafe {
@@ -1043,7 +1044,42 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
         root_id,
     );
 
-    // 4. Compare different DAG-based extractors
+    // 4. Track best results across all methods
+    #[derive(Clone)]
+    struct MethodResult {
+        method: String,
+        size: u32,
+        depth: u32,
+        expr: String,
+    }
+
+    let mut results = Vec::new();
+    results.push(MethodResult {
+        method: "Baseline".to_string(),
+        size: baseline_size,
+        depth: baseline_depth,
+        expr: cost_depth.aft_expr.clone(),
+    });
+
+    // Helper function to print results and collect them
+    let mut print_result = |method: &str, expr: &str, depth: u32, size: u32| {
+        let is_worse = size > baseline_size || (size == baseline_size && depth > baseline_depth); 
+        if is_worse {
+            println!("⚠️  {:<30} - expr: {}, depth: {}, size: {} (worse than baseline)", 
+                method, expr, depth, size);
+        } else {
+            println!("{:<30} - expr: {}, depth: {}, size: {}", 
+                method, expr, depth, size);
+        }
+        results.push(MethodResult {
+            method: method.to_string(),
+            size,
+            depth,
+            expr: expr.to_string(),
+        });
+    };
+
+    // 5. Compare different extractors
     #[cfg(feature = "ilp-cbc")]
     let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
     #[cfg(not(feature = "ilp-cbc"))]
@@ -1055,13 +1091,14 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     let dag_cost_depth =
         extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
-
-    println!(
-        "DAG-based (faster ILP/greedy) - expr: {}, depth: {}, size: {}",
-        aft_expr, dag_cost_depth, dag_cost_size
+    print_result(
+        "DAG-based (faster ILP/greedy)",
+        &aft_expr,
+        dag_cost_depth,
+        dag_cost_size,
     );
 
-    // Another extractor for demonstration
+    // Test bottom-up extractor
     let extractor1 = extract::bottom_up::BottomUpExtractor {};
     let extraction_result1 =
         extractor1.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
@@ -1070,12 +1107,14 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     let dag_cost_depth1 =
         extraction_result1.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr1 = extraction_result1.print_aft_expr(&serialized_egraph);
-
-    println!(
-        "DAG-based (bottom-up)         - expr: {}, depth: {}, size: {}",
-        aft_expr1, dag_cost_depth1, dag_cost_size1
+    print_result(
+        "DAG-based (bottom-up)",
+        &aft_expr1,
+        dag_cost_depth1,
+        dag_cost_size1,
     );
 
+    // Test global greedy extractor
     let extractor2 = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     let extraction_result2 =
         extractor2.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
@@ -1084,12 +1123,34 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     let dag_cost_depth2 =
         extraction_result2.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr2 = extraction_result2.print_aft_expr(&serialized_egraph);
-
-    println!(
-        "DAG-based (global greedy)     - expr: {}, depth: {}, size: {}",
-        aft_expr2, dag_cost_depth2, dag_cost_size2
+    print_result(
+        "DAG-based (global greedy)",
+        &aft_expr2,
+        dag_cost_depth2,
+        dag_cost_size2,
     );
-    // print new lines
+
+    // Find the best result
+    let best_result = results.iter().min_by_key(|r| (r.size, r.depth)).unwrap();
+
+    // 6. Print summary
+    println!("\nSummary:");
+    println!(
+        "Best result from {} - size: {}, depth: {}",
+        best_result.method, best_result.size, best_result.depth
+    );
+
+    // Check if ALL methods are worse than baseline
+    let all_worse = results.iter().skip(1).all(|r| {
+        r.size > baseline_size || (r.size == baseline_size && r.depth > baseline_depth)
+    });
+
+
+    if all_worse {
+    println!("⚠️  Note: All DAG-based methods performed worse than baseline for this expression");
+    }
+
+    println!("Best expression: {}", best_result.expr);
     println!("---------------------------------------------------\n");
 }
 
