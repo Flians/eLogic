@@ -659,7 +659,7 @@ impl std::fmt::Display for ffi::CCost {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "    - expr: {}, depth: {}, size: {}, invs: {})",
+            "expr: {}, depth: {}, size: {}, invs: {}",
             self.aft_expr, self.aft_dep, self.aft_size, self.aft_invs
         )
     }
@@ -1020,7 +1020,7 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
 
     // 1. Simplify with tree-based approach and get cost
     let cost_depth = simplify_depth(s, vars_, var_len);
-    println!("\nBaseline (simplify_depth) {}", cost_depth);
+    println!("\nBaseline (simplify_depth) - {}", cost_depth);
 
     // 2. Build and saturate an e-graph
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
@@ -1046,8 +1046,6 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     // 4. Compare different DAG-based extractors
     #[cfg(feature = "ilp-cbc")]
     let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
-    #[cfg(not(feature = "ilp-cbc"))]
-    let extractor = extract::faster_greedy_dag::FasterGreedyDagExtractor {};
 
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
     let dag_cost_size =
@@ -1057,12 +1055,12 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
 
     println!(
-        "DAG-based (faster ILP/greedy) - expr: {}, depth: {}, size: {}",
+        "DAG-based (faster ILP)    - expr: {}, depth: {}, size: {}",
         aft_expr, dag_cost_depth, dag_cost_size
     );
 
     // Another extractor for demonstration
-    let extractor1 = extract::bottom_up::BottomUpExtractor {};
+    let extractor1 = extract::faster_greedy_dag::FasterGreedyDagExtractor {};
     let extraction_result1 =
         extractor1.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
     let dag_cost_size1 =
@@ -1072,7 +1070,7 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     let aft_expr1 = extraction_result1.print_aft_expr(&serialized_egraph);
 
     println!(
-        "DAG-based (bottom-up)         - expr: {}, depth: {}, size: {}",
+        "DAG-based (faster greedy) - expr: {}, depth: {}, size: {}",
         aft_expr1, dag_cost_depth1, dag_cost_size1
     );
 
@@ -1086,7 +1084,7 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     let aft_expr2 = extraction_result2.print_aft_expr(&serialized_egraph);
 
     println!(
-        "DAG-based (global greedy)     - expr: {}, depth: {}, size: {}",
+        "DAG-based (global greedy) - expr: {}, depth: {}, size: {}",
         aft_expr2, dag_cost_depth2, dag_cost_size2
     );
     // print new lines
