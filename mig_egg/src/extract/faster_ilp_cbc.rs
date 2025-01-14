@@ -7,10 +7,10 @@ use ordered_float::NotNan;
 use std::collections::VecDeque;
 
 // -------------------------------------------------------------------------
-// 两阶段 ILP 思路示例：先最小化 depth，再在 depth 不变的前提下最小化 size
+// Two-phase ILP approach example: first minimize depth, then minimize size while keeping depth constant
 // -------------------------------------------------------------------------
 
-// 原先的加权系数在这里都置成0，仅供示例
+// Original weighting coefficients set to 0 here, just for demonstration
 const W_DEP: f64 = 0.0;
 const W_AOM: f64 = 0.0;
 const W_INV: f64 = 0.0;
@@ -98,7 +98,7 @@ impl ClassILP {
     }
 }
 
-// ============ 两阶段 ILP Extractor ============
+// ============ Two-phase ILP Extractor ============
 
 pub struct TwoPhaseCbcExtractorWithTimeout<const TIMEOUT_IN_SECONDS: u32>;
 
@@ -108,7 +108,7 @@ impl<const TIMEOUT_IN_SECONDS: u32> Extractor for TwoPhaseCbcExtractorWithTimeou
     }
 }
 
-// 如果保留原先的 Extractor 名字
+// If keeping the original Extractor name
 #[derive(Default)]
 pub struct FasterCbcExtractor;
 impl Extractor for FasterCbcExtractor {
@@ -117,7 +117,7 @@ impl Extractor for FasterCbcExtractor {
     }
 }
 
-/// 两阶段核心逻辑
+/// Core logic of two-phase extraction
 fn two_phase_extract(
     egraph: &EGraph,
     roots_slice: &[ClassId],
@@ -128,11 +128,11 @@ fn two_phase_extract(
     roots.sort();
     roots.dedup();
 
-    // 先最小化 depth
+    // First minimize depth
     let (vars, initial_result, min_depth_solution, min_depth_objval) =
         solve_min_depth(egraph, &roots, config, timeout);
 
-    // 再在 depth 约束下最小化 size
+    // Then minimize size while keeping depth constraint
     let mut result = solve_min_size_with_depth_constraint(
         egraph,
         &roots,
@@ -144,7 +144,7 @@ fn two_phase_extract(
         &initial_result,
     );
 
-    // 如果第二阶段无解，就用 initial_result
+    // If no solution in second phase, use initial_result
     if result.choices.is_empty() {
         result = initial_result;
     }
@@ -153,7 +153,7 @@ fn two_phase_extract(
 }
 
 /* ----------------------------------------------------------------
- * 第一阶段：只最小化 depth（此处仅用 sum of dep 做示例）
+ * Phase 1: Minimize depth only (using sum of dep as example here)
  * ----------------------------------------------------------------*/
 fn solve_min_depth(
     egraph: &EGraph,
@@ -170,7 +170,7 @@ fn solve_min_depth(
     model.set_parameter("loglevel", "0");
     model.set_parameter("seconds", &timeout.to_string());
 
-    // 构建 ClassILP
+    // Build ClassILP
     let mut vars: IndexMap<ClassId, ClassILP> = egraph
         .classes()
         .values()
@@ -196,11 +196,11 @@ fn solve_min_depth(
         })
         .collect();
 
-    // 用 Greedy DAG 做个初始解
+    // Use Greedy DAG for initial solution
     let initial_result = super::faster_greedy_dag::FasterGreedyDagExtractor.extract(egraph, roots);
     let initial_result_cost = initial_result.dag_cost(egraph, roots);
 
-    // 一些预处理
+    // Some preprocessing
     remove_with_loops(&mut vars, roots, config);
     remove_high_cost(&mut vars, initial_result_cost, roots, config);
     remove_more_expensive_subsumed_nodes(&mut vars, config);
@@ -208,16 +208,16 @@ fn solve_min_depth(
     pull_up_with_single_parent(&mut vars, roots, config);
     pull_up_costs(&mut vars, roots, config);
 
-    // 即使不需要也先保持一致
+    // Keep consistent even if not needed
     let mut dummy_extraction = ExtractionResult::default();
     remove_single_zero_cost(&mut vars, &mut dummy_extraction, roots, config);
 
-    // 注意：需要可变 Vec
+    // Note: needs mutable Vec
     let mut roots_vec = roots.to_vec();
     find_extra_roots(&mut vars, &mut roots_vec, config);
     remove_empty_classes(&mut vars, config);
 
-    // 构建约束: class.active = sum(node_active)
+    // Build constraints: class.active = sum(node_active)
     for (classid, class) in &vars {
         if class.members() == 0 {
             model.set_col_upper(class.active, 0.0);
@@ -229,11 +229,11 @@ fn solve_min_depth(
         for &node_active in &class.variables {
             model.set_weight(row, node_active, 1.0);
         }
-        // 关联子 class
+        // Link child classes
         for (childrens_classes, &node_active) in class.childrens_classes.iter().zip(&class.variables)
         {
             for child_class in childrens_classes {
-                let child_active = vars[child_class].active; // 修复：直接用 child_class 索引
+                let child_active = vars[child_class].active; // Fix: directly index with child_class
                 let row = model.add_row();
                 model.set_row_upper(row, 0.0);
                 model.set_weight(row, node_active, 1.0);
@@ -245,7 +245,7 @@ fn solve_min_depth(
         model.set_col_lower(vars[&root].active, 1.0);
     }
 
-    // 只最小化 depth
+    // Only minimize depth
     model.set_obj_sense(Sense::Minimize);
     for class in vars.values() {
         for (&node_active, &cost) in class.variables.iter().zip(&class.costs) {
@@ -290,7 +290,7 @@ fn solve_min_depth(
 }
 
 /* ----------------------------------------------------------------
- * 第二阶段：加深度约束后最小化 size
+ * Phase 2: Minimize size with depth constraint
  * ----------------------------------------------------------------*/
 fn solve_min_size_with_depth_constraint(
     egraph: &EGraph,
@@ -322,7 +322,7 @@ fn solve_min_size_with_depth_constraint(
         vars.insert(cid.clone(), class_new);
     }
 
-    // 和第一阶段相同的 active 约束
+    // Same active constraints as phase 1
     for (classid, class) in &vars {
         if class.members() == 0 {
             model.set_col_upper(class.active, 0.0);
@@ -349,7 +349,7 @@ fn solve_min_size_with_depth_constraint(
         model.set_col_lower(vars[root].active, 1.0);
     }
 
-    // 加“sum of dep <= best_depth_obj” 约束（仅示例）
+    // Add "sum of dep <= best_depth_obj" constraint (example only)
     let sum_dep_col = model.add_col();
     let big_row = model.add_row();
     model.set_row_equal(big_row, 0.0);
@@ -372,7 +372,7 @@ fn solve_min_size_with_depth_constraint(
     model.set_row_upper(sum_dep_con, best_depth_obj);
     model.set_weight(sum_dep_con, sum_dep_col, 1.0);
 
-    // 目标：最小化 size
+    // Objective: minimize size
     model.set_obj_sense(Sense::Minimize);
     for class in vars.values() {
         for (&node_active, &cost) in class.variables.iter().zip(&class.costs) {
@@ -396,7 +396,7 @@ fn solve_min_size_with_depth_constraint(
         return ExtractionResult::default();
     }
 
-    // 读取解
+    // Read solution
     let mut result = ExtractionResult::default();
     for (id, var) in &vars {
         let active = solution.col(var.active) > 0.0;
@@ -413,7 +413,7 @@ fn solve_min_size_with_depth_constraint(
 
     let cycles = find_cycles_in_result(&result, &vars, roots);
     if !cycles.is_empty() {
-        // 可进行 block_cycle，这里简单返回空
+        // Can perform block_cycle, here simply return empty
         return ExtractionResult::default();
     }
 
@@ -421,7 +421,7 @@ fn solve_min_size_with_depth_constraint(
 }
 
 /* ----------------------------------------------------------------
- * 下面是和原先类似的辅助函数
+ * Below are helper functions similar to the original ones
  * ----------------------------------------------------------------*/
 
 fn block_cycle(model: &mut Model, cycle: &Vec<ClassId>, vars: &IndexMap<ClassId, ClassILP>) {
@@ -527,7 +527,7 @@ fn cycle_dfs(
     }
 }
 
-// 一些预处理
+// Some preprocessing
 fn remove_with_loops(vars: &mut IndexMap<ClassId, ClassILP>, roots: &[ClassId], config: &Config) {
     if config.remove_self_loops {
         let mut removed = 0;
@@ -646,7 +646,7 @@ fn reachable(
             if let Some(class_vars) = vars.get(class) {
                 for kids in &class_vars.childrens_classes {
                     for child_class in kids {
-                        reachable(vars, &[*child_class], is_reachable);
+                        reachable(vars, &[child_class.clone()], is_reachable);
                     }
                 }
             }
@@ -729,7 +729,7 @@ fn pull_up_with_single_parent(
                 let child_descendants = vars[child].childrens_classes[0].clone();
                 let parent_descendants = &mut vars[parent].childrens_classes[idx];
                 for c in &child_descendants {
-                    parent_descendants.insert(*c);
+                    parent_descendants.insert(c.clone());
                 }
                 vars[child].childrens_classes[0].clear();
                 pull_up_count += 1;
@@ -760,7 +760,7 @@ fn remove_single_zero_cost(
                 && details.costs[0] == 0.0
                 && !roots.contains(class_id)
             {
-                zero.insert(*class_id);
+                zero.insert(class_id.clone());
             }
         }
         if !zero.is_empty() {
@@ -777,7 +777,7 @@ fn remove_single_zero_cost(
                         }
                     }
                 }
-                extraction_result.choose(*e, vars[e].members[0].clone());
+                extraction_result.choose(e.clone(), vars[e].members[0].clone());
             }
             vars.retain(|class_id, _| !zero.contains(class_id));
             info!(
@@ -803,8 +803,8 @@ fn find_extra_roots(
         let mut i = 0;
         let mut extra = 0;
         while i < roots.len() {
-            let r = roots[i];
-            let details = &vars[&r];
+            let r = &roots[i];
+            let details = &vars[r];
             if !details.childrens_classes.is_empty() {
                 let mut intersection = details.childrens_classes[0].clone();
                 for other in &details.childrens_classes[1..] {
@@ -832,14 +832,14 @@ fn remove_empty_classes(vars: &mut IndexMap<ClassId, ClassILP>, config: &Config)
         let mut empty_classes = VecDeque::new();
         for (class_id, detail) in vars.iter() {
             if detail.members() == 0 {
-                empty_classes.push_back(*class_id);
+                empty_classes.push_back(class_id.clone());
             }
         }
         let mut removed = 0;
         let c2p = child_to_parents(vars);
         let mut done = IndexSet::new();
         while let Some(e) = empty_classes.pop_front() {
-            if !done.insert(e) {
+            if !done.insert(e.clone()) {
                 continue;
             }
             if let Some(parents) = c2p.get(&e) {
@@ -851,7 +851,7 @@ fn remove_empty_classes(vars: &mut IndexMap<ClassId, ClassILP>, config: &Config)
                         }
                     }
                     if vars[parent].members() == 0 {
-                        empty_classes.push_back(*parent);
+                        empty_classes.push_back(parent.clone());
                     }
                 }
             }
@@ -865,11 +865,11 @@ fn remove_empty_classes(vars: &mut IndexMap<ClassId, ClassILP>, config: &Config)
 }
 
 fn child_to_parents(vars: &IndexMap<ClassId, ClassILP>) -> IndexMap<ClassId, IndexSet<ClassId>> {
-    let mut result = IndexMap::new();
+    let mut result: IndexMap<ClassId, IndexSet<ClassId>> = IndexMap::new();
     for (class_id, class_vars) in vars {
         for kids in &class_vars.childrens_classes {
             for child_class in kids {
-                result.entry(*child_class).or_default().insert(*class_id);
+                result.entry(child_class.clone()).or_default().insert(class_id.clone());
             }
         }
     }
@@ -880,15 +880,15 @@ fn classes_with_single_parent(vars: &IndexMap<ClassId, ClassILP>) -> IndexMap<Cl
     let mut c2p = IndexMap::<ClassId, IndexSet<ClassId>>::new();
     for (cid, class_vars) in vars {
         for kids in &class_vars.childrens_classes {
-            for &child_class in kids {
-                c2p.entry(child_class).or_default().insert(*cid);
+            for child_class in kids {
+                c2p.entry(child_class.clone()).or_default().insert(cid.clone());
             }
         }
     }
     c2p.into_iter()
         .filter_map(|(child, parents)| {
             if parents.len() == 1 {
-                Some((child, *parents.iter().next().unwrap()))
+                Some((child, parents.iter().next().unwrap().clone()))
             } else {
                 None
             }
