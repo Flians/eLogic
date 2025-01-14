@@ -104,7 +104,7 @@ impl ClassILP {
 pub struct TwoPhaseCbcExtractorWithTimeout<const TIMEOUT_IN_SECONDS: u32>;
 
 impl<const TIMEOUT_IN_SECONDS: u32> Extractor
-    for FasterCbcExtractorWithTimeout<TIMEOUT_IN_SECONDS>
+    for TwoPhaseCbcExtractorWithTimeout<TIMEOUT_IN_SECONDS>
 {
     fn extract(&self, egraph: &EGraph, roots: &[ClassId]) -> ExtractionResult {
         two_phase_extract(egraph, roots, &Config::default(), TIMEOUT_IN_SECONDS)
@@ -250,7 +250,7 @@ fn solve_min_size(
 
     // Objective: minimize size(aom)
     model.set_obj_sense(Sense::Minimize);
-  
+
     for class in vars.values() {
         for (&node_active, &cost) in class.variables.iter().zip(&class.costs) {
             let cost_bits = cost.into_inner();
@@ -339,7 +339,8 @@ fn solve_min_depth_with_size_constraint(
         for &node_active in &class.variables {
             model.set_weight(row, node_active, 1.0);
         }
-        for (childrens_classes, &node_active) in class.childrens_classes.iter().zip(&class.variables)
+        for (childrens_classes, &node_active) in
+            class.childrens_classes.iter().zip(&class.variables)
         {
             for child_class in childrens_classes {
                 let child_active = vars[child_class].active;
@@ -482,7 +483,14 @@ fn find_cycles_in_result(
     let mut cycles = vec![];
     for root in roots {
         let mut stack = vec![];
-        cycle_dfs(extraction_result, vars, root, &mut status, &mut cycles, &mut stack);
+        cycle_dfs(
+            extraction_result,
+            vars,
+            root,
+            &mut status,
+            &mut cycles,
+            &mut stack,
+        );
     }
     cycles
 }
@@ -573,7 +581,8 @@ fn remove_high_cost(
                 } else {
                     Cost::default()
                 };
-                if cost > &(initial_result_cost - lowest_root_cost_sum + this_root + EPSILON_ALLOWANCE)
+                if cost
+                    > &(initial_result_cost - lowest_root_cost_sum + this_root + EPSILON_ALLOWANCE)
                 {
                     class_details.remove(i);
                     removed += 1;
@@ -600,7 +609,9 @@ fn remove_more_expensive_subsumed_nodes(vars: &mut IndexMap<ClassId, ClassILP>, 
                 for j in ((i + 1)..children.len()).rev() {
                     let node_b = &children[j];
                     if children[i].cost <= node_b.cost
-                        && children[i].children_classes.is_subset(&node_b.children_classes)
+                        && children[i]
+                            .children_classes
+                            .is_subset(&node_b.children_classes)
                     {
                         class.remove_node(&node_b.member.clone());
                         children.remove(j);
@@ -870,7 +881,10 @@ fn child_to_parents(vars: &IndexMap<ClassId, ClassILP>) -> IndexMap<ClassId, Ind
         for kids in &class_vars.childrens_classes {
             for child_class in kids {
                 let child_class = child_class.clone();
-                result.entry(child_class).or_default().insert(class_id.clone());
+                result
+                    .entry(child_class)
+                    .or_default()
+                    .insert(class_id.clone());
             }
         }
     }
@@ -883,7 +897,9 @@ fn classes_with_single_parent(vars: &IndexMap<ClassId, ClassILP>) -> IndexMap<Cl
         for kids in &class_vars.childrens_classes {
             for child_class in kids.iter() {
                 let child_class = child_class.clone();
-                c2p.entry(child_class.clone()).or_default().insert(cid.clone());
+                c2p.entry(child_class.clone())
+                    .or_default()
+                    .insert(cid.clone());
             }
         }
     }
