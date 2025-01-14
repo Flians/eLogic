@@ -1128,7 +1128,6 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     let saturated_egraph = runner.egraph;
 
     // 3. Convert for ILP/greedy extraction
-    #[cfg(not(feature = "ilp-cbc"))]
     let serialized_egraph = egg_to_serialized_egraph(
         &saturated_egraph,
         &MIGCostFn_dsi::new(&saturated_egraph, unsafe {
@@ -1137,8 +1136,7 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
         root_id,
     );
 
-    #[cfg(feature = "ilp-cbc")]
-    let serialized_egraph = egg_to_serialized_egraph_for_ilp(&saturated_egraph, root_id);
+    let serialized_egraph_ilp = egg_to_serialized_egraph_for_ilp(&saturated_egraph, root_id);
 
     // 4. Track best results across all methods
     #[derive(Clone)]
@@ -1192,12 +1190,13 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     #[cfg(feature = "ilp-cbc")]
     let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
 
-    let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let extraction_result =
+        extractor.extract(&serialized_egraph_ilp, &serialized_egraph_ilp.root_eclasses);
     let dag_cost_size = extraction_result
-        .dag_cost_size_enhanced(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_depth =
-        extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
+        .dag_cost_size_enhanced(&serialized_egraph_ilp, &serialized_egraph_ilp.root_eclasses);
+    let dag_cost_depth = extraction_result
+        .dag_cost_depth(&serialized_egraph_ilp, &serialized_egraph_ilp.root_eclasses);
+    let aft_expr = extraction_result.print_aft_expr(&serialized_egraph_ilp);
     print_result(
         "DAG-based (faster ILP)",
         &aft_expr,
@@ -1205,7 +1204,7 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
         dag_cost_size,
     );
 
-    // Another extractor for demonstration
+    // Test faster greedy extractor
     let extractor1 = extract::faster_greedy_dag::FasterGreedyDagExtractor {};
     let extraction_result1 =
         extractor1.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
