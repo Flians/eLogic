@@ -847,15 +847,14 @@ pub fn egg_to_serialized_egraph_for_ilp(
     // Define a local function to assign ILP cost
     fn cal_ilp_cost(node: &MIG) -> CCost {
         match node {
-            MIG::Maj(..) => {
-                // count Maj as 1 for area (aom) and also set dep=1
-                // so that phase2 can do "sum_of(dep)" if it wants
-                CCost { dep: 1, aom: 1, inv: 0 }
-            }
-            _ => {
-                // Other nodes are cost-free
-                CCost::default()
-            }
+            // M操作：面积定为2，depth=1，用来让Phase1更严格地减少M的数量
+            MIG::Maj(..) => CCost { dep: 1, aom: 2, inv: 0 },
+            // And操作：面积=1，depth=1，也会被考虑进Phase1与Phase2
+            MIG::And(..) => CCost { dep: 1, aom: 1, inv: 0 },
+            // Not操作：面积=1, depth=0, inv=1 (只是在ILP里区分一下)
+            MIG::Not(..) => CCost { dep: 0, aom: 1, inv: 1 },
+            // 其他(常量0,1, Symbol)都免费
+            _ => CCost::default(),
         }
     }
 
