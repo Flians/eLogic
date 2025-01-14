@@ -1200,6 +1200,7 @@ mod tests {
         let _ = env_logger::builder()
             .filter_level(log::LevelFilter::Info)
             .filter_module("egg", log::LevelFilter::Error)
+            .filter_module("mig_egg::extract::faster_ilp_cbc", log::LevelFilter::Off)
             .is_test(true)
             .try_init();
         let start = "(M 0 1 0)";
@@ -1221,6 +1222,7 @@ mod tests {
         let _ = env_logger::builder()
             .filter_level(log::LevelFilter::Info)
             .filter_module("egg", log::LevelFilter::Error)
+            .filter_module("mig_egg::extract::faster_ilp_cbc", log::LevelFilter::Off)
             .is_test(true)
             .try_init();
         /*
@@ -1317,6 +1319,7 @@ mod tests {
         let _ = env_logger::builder()
             .filter_level(log::LevelFilter::Info)
             .filter_module("egg", log::LevelFilter::Error)
+            .filter_module("mig_egg::extract::faster_ilp_cbc", log::LevelFilter::Off)
             .is_test(true)
             .try_init();
         /*

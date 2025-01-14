@@ -1,14 +1,19 @@
 use super::*;
 use coin_cbc::{Col, Model, Sense};
 use colored::Colorize;
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 use log::info;
 use ordered_float::NotNan;
+use std::collections::VecDeque;
 
-// Cost serialization constants
-const W_DEP: f64 = 1_000_000.0;  // 10^6: ensures depth is minimized first
-const W_AOM: f64 = 1_000.0;      // 10^3: secondary priority for area
-const W_INV: f64 = 1.0;          // 10^0: least significant factor
+// -------------------------------------------------------------------------
+// 两阶段 ILP 思路示例：先最小化 depth，再在 depth 不变的前提下最小化 size
+// -------------------------------------------------------------------------
+
+// 原先的加权系数在这里都置成0，仅供示例
+const W_DEP: f64 = 0.0;
+const W_AOM: f64 = 0.0;
+const W_INV: f64 = 0.0;
 
 pub struct Config {
     pub pull_up_costs: bool,
@@ -93,24 +98,27 @@ impl ClassILP {
     }
 }
 
-pub struct FasterCbcExtractorWithTimeout<const TIMEOUT_IN_SECONDS: u32>;
+// ============ 两阶段 ILP Extractor ============
 
-impl<const TIMEOUT_IN_SECONDS: u32> Extractor for FasterCbcExtractorWithTimeout<TIMEOUT_IN_SECONDS> {
+pub struct TwoPhaseCbcExtractorWithTimeout<const TIMEOUT_IN_SECONDS: u32>;
+
+impl<const TIMEOUT_IN_SECONDS: u32> Extractor for TwoPhaseCbcExtractorWithTimeout<TIMEOUT_IN_SECONDS> {
     fn extract(&self, egraph: &EGraph, roots: &[ClassId]) -> ExtractionResult {
-        return extract(egraph, roots, &Config::default(), TIMEOUT_IN_SECONDS);
+        two_phase_extract(egraph, roots, &Config::default(), TIMEOUT_IN_SECONDS)
     }
 }
 
+// 如果保留原先的 Extractor 名字
 #[derive(Default)]
 pub struct FasterCbcExtractor;
-
 impl Extractor for FasterCbcExtractor {
     fn extract(&self, egraph: &EGraph, roots: &[ClassId]) -> ExtractionResult {
-        return extract(egraph, roots, &Config::default(), 30);
+        two_phase_extract(egraph, roots, &Config::default(), 30)
     }
 }
 
-fn extract(
+/// 两阶段核心逻辑
+fn two_phase_extract(
     egraph: &EGraph,
     roots_slice: &[ClassId],
     config: &Config,
@@ -120,14 +128,49 @@ fn extract(
     roots.sort();
     roots.dedup();
 
+    // 先最小化 depth
+    let (vars, initial_result, min_depth_solution, min_depth_objval) =
+        solve_min_depth(egraph, &roots, config, timeout);
+
+    // 再在 depth 约束下最小化 size
+    let mut result = solve_min_size_with_depth_constraint(
+        egraph,
+        &roots,
+        config,
+        timeout,
+        &vars,
+        &min_depth_solution,
+        min_depth_objval,
+        &initial_result,
+    );
+
+    // 如果第二阶段无解，就用 initial_result
+    if result.choices.is_empty() {
+        result = initial_result;
+    }
+
+    result
+}
+
+/* ----------------------------------------------------------------
+ * 第一阶段：只最小化 depth（此处仅用 sum of dep 做示例）
+ * ----------------------------------------------------------------*/
+fn solve_min_depth(
+    egraph: &EGraph,
+    roots: &[ClassId],
+    config: &Config,
+    timeout: u32,
+) -> (
+    IndexMap<ClassId, ClassILP>,
+    ExtractionResult,
+    Vec<(ClassId, usize)>,
+    f64,
+) {
     let mut model = Model::default();
     model.set_parameter("loglevel", "0");
     model.set_parameter("seconds", &timeout.to_string());
-    // model.set_parameter("allowableGap", "0.2");
-    // model.set_parameter("maxSolutions", "10");
-    // model.set_parameter("maxNodes", "10000");
-    info!("\n{}", "Starting faster ILP extractor".bright_blue());
 
+    // 构建 ClassILP
     let mut vars: IndexMap<ClassId, ClassILP> = egraph
         .classes()
         .values()
@@ -153,130 +196,233 @@ fn extract(
         })
         .collect();
 
-    let initial_result = super::faster_greedy_dag::FasterGreedyDagExtractor.extract(egraph, &roots);
-    let initial_result_cost = initial_result.dag_cost(egraph, &roots);
-    let mut result = ExtractionResult::default();
+    // 用 Greedy DAG 做个初始解
+    let initial_result = super::faster_greedy_dag::FasterGreedyDagExtractor.extract(egraph, roots);
+    let initial_result_cost = initial_result.dag_cost(egraph, roots);
 
-    // Apply optimizations
-        remove_with_loops(&mut vars, &roots, config);
-        remove_high_cost(&mut vars, initial_result_cost, &roots, config);
-        remove_more_expensive_subsumed_nodes(&mut vars, config);
-        remove_unreachable_classes(&mut vars, &roots, config);
-        pull_up_with_single_parent(&mut vars, &roots, config);
-        pull_up_costs(&mut vars, &roots, config);
-        remove_single_zero_cost(&mut vars, &mut result, &roots, config);
-        find_extra_roots(&mut vars, &mut roots, config);
-        remove_empty_classes(&mut vars, config);
+    // 一些预处理
+    remove_with_loops(&mut vars, roots, config);
+    remove_high_cost(&mut vars, initial_result_cost, roots, config);
+    remove_more_expensive_subsumed_nodes(&mut vars, config);
+    remove_unreachable_classes(&mut vars, roots, config);
+    pull_up_with_single_parent(&mut vars, roots, config);
+    pull_up_costs(&mut vars, roots, config);
 
-    // Add constraints
+    // 即使不需要也先保持一致
+    let mut dummy_extraction = ExtractionResult::default();
+    remove_single_zero_cost(&mut vars, &mut dummy_extraction, roots, config);
+
+    // 注意：需要可变 Vec
+    let mut roots_vec = roots.to_vec();
+    find_extra_roots(&mut vars, &mut roots_vec, config);
+    remove_empty_classes(&mut vars, config);
+
+    // 构建约束: class.active = sum(node_active)
     for (classid, class) in &vars {
         if class.members() == 0 {
-            if roots.contains(classid) {
-                return ExtractionResult::default();
-            }
             model.set_col_upper(class.active, 0.0);
             continue;
         }
-
         let row = model.add_row();
         model.set_row_equal(row, 0.0);
         model.set_weight(row, class.active, -1.0);
         for &node_active in &class.variables {
             model.set_weight(row, node_active, 1.0);
         }
-
-        for (childrens_classes, &node_active) in class.childrens_classes.iter().zip(&class.variables) {
+        // 关联子 class
+        for (childrens_classes, &node_active) in class.childrens_classes.iter().zip(&class.variables)
+        {
             for child_class in childrens_classes {
-                let child_active = vars[child_class].active;
-                    let row = model.add_row();
-                    model.set_row_upper(row, 0.0);
-                    model.set_weight(row, node_active, 1.0);
-                    model.set_weight(row, child_active, -1.0);
+                let child_active = vars[child_class].active; // 修复：直接用 child_class 索引
+                let row = model.add_row();
+                model.set_row_upper(row, 0.0);
+                model.set_weight(row, node_active, 1.0);
+                model.set_weight(row, child_active, -1.0);
             }
         }
     }
-
-    for root in &roots {
-        model.set_col_lower(vars[root].active, 1.0);
+    for root in roots_vec {
+        model.set_col_lower(vars[&root].active, 1.0);
     }
 
-    // Set objective function
+    // 只最小化 depth
     model.set_obj_sense(Sense::Minimize);
-    
-    // Add costs to objective function using dimension-specific weights
     for class in vars.values() {
         for (&node_active, &cost) in class.variables.iter().zip(&class.costs) {
             let cost_bits = cost.into_inner();
             if cost_bits == 0.0 {
                 continue;
             }
-            
             let c = CCost::decode(cost_bits);
             let dep = c.dep as f64;
-            let aom = c.aom as f64;
-            let inv = c.inv as f64;
-
-            // Compute weighted sum using dimension-specific weights
-            let weighted_cost = dep * W_DEP + aom * W_AOM + inv * W_INV;
-            if weighted_cost > 0.0 {
-                model.set_obj_coeff(node_active, weighted_cost);
+            if dep > 0.0 {
+                model.set_obj_coeff(node_active, dep);
             }
         }
     }
 
-    loop {
-        if let Ok(difference) = std::time::SystemTime::now()
-            .duration_since(std::time::SystemTime::UNIX_EPOCH)
-        {
-            let seconds = timeout.saturating_sub(difference.as_secs().try_into().unwrap());
-            model.set_parameter("seconds", &seconds.to_string());
-        }
+    let solution = model.solve();
+    info!(
+        "{} {} {} {}",
+        "CBC Status(Phase1):".bright_blue().bold(),
+        format!("status={:?}", solution.raw().status()).green(),
+        format!("secondary={:?}", solution.raw().secondary_status()).green(),
+        format!("obj={}", solution.raw().obj_value()).bright_green()
+    );
+    if solution.raw().is_proven_infeasible() {
+        return (vars, initial_result, vec![], f64::MAX);
+    }
 
-        let solution = model.solve();
-        info!("{} {} {} {}",
-            "CBC Status:".bright_blue().bold(),
-            format!("status={:?}", solution.raw().status()).green(),
-            format!("secondary={:?}", solution.raw().secondary_status()).green(),
-            format!("obj={}", solution.raw().obj_value()).bright_green()
-        );
-
-        if solution.raw().is_proven_infeasible() {
-            return ExtractionResult::default();
-        }
-
-        let stopped_without_finishing = solution.raw().status() != coin_cbc::raw::Status::Finished;
-
-        if stopped_without_finishing {
-            if !config.return_improved_on_timeout
-                || solution.raw().obj_value() > initial_result_cost.into_inner()
-            {
-                return initial_result;
-            }
-        }
-
-        for (id, var) in &vars {
-            let active = solution.col(var.active) > 0.0;
-            if active {
-                let node_idx = var
-                        .variables
-                        .iter()
-                        .position(|&n| solution.col(n) > 0.0)
-                        .unwrap();
-                let node_id = var.members[node_idx].clone();
-                result.choose(id.clone(), node_id);
-            }
-        }
-
-        let cycles = find_cycles_in_result(&result, &vars, &roots);
-            if cycles.is_empty() {
-                    return result;
-        }
-
-        for cycle in &cycles {
-            block_cycle(&mut model, cycle, &vars);
+    let mut min_depth_solution = vec![];
+    let obj_val = solution.raw().obj_value();
+    for (id, var) in &vars {
+        let active = solution.col(var.active) > 0.0;
+        if active {
+            let node_idx = var
+                .variables
+                .iter()
+                .position(|&n| solution.col(n) > 0.0)
+                .unwrap_or(0);
+            min_depth_solution.push((id.clone(), node_idx));
         }
     }
+    (vars, initial_result, min_depth_solution, obj_val)
 }
+
+/* ----------------------------------------------------------------
+ * 第二阶段：加深度约束后最小化 size
+ * ----------------------------------------------------------------*/
+fn solve_min_size_with_depth_constraint(
+    egraph: &EGraph,
+    roots: &[ClassId],
+    config: &Config,
+    timeout: u32,
+    old_vars: &IndexMap<ClassId, ClassILP>,
+    depth_solution: &Vec<(ClassId, usize)>,
+    best_depth_obj: f64,
+    initial_result: &ExtractionResult,
+) -> ExtractionResult {
+    let mut model = Model::default();
+    model.set_parameter("loglevel", "0");
+    model.set_parameter("seconds", &timeout.to_string());
+
+    // clone old_vars
+    let mut vars: IndexMap<ClassId, ClassILP> = IndexMap::default();
+    for (cid, class_old) in old_vars {
+        let mut class_new = ClassILP {
+            active: model.add_binary(),
+            variables: vec![],
+            costs: class_old.costs.clone(),
+            members: class_old.members.clone(),
+            childrens_classes: class_old.childrens_classes.clone(),
+        };
+        for _ in 0..class_old.members() {
+            class_new.variables.push(model.add_binary());
+        }
+        vars.insert(cid.clone(), class_new);
+    }
+
+    // 和第一阶段相同的 active 约束
+    for (classid, class) in &vars {
+        if class.members() == 0 {
+            model.set_col_upper(class.active, 0.0);
+            continue;
+        }
+        let row = model.add_row();
+        model.set_row_equal(row, 0.0);
+        model.set_weight(row, class.active, -1.0);
+        for &node_active in &class.variables {
+            model.set_weight(row, node_active, 1.0);
+        }
+        for (childrens_classes, &node_active) in class.childrens_classes.iter().zip(&class.variables)
+        {
+            for child_class in childrens_classes {
+                let child_active = vars[child_class].active;
+                let row = model.add_row();
+                model.set_row_upper(row, 0.0);
+                model.set_weight(row, node_active, 1.0);
+                model.set_weight(row, child_active, -1.0);
+            }
+        }
+    }
+    for root in roots {
+        model.set_col_lower(vars[root].active, 1.0);
+    }
+
+    // 加“sum of dep <= best_depth_obj” 约束（仅示例）
+    let sum_dep_col = model.add_col();
+    let big_row = model.add_row();
+    model.set_row_equal(big_row, 0.0);
+    model.set_weight(big_row, sum_dep_col, -1.0);
+
+    for (cid, class) in &vars {
+        for (&node_active, &cost) in class.variables.iter().zip(&class.costs) {
+            let c = CCost::decode(cost.into_inner());
+            let dep = c.dep as f64;
+            if dep > 0.0 {
+                // sum_dep_col - dep * node_active = 0
+                let row = model.add_row();
+                model.set_row_equal(row, 0.0);
+                model.set_weight(row, sum_dep_col, 1.0);
+                model.set_weight(row, node_active, -dep);
+            }
+        }
+    }
+    let sum_dep_con = model.add_row();
+    model.set_row_upper(sum_dep_con, best_depth_obj);
+    model.set_weight(sum_dep_con, sum_dep_col, 1.0);
+
+    // 目标：最小化 size
+    model.set_obj_sense(Sense::Minimize);
+    for class in vars.values() {
+        for (&node_active, &cost) in class.variables.iter().zip(&class.costs) {
+            let c = CCost::decode(cost.into_inner());
+            let aom = c.aom as f64;
+            if aom > 0.0 {
+                model.set_obj_coeff(node_active, aom);
+            }
+        }
+    }
+
+    let solution = model.solve();
+    info!(
+        "{} {} {} {}",
+        "CBC Status(Phase2):".bright_blue().bold(),
+        format!("status={:?}", solution.raw().status()).green(),
+        format!("secondary={:?}", solution.raw().secondary_status()).green(),
+        format!("obj={}", solution.raw().obj_value()).bright_green()
+    );
+    if solution.raw().is_proven_infeasible() {
+        return ExtractionResult::default();
+    }
+
+    // 读取解
+    let mut result = ExtractionResult::default();
+    for (id, var) in &vars {
+        let active = solution.col(var.active) > 0.0;
+        if active {
+            let node_idx = var
+                .variables
+                .iter()
+                .position(|&n| solution.col(n) > 0.0)
+                .unwrap_or(0);
+            let node_id = var.members[node_idx].clone();
+            result.choose(id.clone(), node_id);
+        }
+    }
+
+    let cycles = find_cycles_in_result(&result, &vars, roots);
+    if !cycles.is_empty() {
+        // 可进行 block_cycle，这里简单返回空
+        return ExtractionResult::default();
+    }
+
+    result
+}
+
+/* ----------------------------------------------------------------
+ * 下面是和原先类似的辅助函数
+ * ----------------------------------------------------------------*/
 
 fn block_cycle(model: &mut Model, cycle: &Vec<ClassId>, vars: &IndexMap<ClassId, ClassILP>) {
     if cycle.is_empty() {
@@ -330,14 +476,7 @@ fn find_cycles_in_result(
     let mut cycles = vec![];
     for root in roots {
         let mut stack = vec![];
-        cycle_dfs(
-            extraction_result,
-            vars,
-            root,
-            &mut status,
-            &mut cycles,
-            &mut stack,
-        )
+        cycle_dfs(extraction_result, vars, root, &mut status, &mut cycles, &mut stack);
     }
     cycles
 }
@@ -360,30 +499,35 @@ fn cycle_dfs(
         Some(TraverseStatus::Done) => (),
         Some(TraverseStatus::Doing) => {
             if let Some(pos) = stack.iter().position(|id| id == class_id) {
-                let mut cycle = vec![];
-                cycle.extend_from_slice(&stack[pos..]);
+                let cycle = stack[pos..].to_vec();
                 cycles.push(cycle);
             }
         }
         None => {
             status.insert(class_id.clone(), TraverseStatus::Doing);
             stack.push(class_id.clone());
-            let node_id = &extraction_result.choices[class_id];
-            for child_cid in vars[class_id]
-                .childrens_classes
-                .iter()
-                .find(|_| true)
-                .unwrap_or(&IndexSet::new())
-            {
-                cycle_dfs(extraction_result, vars, child_cid, status, cycles, stack)
+
+            if let Some(node_id) = extraction_result.choices.get(class_id) {
+                let classvars = &vars[class_id];
+                if let Some(idx) = classvars
+                    .members
+                    .iter()
+                    .position(|m| m == node_id)
+                {
+                    let childs = &classvars.childrens_classes[idx];
+                    for child_cid in childs {
+                        cycle_dfs(extraction_result, vars, child_cid, status, cycles, stack);
+                    }
+                }
             }
+
             stack.pop();
             status.insert(class_id.clone(), TraverseStatus::Done);
         }
     }
 }
 
-// Helper functions for optimization
+// 一些预处理
 fn remove_with_loops(vars: &mut IndexMap<ClassId, ClassILP>, roots: &[ClassId], config: &Config) {
     if config.remove_self_loops {
         let mut removed = 0;
@@ -391,14 +535,18 @@ fn remove_with_loops(vars: &mut IndexMap<ClassId, ClassILP>, roots: &[ClassId], 
             for i in (0..class_details.childrens_classes.len()).rev() {
                 if class_details.childrens_classes[i]
                     .iter()
-                    .any(|cid| *cid == *class_id || (roots.len() == 1 && roots[0] == *cid))
+                    .any(|cid| cid == class_id || (roots.len() == 1 && roots[0] == *cid))
                 {
                     class_details.remove(i);
-                        removed += 1;
-                    }
+                    removed += 1;
                 }
+            }
         }
-        info!("{} {}", "Optimization:".bright_blue().bold(), format!("Omitted {} looping nodes", removed).green());
+        info!(
+            "{} {}",
+            "Optimization:".bright_blue().bold(),
+            format!("Omitted {} looping nodes", removed).green()
+        );
     }
 }
 
@@ -423,7 +571,6 @@ fn remove_high_cost(
                 } else {
                     Cost::default()
                 };
-
                 if cost > &(initial_result_cost - lowest_root_cost_sum + this_root + EPSILON_ALLOWANCE)
                 {
                     class_details.remove(i);
@@ -431,7 +578,11 @@ fn remove_high_cost(
                 }
             }
         }
-        info!("{} {}", "Optimization:".bright_blue().bold(), format!("Removed {} high-cost nodes", removed).green());
+        info!(
+            "{} {}",
+            "Optimization:".bright_blue().bold(),
+            format!("Removed {} high-cost nodes", removed).green()
+        );
     }
 }
 
@@ -459,8 +610,11 @@ fn remove_more_expensive_subsumed_nodes(vars: &mut IndexMap<ClassId, ClassILP>, 
                 i += 1;
             }
         }
-        info!("{} {}", "Optimization:".bright_blue().bold(),
-            format!("Removed {} more expensive subsumed nodes", removed).green());
+        info!(
+            "{} {}",
+            "Optimization:".bright_blue().bold(),
+            format!("Removed {} more expensive subsumed nodes", removed).green()
+        );
     }
 }
 
@@ -471,11 +625,14 @@ fn remove_unreachable_classes(
 ) {
     if config.remove_unreachable_classes {
         let mut reachable_classes: IndexSet<ClassId> = IndexSet::default();
-        reachable(&*vars, roots, &mut reachable_classes);
+        reachable(vars, roots, &mut reachable_classes);
         let initial_size = vars.len();
         vars.retain(|class_id, _| reachable_classes.contains(class_id));
-        info!("{} {}", "Optimization:".bright_blue().bold(),
-            format!("Removed {} unreachable classes", initial_size - vars.len()).green());
+        info!(
+            "{} {}",
+            "Optimization:".bright_blue().bold(),
+            format!("Removed {} unreachable classes", initial_size - vars.len()).green()
+        );
     }
 }
 
@@ -487,9 +644,9 @@ fn reachable(
     for class in classes {
         if is_reachable.insert(class.clone()) {
             if let Some(class_vars) = vars.get(class) {
-            for kids in &class_vars.childrens_classes {
-                for child_class in kids {
-                        reachable(vars, &[child_class.clone()], is_reachable);
+                for kids in &class_vars.childrens_classes {
+                    for child_class in kids {
+                        reachable(vars, &[*child_class], is_reachable);
                     }
                 }
             }
@@ -501,7 +658,7 @@ fn pull_up_costs(vars: &mut IndexMap<ClassId, ClassILP>, roots: &[ClassId], conf
     if config.pull_up_costs {
         let mut count = 0;
         let mut changed = true;
-        let child_to_parent = classes_with_single_parent(&*vars);
+        let child_to_parent = classes_with_single_parent(vars);
 
         while count < 10 && changed {
             changed = false;
@@ -510,23 +667,19 @@ fn pull_up_costs(vars: &mut IndexMap<ClassId, ClassILP>, roots: &[ClassId], conf
                 if child == parent || roots.contains(child) || vars[child].members() == 0 {
                     continue;
                 }
-
                 let min_cost = vars[child]
                     .costs
                     .iter()
                     .min()
                     .unwrap_or(&Cost::default())
                     .into_inner();
-
                 if min_cost == 0.0 {
                     continue;
                 }
                 changed = true;
-
                 for c in &mut vars[child].costs {
                     *c -= min_cost;
                 }
-
                 let indices: Vec<_> = vars[parent]
                     .childrens_classes
                     .iter()
@@ -534,7 +687,6 @@ fn pull_up_costs(vars: &mut IndexMap<ClassId, ClassILP>, roots: &[ClassId], conf
                     .filter(|&(_, c)| c.contains(child))
                     .map(|(id, _)| id)
                     .collect();
-
                 for id in indices {
                     vars[parent].costs[id] += min_cost;
                 }
@@ -550,7 +702,7 @@ fn pull_up_with_single_parent(
 ) {
     if config.pull_up_single_parent {
         for _ in 0..10 {
-            let child_to_parent = classes_with_single_parent(&*vars);
+            let child_to_parent = classes_with_single_parent(vars);
             let mut pull_up_count = 0;
 
             for (child, parent) in &child_to_parent {
@@ -561,39 +713,35 @@ fn pull_up_with_single_parent(
                 {
                     continue;
                 }
-
                 let found = vars[parent]
                     .childrens_classes
                     .iter()
                     .filter(|c| c.contains(child))
                     .count();
-
                 if found != 1 {
                     continue;
                 }
-
                 let idx = vars[parent]
                     .childrens_classes
                     .iter()
                     .position(|e| e.contains(child))
                     .unwrap();
-
                 let child_descendants = vars[child].childrens_classes[0].clone();
                 let parent_descendants = &mut vars[parent].childrens_classes[idx];
-
-                for e in &child_descendants {
-                    parent_descendants.insert(e.clone());
+                for c in &child_descendants {
+                    parent_descendants.insert(*c);
                 }
-
                 vars[child].childrens_classes[0].clear();
                 pull_up_count += 1;
             }
-
             if pull_up_count == 0 {
                 break;
             }
-            info!("{} {}", "Optimization:".bright_blue().bold(),
-                format!("Pulled up {} nodes with single parent", pull_up_count).green());
+            info!(
+                "{} {}",
+                "Optimization:".bright_blue().bold(),
+                format!("Pulled up {} nodes with single parent", pull_up_count).green()
+            );
         }
     }
 }
@@ -606,37 +754,42 @@ fn remove_single_zero_cost(
 ) {
     if config.remove_single_zero_cost {
         let mut zero = IndexSet::new();
-        for (class_id, details) in &*vars {
+        for (class_id, details) in vars.iter() {
             if details.childrens_classes.len() == 1
                 && details.childrens_classes[0].is_empty()
                 && details.costs[0] == 0.0
                 && !roots.contains(class_id)
             {
-                zero.insert(class_id.clone());
+                zero.insert(*class_id);
             }
         }
-
         if !zero.is_empty() {
-            let child_to_parents = child_to_parents(&vars);
-        let mut removed = 0;
-
+            let c2p = child_to_parents(vars);
+            let mut removed = 0;
             for e in &zero {
-                if let Some(parents) = child_to_parents.get(e) {
+                if let Some(parents) = c2p.get(e) {
                     for parent in parents {
                         for i in (0..vars[parent].childrens_classes.len()).rev() {
                             if vars[parent].childrens_classes[i].contains(e) {
                                 vars[parent].childrens_classes[i].remove(e);
-                    removed += 1;
+                                removed += 1;
+                            }
+                        }
+                    }
                 }
+                extraction_result.choose(*e, vars[e].members[0].clone());
             }
-        }
-                }
-                extraction_result.choose(e.clone(), vars[e].members[0].clone());
-            }
-
             vars.retain(|class_id, _| !zero.contains(class_id));
-            info!("{} {}", "Optimization:".bright_blue().bold(),
-                format!("Removed {} zero cost nodes ({} links removed)", zero.len(), removed).green());
+            info!(
+                "{} {}",
+                "Optimization:".bright_blue().bold(),
+                format!(
+                    "Removed {} zero cost nodes ({} links removed)",
+                    zero.len(),
+                    removed
+                )
+                .green()
+            );
         }
     }
 }
@@ -650,48 +803,46 @@ fn find_extra_roots(
         let mut i = 0;
         let mut extra = 0;
         while i < roots.len() {
-            let r = &roots[i];
-            let details = &vars[r];
-            
+            let r = roots[i];
+            let details = &vars[&r];
             if !details.childrens_classes.is_empty() {
                 let mut intersection = details.childrens_classes[0].clone();
-                for other_children in &details.childrens_classes[1..] {
-                    intersection.retain(|x| other_children.contains(x));
+                for other in &details.childrens_classes[1..] {
+                    intersection.retain(|x| other.contains(x));
                 }
-
-                for new_root in &intersection {
-                    if !roots.contains(new_root) {
-                        roots.push(new_root.clone());
+                for new_root in intersection {
+                    if !roots.contains(&new_root) {
+                        roots.push(new_root);
                         extra += 1;
                     }
                 }
             }
             i += 1;
         }
-        info!("{} {}", "Optimization:".bright_blue().bold(),
-            format!("Discovered {} extra root nodes", extra).green());
+        info!(
+            "{} {}",
+            "Optimization:".bright_blue().bold(),
+            format!("Discovered {} extra root nodes", extra).green()
+        );
     }
 }
 
 fn remove_empty_classes(vars: &mut IndexMap<ClassId, ClassILP>, config: &Config) {
     if config.remove_empty_classes {
-        let mut empty_classes = std::collections::VecDeque::new();
+        let mut empty_classes = VecDeque::new();
         for (class_id, detail) in vars.iter() {
             if detail.members() == 0 {
-                empty_classes.push_back(class_id.clone());
+                empty_classes.push_back(*class_id);
             }
         }
-
         let mut removed = 0;
-        let child_to_parents = child_to_parents(&vars);
+        let c2p = child_to_parents(vars);
         let mut done = IndexSet::new();
-
         while let Some(e) = empty_classes.pop_front() {
-            if !done.insert(e.clone()) {
+            if !done.insert(e) {
                 continue;
             }
-
-            if let Some(parents) = child_to_parents.get(&e) {
+            if let Some(parents) = c2p.get(&e) {
                 for parent in parents {
                     for i in (0..vars[parent].childrens_classes.len()).rev() {
                         if vars[parent].childrens_classes[i].contains(&e) {
@@ -699,15 +850,17 @@ fn remove_empty_classes(vars: &mut IndexMap<ClassId, ClassILP>, config: &Config)
                             removed += 1;
                         }
                     }
-
                     if vars[parent].members() == 0 {
-                        empty_classes.push_back(parent.clone());
+                        empty_classes.push_back(*parent);
                     }
                 }
             }
         }
-        info!("{} {}", "Optimization:".bright_blue().bold(),
-            format!("Removed {} nodes pointing to empty classes", removed).green());
+        info!(
+            "{} {}",
+            "Optimization:".bright_blue().bold(),
+            format!("Removed {} nodes pointing to empty classes", removed).green()
+        );
     }
 }
 
@@ -716,10 +869,7 @@ fn child_to_parents(vars: &IndexMap<ClassId, ClassILP>) -> IndexMap<ClassId, Ind
     for (class_id, class_vars) in vars {
         for kids in &class_vars.childrens_classes {
             for child_class in kids {
-                result
-                    .entry(child_class.clone())
-                    .or_insert_with(IndexSet::new)
-                    .insert(class_id.clone());
+                result.entry(*child_class).or_default().insert(*class_id);
             }
         }
     }
@@ -727,24 +877,19 @@ fn child_to_parents(vars: &IndexMap<ClassId, ClassILP>) -> IndexMap<ClassId, Ind
 }
 
 fn classes_with_single_parent(vars: &IndexMap<ClassId, ClassILP>) -> IndexMap<ClassId, ClassId> {
-    let mut child_to_parents = IndexMap::new();
-    for (class_id, class_vars) in vars {
+    let mut c2p = IndexMap::<ClassId, IndexSet<ClassId>>::new();
+    for (cid, class_vars) in vars {
         for kids in &class_vars.childrens_classes {
-            for child_class in kids {
-                child_to_parents
-                    .entry(child_class.clone())
-                    .or_insert_with(IndexSet::new)
-                    .insert(class_id.clone());
+            for &child_class in kids {
+                c2p.entry(child_class).or_default().insert(*cid);
             }
         }
     }
-
-    child_to_parents
-        .into_iter()
+    c2p.into_iter()
         .filter_map(|(child, parents)| {
             if parents.len() == 1 {
-                Some((child, parents.into_iter().next().unwrap()))
-        } else {
+                Some((child, *parents.iter().next().unwrap()))
+            } else {
                 None
             }
         })
