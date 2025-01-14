@@ -103,7 +103,9 @@ impl ClassILP {
 /// First minimize size, then minimize depth while keeping size constant
 pub struct TwoPhaseCbcExtractorWithTimeout<const TIMEOUT_IN_SECONDS: u32>;
 
-impl<const TIMEOUT_IN_SECONDS: u32> Extractor for TwoPhaseCbcExtractorWithTimeout<TIMEOUT_IN_SECONDS> {
+impl<const TIMEOUT_IN_SECONDS: u32> Extractor
+    for FasterCbcExtractorWithTimeout<TIMEOUT_IN_SECONDS>
+{
     fn extract(&self, egraph: &EGraph, roots: &[ClassId]) -> ExtractionResult {
         two_phase_extract(egraph, roots, &Config::default(), TIMEOUT_IN_SECONDS)
     }
@@ -229,7 +231,8 @@ fn solve_min_size(
             model.set_weight(row, node_active, 1.0);
         }
         // link child classes
-        for (childrens_classes, &node_active) in class.childrens_classes.iter().zip(&class.variables)
+        for (childrens_classes, &node_active) in
+            class.childrens_classes.iter().zip(&class.variables)
         {
             for child_class in childrens_classes {
                 let child_active = vars[child_class].active;
@@ -247,6 +250,7 @@ fn solve_min_size(
 
     // Objective: minimize size(aom)
     model.set_obj_sense(Sense::Minimize);
+  
     for class in vars.values() {
         for (&node_active, &cost) in class.variables.iter().zip(&class.costs) {
             let cost_bits = cost.into_inner();
