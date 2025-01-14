@@ -1,4 +1,5 @@
 use egg::{Id, Language};
+use serde::Serialize;
 use std::ffi::CString;
 use std::fmt;
 use std::iter::Sum;
@@ -837,6 +838,75 @@ pub fn egg_to_serialized_egraph(
     out
 }
 
+/// A new function to clone the e-graph into a serialized JSON structure for ILP,
+/// but using a different cost function that only counts Maj operators, etc.
+pub fn egg_to_serialized_egraph_for_ilp(
+    egraph: &CEGraph,
+    root_id: egg::Id,
+) -> egraph_serialize::EGraph {
+    // Define a local function to assign ILP cost
+    fn cal_ilp_cost(node: &MIG) -> CCost {
+        match node {
+            MIG::Maj(..) => {
+                // count Maj as 1 for area (aom) and also set dep=1
+                // so that phase2 can do "sum_of(dep)" if it wants
+                CCost { dep: 1, aom: 1, inv: 0 }
+            }
+            _ => {
+                // Other nodes are cost-free
+                CCost::default()
+            }
+        }
+    }
+
+    let mut out = egraph_serialize::EGraph::default();
+    let final_root = egraph.find(root_id);
+
+    // Create all classes first
+    for class in egraph.classes() {
+        out.class_data.insert(
+            egraph_serialize::ClassId::from(format!("{}", class.id)),
+            egraph_serialize::ClassData { typ: None },
+        );
+    }
+
+    // Then add each node with the "new ILP cost"
+    for class in egraph.classes() {
+        for (i, node) in class.nodes.iter().enumerate() {
+            // Use our custom ILP cost function
+            let cost_val = cal_ilp_cost(node).encode();
+
+            // Make sure child classes exist
+            for child in node.children() {
+                let cid = egraph_serialize::ClassId::from(format!("{}", child));
+                if !out.class_data.contains_key(&cid) {
+                    out.class_data.insert(cid, egraph_serialize::ClassData { typ: None });
+                }
+            }
+
+            // Add the node
+            out.add_node(
+                format!("{}.{}", class.id, i),
+                egraph_serialize::Node {
+                    op: node.to_string(),
+                    children: node
+                        .children()
+                        .iter()
+                        .map(|id| egraph_serialize::NodeId::from(format!("{}.0", id)))
+                        .collect(),
+                    eclass: egraph_serialize::ClassId::from(format!("{}", class.id)),
+                    cost: egraph_serialize::Cost::new(cost_val).unwrap(),
+                    subsumed: false,
+                },
+            )
+        }
+    }
+
+    // Set the root
+    out.root_eclasses = vec![egraph_serialize::ClassId::from(format!("{}", final_root))];
+    out
+}
+
 /// Find root nodes in the e-graph. Typically, we look for classes that
 /// are not children of any node or contain a Maj as a root operation.
 pub fn find_root_nodes(egraph: &CEGraph) -> Vec<Id> {
@@ -1050,6 +1120,7 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     let saturated_egraph = runner.egraph;
 
     // 3. Convert for ILP/greedy extraction
+    #[cfg(not(feature = "ilp-cbc"))]
     let serialized_egraph = egg_to_serialized_egraph(
         &saturated_egraph,
         &MIGCostFn_dsi::new(&saturated_egraph, unsafe {
@@ -1057,6 +1128,11 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
         }),
         root_id,
     );
+
+    #[cfg(feature = "ilp-cbc")]
+    let serialized_egraph = egg_to_serialized_egraph_for_ilp(&saturated_egraph, root_id);
+
+    serialized_egraph.to_json_file("serd_egraph.json");
 
     // 4. Track best results across all methods
     #[derive(Clone)]
