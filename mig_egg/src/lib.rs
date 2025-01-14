@@ -116,7 +116,7 @@ impl AddAssign for CCost {
 }
 
 impl Sum for CCost {
-    /// Custom summation that merges each CCost pair. 
+    /// Custom summation that merges each CCost pair.
     /// For example, used for iterators of multiple costs.
     fn sum<I>(iter: I) -> Self
     where
@@ -215,8 +215,48 @@ fn to_prefix(expr: &egg::RecExpr<MIG>, var_dep: &[u32]) -> (String, u32, u32, u3
             cur_exp = expr_str.clone();
         }
 
-        // If already visited and we don't need to update children, just return.
-        if existed && !reupdate {
+        if existed {
+            if reupdate {
+                // continue to update children's depth
+                match node {
+                    MIG::And(children) => {
+                        for &child_id in children.iter() {
+                            helper(
+                                expr,
+                                child_id,
+                                inv_count,
+                                ops_count,
+                                visited,
+                                cur_dep + 1,
+                                max_depth,
+                                var_dep,
+                            );
+                        }
+                    }
+                    MIG::Maj(children) => {
+                        for &child_id in children.iter() {
+                            helper(
+                                expr,
+                                child_id,
+                                inv_count,
+                                ops_count,
+                                visited,
+                                cur_dep + 1,
+                                max_depth,
+                                var_dep,
+                            );
+                        }
+                    }
+                    MIG::Not(child_id) => {
+                        helper(
+                            expr, *child_id, inv_count, ops_count, visited, cur_dep, max_depth,
+                            var_dep,
+                        );
+                    }
+                    _ => {}
+                }
+            }
+
             return cur_exp;
         }
 
@@ -346,7 +386,7 @@ type CRewrite = egg::Rewrite<MIG, ConstantFold>;
 #[derive(Default, Clone)]
 pub struct ConstantFold;
 
-/// This implements partial constant folding. 
+/// This implements partial constant folding.
 /// For example, (M 0 1 0) becomes 0, etc.
 impl egg::Analysis<MIG> for ConstantFold {
     type Data = Option<(u8, egg::PatternAst<MIG>)>;
@@ -363,17 +403,19 @@ impl egg::Analysis<MIG> for ConstantFold {
         let result = match enode {
             MIG::Bool(c) => Some((*c, c.to_string().parse().unwrap())),
             MIG::Symbol(_) => None,
-            MIG::And([a, b]) => {
-                Some(((x(a)? & x(b)? == 1) as u8, format!("(& {} {})", x(a)?, x(b)?).parse().unwrap()))
-            }
-            MIG::Maj([a, b, c]) => {
-                Some(((x(a)? + x(b)? + x(c)? > 1) as u8,
-                      format!("(M {} {} {})", x(a)?, x(b)?, x(c)?).parse().unwrap()))
-            }
-            MIG::Not(a) => {
-                Some((1u8 ^ x(a)?, format!("(~ {})", x(a)?).parse().unwrap()))
-            }
+            MIG::And([a, b]) => Some((
+                (x(a)? & x(b)? == 1) as u8,
+                format!("(& {} {})", x(a)?, x(b)?).parse().unwrap(),
+            )),
+            MIG::Maj([a, b, c]) => Some((
+                (x(a)? + x(b)? + x(c)? > 1) as u8,
+                format!("(M {} {} {})", x(a)?, x(b)?, x(c)?)
+                    .parse()
+                    .unwrap(),
+            )),
+            MIG::Not(a) => Some((1u8 ^ x(a)?, format!("(~ {})", x(a)?).parse().unwrap())),
         };
+        // println!("Make: {:?} -> {:?}", enode, result);
         result
     }
 
@@ -492,6 +534,13 @@ impl<'a> egg::CostFunction<MIG> for MIGCostFn_dsi<'a> {
             + enode.fold(Default::default(), |sum, id| {
                 Self::Cost::merge(&sum, &costs(id))
             });
+        /*
+        Self::Cost {
+            dep: op_depth + enode.fold(0, |max, id| max.max(costs(id).dep)),
+            aom: enode.fold(op_area, |sum, id| sum + costs(id).aom),
+            inv: enode.fold(op_inv, |sum, id| sum + costs(id).inv),
+        }
+        */
         new_cost
     }
 }
@@ -525,30 +574,30 @@ macro_rules! rule {
     };
 }
 
-rule! {neg_false, "(~ false)", "true"}
-rule! {neg_true, "(~ true)", "false"}
-rule! {true_false, "1", "(~ 0)"}
-rule! {false_true, "0", "(~ 1)"}
-rule! {double_neg, double_neg_flip, "(~ (~ ?a))", "?a"}
-rule! {neg, neg_flip, "(~ (M ?a ?b ?c))", "(M (~ ?a) (~ ?b) (~ ?c))"}
-rule! {distri, distri_flip, "(M ?a ?b (M ?c ?d ?e))", "(M (M ?a ?b ?c) (M ?a ?b ?d) ?e)"}
-rule! {com_associ, com_associ_flip, "(M ?a ?b (M ?c (~ ?b) ?d))", "(M ?a ?b (M ?c ?a ?d))"}
-rule! {relevance, "(M ?a ?b (M ?c ?d (M ?a ?b ?e)))", "(M ?a ?b (M ?c ?d (M (~ ?b) ?b ?e)))"}
-rule! {associ, "(M ?a ?b (M ?c ?b ?d))", "(M ?d ?b (M ?c ?b ?a))"}
-rule! {comm_lm, "(M ?a ?b ?c)", "(M ?b ?a ?c)"}
-rule! {comm_lr, "(M ?a ?b ?c)", "(M ?c ?b ?a)"}
-rule! {comm_mr, "(M ?a ?b ?c)", "(M ?a ?c ?b)"}
-rule! {maj_2_equ, "(M ?a ?b ?b)", "?b"}
-rule! {maj_2_com, "(M ?a ?b (~ ?b))", "?a"}
+rule! {neg_false,      "(~ 0)",                 "1"    }
+rule! {neg_true,       "(~ 1)",                 "0"    }
+rule! {true_false,     "1",                     "(~ 0)"}
+rule! {false_true,     "0",                     "(~ 1)"}
+rule! {double_neg,     double_neg_flip,         "(~ (~ ?a))",                 "?a"                              }
+rule! {neg,            neg_flip,                "(~ (M ?a ?b ?c))",           "(M (~ ?a) (~ ?b) (~ ?c))"        }
+rule! {distri,         distri_flip,             "(M ?a ?b (M ?c ?d ?e))",     "(M (M ?a ?b ?c) (M ?a ?b ?d) ?e)"}
+rule! {com_associ,     com_associ_flip,         "(M ?a ?b (M ?c (~ ?b) ?d))", "(M ?a ?b (M ?c ?a ?d))"          }
+rule! {relevance,      "(M ?a ?b (M ?c ?d (M ?a ?b ?e)))", "(M ?a ?b (M ?c ?d (M (~ ?b) ?b ?e)))"               }
+rule! {associ,         "(M ?a ?b (M ?c ?b ?d))","(M ?d ?b (M ?c ?b ?a))"}
+rule! {comm_lm,        "(M ?a ?b ?c)",          "(M ?b ?a ?c)"          }
+rule! {comm_lr,        "(M ?a ?b ?c)",          "(M ?c ?b ?a)"          }
+rule! {comm_mr,        "(M ?a ?b ?c)",          "(M ?a ?c ?b)"          }
+rule! {maj_2_equ,      "(M ?a ?b ?b)",          "?b"                    }
+rule! {maj_2_com,      "(M ?a ?b (~ ?b))",      "?a"                    }
 
-// AND-related rewrites
-rule! {associ_and, "(& ?a (& ?b ?c))", "(& ?b (& ?a ?c))"}
-rule! {comm_and, "(& ?a ?b)", "(& ?b ?a)"}
-rule! {comp_and, "(& ?a (~ ?a))", "0"}
-rule! {dup_and, "(& ?a ?a)", "?a"}
-rule! {and_true, "(& ?a 1)", "?a"}
-rule! {and_false, "(& ?a 0)", "0"}
-rule! {maj_dup, "(M ?a ?a ?b)", "?a"}
+rule! {associ_and,     "(& ?a (& ?b ?c))",      "(& ?b (& ?a ?c))"      }
+rule! {comm_and,       "(& ?a ?b)",             "(& ?b ?a)"             }
+rule! {comp_and,       "(& ?a (~ ?a))",         "0"                     }
+rule! {dup_and,        "(& ?a ?a)",             "?a"                    }
+rule! {and_true,       "(& ?a 1)",              "?a"                    }
+rule! {and_false,      "(& ?a 0)",              "0"                     }
+// add (M ?a ?a ?b) => ?a
+rule! {maj_dup,        "(M ?a ?a ?b)",          "?a"                    }
 
 // -----------------------------------------------------------------------------------
 // 9. Simple function for demonstration of equivalence proofs (not strictly needed here).
@@ -582,13 +631,17 @@ fn prove_something(name: &str, start: &str, rewrites: &[CRewrite], goals: &[&str
 }
 
 // -----------------------------------------------------------------------------------
-// 10. FFI interfaces via cxx::bridge for cross-language calls. 
+// 10. FFI interfaces via cxx::bridge for cross-language calls.
 //     We expose 'simplify_depth' and 'simplify_size' plus a deallocation function.
 // -----------------------------------------------------------------------------------
 #[cxx::bridge]
 mod ffi {
     #[derive(Debug, Eq, PartialEq)]
     struct CCost {
+        // bef_expr: String,
+        // bef_dep: u32,
+        // bef_size: u32,
+        // bef_invs: u32,
         aft_expr: String,
         aft_dep: u32,
         aft_size: u32,
@@ -667,12 +720,16 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
         dup_and(),
         and_true(),
         and_false(),
+        true_false(),
+        false_true(),
+        neg_false(),
+        neg_true(),
     ];
 
     // Parse the original expression
     let bef_expr: egg::RecExpr<MIG> = s.parse().unwrap();
 
-    // Prepare the variable depth array 
+    // Prepare the variable depth array
     let vars_default: [u32; 26] = [0; 26];
     let mut vars_: &[u32] = &vars_default;
     if size > 0 {
@@ -694,15 +751,19 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     // Convert the best expression to prefix form to get depth, size, and #inversions
     let (aft_expr, mut aft_dep, aft_size, aft_invs) = to_prefix(&best, &vars_);
     if best_cost.dep != aft_dep {
-        // If there's a mismatch, fix it up:
+        println!(
+            "{} with {:?} to {} with {},{},{}",
+            s, vars_, aft_expr, aft_dep, aft_size, aft_invs
+        );
+        // assert_eq!(best_cost.dep, aft_dep);
         aft_dep = best_cost.dep;
     }
-
+    // let aft_expr = best.to_string();
     ffi::CCost {
-        aft_expr,
-        aft_dep,
-        aft_size,
-        aft_invs,
+        aft_expr: aft_expr,
+        aft_dep: aft_dep,
+        aft_size: aft_size,
+        aft_invs: aft_invs,
     }
 }
 
@@ -830,7 +891,7 @@ pub fn save_serialized_egraph_to_json(
 }
 
 // -----------------------------------------------------------------------------------
-// 14. The second major function: "simplify_size", which uses a DAG-based ILP extractor 
+// 14. The second major function: "simplify_size", which uses a DAG-based ILP extractor
 //     (e.g., "faster_ilp_cbc") to find a minimal node count. We still track depth afterwards.
 // -----------------------------------------------------------------------------------
 pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
@@ -855,9 +916,12 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
         dup_and(),
         and_true(),
         and_false(),
-        // true_false(),
-        // false_true(),
+        true_false(),
+        false_true(),
+        neg_false(),
+        neg_true(),
     ];
+    // parse the expression, the type annotation tells it which Language to use
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
 
     let vars_default: [u32; 26] = [0; 26];
@@ -866,13 +930,16 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
         vars_ = unsafe { std::slice::from_raw_parts(vars, size) };
     }
 
+    // create an e-graph with the given expression
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
         .with_iter_limit(1000)
         .with_node_limit(5000)
         .with_time_limit(std::time::Duration::from_secs(10));
-
+    // the Runner knows which e-class the expression given with `with_expr` is in
     let root_id = runner.roots[0];
+
+    // simplify the expression using a Runner, which runs the given rules over it
     runner = runner.run(all_rules);
     let saturated_egraph = runner.egraph;
 
@@ -888,15 +955,17 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
     #[cfg(not(feature = "ilp-cbc"))]
     let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
-
+    // let extractor = extract::faster_greedy_dag::FasterGreedyDagExtractor {};
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
-    let dag_cost_size = extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_depth = extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_size =
+        extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_depth =
+        extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
 
     ffi::CCost {
-        aft_expr,
+        aft_expr: aft_expr,
         aft_dep: dag_cost_depth,
         aft_size: dag_cost_size,
         aft_invs: 0,
@@ -933,22 +1002,24 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
         dup_and(),
         and_true(),
         and_false(),
+        true_false(),
+        false_true(),
         neg_false(),
         neg_true(),
         maj_dup(),
     ];
 
     // Convert the var_dep to a raw pointer if needed
-    let mut vars_ = var_dep.as_ptr();
-    let mut var_len = var_dep.len();
-    if var_dep.is_empty() {
-        static DEFAULTS: [u32; 26] = [0; 26];
-        vars_ = DEFAULTS.as_ptr();
-        var_len = 26;
+    let vars_default: [u32; 26] = [0; 26];
+    let mut vars_ = vars_default.as_ptr();
+    let mut var_len = 26;
+    if !var_dep.is_empty() {
+        vars_ = var_dep.as_ptr();
+        var_len = var_dep.len();
     }
 
     // 1. Simplify with tree-based approach and get cost
-    let cost_depth = unsafe { simplify_depth(s, vars_, var_len) };
+    let cost_depth = simplify_depth(s, vars_, var_len);
     println!("\nBaseline (simplify_depth) {}", cost_depth);
 
     // 2. Build and saturate an e-graph
@@ -958,8 +1029,8 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
         .with_iter_limit(1000)
         .with_node_limit(5000)
         .with_time_limit(std::time::Duration::from_secs(10));
-
     let root_id = runner.roots[0];
+
     runner = runner.run(all_rules);
     let saturated_egraph = runner.egraph;
 
@@ -979,40 +1050,47 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     let extractor = extract::faster_greedy_dag::FasterGreedyDagExtractor {};
 
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_size = extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_depth = extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_size =
+        extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_depth =
+        extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
 
     println!(
-        "DAG-based (faster ILP/greedy) - expr: {} , depth: {}, size: {}",
+        "DAG-based (faster ILP/greedy) - expr: {}, depth: {}, size: {}",
         aft_expr, dag_cost_depth, dag_cost_size
     );
 
     // Another extractor for demonstration
     let extractor1 = extract::bottom_up::BottomUpExtractor {};
-    let extraction_result1 = extractor1.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_size1 = extraction_result1.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_depth1 = extraction_result1.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let extraction_result1 =
+        extractor1.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_size1 =
+        extraction_result1.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_depth1 =
+        extraction_result1.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr1 = extraction_result1.print_aft_expr(&serialized_egraph);
 
     println!(
-        "DAG-based (bottom-up)         - expr: {} , depth: {}, size: {}",
+        "DAG-based (bottom-up)         - expr: {}, depth: {}, size: {}",
         aft_expr1, dag_cost_depth1, dag_cost_size1
     );
 
     let extractor2 = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
-    let extraction_result2 = extractor2.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_size2 = extraction_result2.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_depth2 = extraction_result2.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let extraction_result2 =
+        extractor2.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_size2 =
+        extraction_result2.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_depth2 =
+        extraction_result2.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr2 = extraction_result2.print_aft_expr(&serialized_egraph);
 
     println!(
-        "DAG-based (global greedy)     - expr: {} , depth: {}, size: {}",
+        "DAG-based (global greedy)     - expr: {}, depth: {}, size: {}",
         aft_expr2, dag_cost_depth2, dag_cost_size2
     );
     // print new lines
-    println!("---------------------------------------------------");
-    println!("\n\n");
+    println!("---------------------------------------------------\n");
 }
 
 // -----------------------------------------------------------------------------------
@@ -1023,6 +1101,111 @@ mod tests {
     use super::*;
 
     #[test]
+    fn prove_chain() {
+        /*
+        let rules = &[
+            // rules needed for contrapositive
+            double_neg(),
+            double_neg_flip(),
+            neg(),
+            neg_flip(),
+            // and some others
+            distri(),
+            distri_flip(),
+            com_associ(),
+            com_associ_flip(),
+            associ(),
+            comm_lm(),
+            comm_lr(),
+            comm_mr(),
+            maj_2_equ(),
+            maj_2_com(),
+        ];
+        prove_something(
+            "chain",
+            "(M x 0 (M y 1 (M u 0 v)))",
+            rules,
+            &["(M x 0 (M y x (M u 0 v)))", "(M (M y x 0) x (M 0 u v))"],
+        );
+        */
+        let empty_vec: Vec<u32> = Vec::new();
+
+        simplify("(& 0 1)", &empty_vec);
+        simplify("(& x 1)", &empty_vec);
+        simplify("(& x (~ 1))", &empty_vec);
+        simplify("(& x (~ x))", &empty_vec);
+        simplify("(& x x)", &empty_vec);
+        simplify("(& (& x b) (& b y))", &empty_vec);
+        simplify("(M 1 1 1)", &empty_vec);
+        simplify("(M 1 1 0)", &empty_vec);
+        simplify("(M 1 0 0)", &empty_vec);
+        simplify("(M 0 0 0)", &empty_vec);
+        simplify("(M x 1 (~ 0))", &empty_vec);
+        simplify("(M a b (M a b c))", &empty_vec);
+        simplify("(M x 0 (M y 1 (M u 0 v)))", &empty_vec);
+        simplify("(M (M w x (~ z)) x (M z x y))", &empty_vec);
+        simplify("(M c (M c d (M e f b)) a)", &empty_vec);
+        simplify("(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))",&empty_vec);
+        simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))",&empty_vec);
+        simplify("(M 0 (~ (M 0 (~ a) b)) (M 0 c (~ d)))", &empty_vec);
+        simplify(
+            "(M (~ 0) (M 0 a (~ (M 0 b (~ c)))) (M 0 (~ a) (M 0 b (~ c))))",
+            &empty_vec,
+        );
+        simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))", &empty_vec);
+        simplify("(M (~ 0) (M (~ e) (M (~ 0) c (M 0 (~ a) b)) (M 0 (M 0 c (M 0 (~ a) b)) (M (~ 0) c (M 0 (~ a) b)))) (M (M 0 (~ d) g) h (M 0 (~ f) h)))",&empty_vec);
+        simplify("(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))",&empty_vec);
+        simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))",&empty_vec);
+        simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))", &vec![0, 0, 2, 2, 4, 6, 5, 7]);
+        simplify(
+            "(M (~ 0) b (M (~ (M a (~ c) e)) f (M 0 d f)))",
+            &vec![0, 0, 3, 4, 2, 4],
+        );
+    }
+
+    #[test]
+    fn const_fold() {
+        let start = "(M 0 1 0)";
+        let start_expr: egg::RecExpr<MIG> = start.parse().unwrap();
+        let end = "0";
+        let end_expr: egg::RecExpr<MIG> = end.parse().unwrap();
+
+        let mut eg: CEGraph = egg::EGraph::default();
+        eg.add_expr(&start_expr);
+        eg.rebuild();
+
+        // We expect "0" to be proven equivalent because (M 0 1 0) should fold to 0
+        assert!(!eg.equivs(&start_expr, &end_expr).is_empty());
+    }
+
+    #[test]
+    fn test_depth() {
+        /*
+        let mut expr = egg::RecExpr::<MIG>::default();
+        let a = expr.add(MIG::Symbol(egg::Symbol::from("a")));
+        let b = expr.add(MIG::Symbol(egg::Symbol::from("b")));
+        let c = expr.add(MIG::Symbol(egg::Symbol::from("c")));
+        let d = expr.add(MIG::Symbol(egg::Symbol::from("d")));
+        let e = expr.add(MIG::Symbol(egg::Symbol::from("e")));
+        let f = expr.add(MIG::Symbol(egg::Symbol::from("f")));
+        let g = expr.add(MIG::Symbol(egg::Symbol::from("g")));
+        let h = expr.add(MIG::Symbol(egg::Symbol::from("h")));
+        let zero = expr.add(MIG::Bool(0));
+
+        let maj1 = expr.add(MIG::Maj([zero, a, b]));
+        let not_a = expr.add(MIG::Not(a));
+        let maj2 = expr.add(MIG::Maj([zero, not_a, b]));
+        let not_e = expr.add(MIG::Not(e));
+        let maj3 = expr.add(MIG::Maj([not_e, maj2, c]));
+        let not_zero = expr.add(MIG::Not(zero));
+        let maj4 = expr.add(MIG::Maj([not_zero, maj3, maj2]));
+        let not_d = expr.add(MIG::Not(d));
+        let maj5 = expr.add(MIG::Maj([zero, not_d, g]));
+        let not_f = expr.add(MIG::Not(f));
+        let maj6 = expr.add(MIG::Maj([zero, not_f, h]));
+        let maj7 = expr.add(MIG::Maj([maj5, h, maj6]));
+        let maj8 = expr.add(MIG::Maj([not_zero, maj4, maj7]));
+        */
     fn test_all() {
         // 1. test_depth
         println!("Running test_depth...");
@@ -1033,33 +1216,52 @@ mod tests {
             let mut runner = egg::Runner::default().with_expr(&expr);
             let root = runner.roots[0];
 
-            let all_rules = &[
-                double_neg(),
-                double_neg_flip(),
-                neg(),
-                neg_flip(),
-                distri(),
-                distri_flip(),
-                com_associ(),
-                com_associ_flip(),
-                associ(),
-                comm_lm(),
-                comm_lr(),
-                comm_mr(),
-                maj_2_equ(),
-                maj_2_com(),
-                associ_and(),
-                comm_and(),
-                comp_and(),
-                dup_and(),
-                and_true(),
-                and_false(),
-            ];
-            runner = runner.run(all_rules);
+        let all_rules = &[
+            double_neg(),
+            double_neg_flip(),
+            neg(),
+            neg_flip(),
+            distri(),
+            distri_flip(),
+            com_associ(),
+            com_associ_flip(),
+            associ(),
+            comm_lm(),
+            comm_lr(),
+            comm_mr(),
+            maj_2_equ(),
+            maj_2_com(),
+            associ_and(),
+            comm_and(),
+            comp_and(),
+            dup_and(),
+            and_true(),
+            and_false(),
+            true_false(),
+            false_true(),
+            neg_false(),
+            neg_true(),
+        ];
 
-            let (best_cost, best) =
-                egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &var_dep))
-                    .find_best(root);
+        let var_dep = vec![0, 0, 2, 5, 3, 4, 5]; // 对应 a, b, c, d, e, f, g
+        let expr: egg::RecExpr<MIG> =
+            "(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))"
+                .parse()
+                .unwrap();
+
+        let var_dep = vec![0, 0, 0, 3, 6, 4, 5]; // 对应 a, b, c, d, e, f, g
+        let expr: egg::RecExpr<MIG> =
+            "(M (~ 0) d (M (~ (M c (M e (M a (~ f) (M 0 a (~ b))) (M a g (M 0 a (~ b)))) (M (~ e) (M 0 f (M 0 c (M 0 (~ a) b))) (M 0 (~ g) (M 0 c (M 0 (~ a) b)))))) (M c (M (~ 0) c (M 0 (~ a) b)) (~ (M e (~ f) g))) (M 0 (~ c) (M e (M a (~ f) (M 0 a (~ b))) (M a g (M 0 a (~ b)))))))"
+                .parse()
+                .unwrap();
+
+        let mut runner = egg::Runner::default().with_expr(&expr);
+        let root = runner.roots[0];
+        runner = runner.run(all_rules);
+
+        let (best_cost, best) =
+            egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &var_dep))
+                .find_best(root);
 
             let (prefix_expr, depth, ops_count, inv_count) = to_prefix(&best, &var_dep);
             println!(
