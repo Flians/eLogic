@@ -847,19 +847,16 @@ pub fn egg_to_serialized_egraph_for_ilp(
     // Define a local function to assign ILP cost
     fn cal_ilp_cost(node: &MIG, original_dep: &[u32]) -> CCost {
         match node {
-            // M操作：面积定为2，depth=1，用来让Phase1更严格地减少M的数量
             MIG::Maj(..) => CCost {
                 dep: 1,
                 aom: 2,
                 inv: 0,
             },
-            // And操作：面积=1，depth=1，也会被考虑进Phase1与Phase2
             MIG::And(..) => CCost {
                 dep: 1,
                 aom: 1,
                 inv: 0,
             },
-            // Not操作：面积=1, depth=0, inv=1 (只是在ILP里区分一下)
             MIG::Not(..) => CCost {
                 dep: 0,
                 aom: 1,
@@ -874,7 +871,6 @@ pub fn egg_to_serialized_egraph_for_ilp(
                     inv: 0,
                 }
             }
-            // 其他(常量0,1)都免费
             _ => CCost::default(),
         }
     }
@@ -1148,8 +1144,8 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(1000)
-        .with_node_limit(5000)
+        .with_iter_limit(2000)
+        .with_node_limit(8000)
         .with_time_limit(std::time::Duration::from_secs(10));
     let root_id = runner.roots[0];
 
@@ -1494,6 +1490,7 @@ mod tests {
             &vec![0, 0, 0, 0, 4],
         );
         simplify(
+            // worse than baseline
             "(M 0 (M (~ 0) (M 0 (M (~ 0) c f) (~ (M 0 c f))) (M b e (M 0 a d))) (~ (M 0 (M 0 (M (~ 0) c f) (~ (M 0 c f))) (M b e (M 0 a d)))))",
             &empty_vec,
         );
@@ -1510,6 +1507,7 @@ mod tests {
             &vec![0, 0, 0, 0, 4, 4],
         );
         simplify(
+            // worse than baseline
             "(M (~ 0) f (M 0 e (M b d (M a c g))))",
             &vec![0, 0, 0, 0, 4, 4, 6],
         );
@@ -1526,6 +1524,7 @@ mod tests {
             &empty_vec,
         );
         simplify(
+            //worse than baseline 
             "(M (~ 0) (M 0 (~ c) (M (~ 0) e (M (~ (M (~ 0) a b)) (M 0 (M 0 a (~ b)) h) (M (~ 0) (M (~ 0) a b) g)))) (M 0 d f))",
             &vec![0, 0, 2, 2, 6, 7, 4, 4],
         );
