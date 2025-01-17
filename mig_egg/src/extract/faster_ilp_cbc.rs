@@ -380,13 +380,19 @@ fn solve_min_depth_with_size_constraint(
     model.set_weight(sum_aom_con, sum_aom_col, 1.0);
 
     // Objective: minimize depth
+    let max_depth = model.add_col();
     model.set_obj_sense(Sense::Minimize);
+    model.set_obj_coeff(max_depth, 1.0);
+
     for class in vars.values() {
         for (&node_active, &cost) in class.variables.iter().zip(&class.costs) {
             let c = CCost::decode(cost.into_inner());
             let dep = c.dep as f64;
             if dep > 0.0 {
-                model.set_obj_coeff(node_active, dep);
+                let row = model.add_row();
+                model.set_row_upper(row, 0.0);
+                model.set_weight(row, node_active, dep);
+                model.set_weight(row, max_depth, -1.0);
             }
         }
     }
