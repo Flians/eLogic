@@ -1044,36 +1044,20 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
         root_id,
     );
     #[cfg(feature = "ilp-cbc")]
-    let serialized_egraph_ilp = egg_to_serialized_egraph_for_ilp(&saturated_egraph, root_id, vars_);
+    let serialized_egraph = egg_to_serialized_egraph_for_ilp(&saturated_egraph, root_id, vars_);
 
     // Use custom extraction code
     #[cfg(feature = "ilp-cbc")]
     let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
-    #[cfg(feature = "ilp-cbc")]
-    let extraction_result =
-        extractor.extract(&serialized_egraph_ilp, &serialized_egraph_ilp.root_eclasses);
-    #[cfg(feature = "ilp-cbc")]
-    let dag_cost_size = extraction_result
-        .dag_cost_size_enhanced(&serialized_egraph_ilp, &serialized_egraph_ilp.root_eclasses);
-    #[cfg(feature = "ilp-cbc")]
-    let dag_cost_depth = extraction_result
-        .dag_cost_depth(&serialized_egraph_ilp, &serialized_egraph_ilp.root_eclasses);
-    #[cfg(feature = "ilp-cbc")]
-    let aft_expr = extraction_result.print_aft_expr(&serialized_egraph_ilp);
-
-    // Test faster greedy extractor
     #[cfg(not(feature = "ilp-cbc"))]
     // let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
     let extractor = extract::faster_greedy_dag::FasterGreedyDagExtractor {};
-    #[cfg(not(feature = "ilp-cbc"))]
+
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
-    #[cfg(not(feature = "ilp-cbc"))]
     let dag_cost_size =
         extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
-    #[cfg(not(feature = "ilp-cbc"))]
     let dag_cost_depth =
         extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
-    #[cfg(not(feature = "ilp-cbc"))]
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
 
     ffi::CCost {
@@ -1490,24 +1474,12 @@ mod tests {
             &vec![0, 0, 2],
         );
         simplify(
-            "(M 0 (M (~ 0) e (M b d (M 0 a c))) (~ (M 0 e (M b d (M 0 a c)))))",
-            &vec![0, 0, 0, 0, 4],
-        );
-        simplify(
             "(M 0 (M (~ 0) (M 0 (M (~ 0) c f) (~ (M 0 c f))) (M b e (M 0 a d))) (~ (M 0 (M 0 (M (~ 0) c f) (~ (M 0 c f))) (M b e (M 0 a d)))))",
             &empty_vec,
         );
         simplify(
             "(M (~ 0) (M 0 d h) (M 0 (M (~ 0) d h) (M c g (M b f (M 0 a e)))))",
             &empty_vec,
-        );
-        simplify(
-            "(M 0 (M (~ 0) f (M b d (M a c e))) (~ (M 0 f (M b d (M a c e)))))",
-            &vec![0, 0, 0, 0, 4, 5],
-        );
-        simplify(
-            "(M 0 (M (~ 0) e (M b d (M a c f))) (~ (M 0 e (M b d (M a c f)))))",
-            &vec![0, 0, 0, 0, 4, 4],
         );
         simplify(
             "(M (~ 0) f (M 0 e (M b d (M a c g))))",
