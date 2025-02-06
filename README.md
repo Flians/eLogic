@@ -83,33 +83,22 @@ export PKG_CONFIG_PATH="/opt/homebrew/opt/cbc/lib/pkgconfig"
 ## Running Experiments
 1. Build project:
 ```bash
-./build.sh
+./build.sh Release
 ```
 
 2. Test extraction strategies:
 
 ```bash
 cd mig_egg
-RUSTFLAGS="-Awarnings" cargo test -- --nocapture
+RUSTFLAGS="-Awarnings" cargo test --no-default-features -- --nocapture
 RUSTFLAGS="-Awarnings" cargo test --features ilp-cbc -- --nocapture
 ```
 
 3. Run experiment:
 
 ```bash
-nohup ./build/emig/emig 0 > emig_aig_k4_size.log 2>&1 &
-nohup ./build/emig/emig 1 > emig_mig_k4_size.log 2>&1 &
-nohup ./build/emig/emig 0 > emig_aig_k6_size.log 2>&1 &
-nohup ./build/emig/emig 1 > emig_mig_k6_size.log 2>&1 &
-nohup ./build/emig/emig 0 > emig_aig_k8_size.log 2>&1 &
-nohup ./build/emig/emig 1 > emig_mig_k8_size.log 2>&1 &
-
-nohup ./build/emig/emig 0 > emig_aig_k4_dep.log 2>&1 &
-nohup ./build/emig/emig 1 > emig_mig_k4_dep.log 2>&1 &
-nohup ./build/emig/emig 0 > emig_aig_k6_dep.log 2>&1 &
-nohup ./build/emig/emig 1 > emig_mig_k6_dep.log 2>&1 &
-nohup ./build/emig/emig 0 > emig_aig_k8_dep.log 2>&1 &
-nohup ./build/emig/emig 1 > emig_mig_k8_dep.log 2>&1 &
+nohup ./build/emig/emig 0 > emig_aig_k8.log 2>&1 &
+nohup ./build/emig/emig 1 > emig_mig_k8.log 2>&1 &
 ```
 
 ## Benchmarks
