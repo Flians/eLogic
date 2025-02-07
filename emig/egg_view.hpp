@@ -30,6 +30,7 @@ namespace mockturtle {
   private:
     std::unordered_map<std::string, std::unique_ptr<CCost>> table;
     std::unordered_set<std::string> bad_exprs;
+    std::string bak_filepath;
 
     bool is_bad(const std::string &key) const {
       return bad_exprs.find(key) != bad_exprs.end();
@@ -78,12 +79,19 @@ namespace mockturtle {
         try {
             for (const auto& [key, value] : j["table"].items()) {
                 auto cost = std::make_unique<CCost>();
-                cost->aft_expr = value["aft_expr"].get<std::string>();;
+                cost->aft_expr = value["aft_expr"].get<std::string>();
                 cost->aft_dep = value["aft_dep"];
                 cost->aft_size = value["aft_size"];
                 cost->aft_invs = value["aft_invs"];
 
-                table.try_emplace(key, std::move(cost));
+                auto [it, inserted] = table.try_emplace(key, std::move(cost));
+                if (!inserted) {
+                    auto& existing_cost = *it->second;
+                    if (cost->aft_dep < existing_cost.aft_dep || 
+                        (cost->aft_dep == existing_cost.aft_dep && cost->aft_size < existing_cost.aft_size)) {
+                        it->second = std::move(cost);
+                    }
+                }
             }
 
             for (const auto& expr : j["bad_exprs"]) {
@@ -97,6 +105,14 @@ namespace mockturtle {
     }
 
   public:
+    StrCostTable(const std::string& filename = "lib_expr2cost.json") : bak_filepath(filename) {
+      deserialize_from_file(bak_filepath, table, bad_exprs);
+    }
+
+    ~StrCostTable() {
+      serialize_to_file(bak_filepath, table, bad_exprs);
+    }
+
     const CCost *insert(const std::string &key, const std::vector<uint32_t> &leaf_levels = {}) {
       if (is_bad(key))
         return nullptr;
@@ -119,7 +135,7 @@ namespace mockturtle {
       auto [it, inserted] = table.try_emplace(key_deps, nullptr);
 
       if (inserted) {
-        it->second = std::make_unique<CCost>(simplify_size(key, leaf_levels.data(), leaf_levels.size()));
+        it->second = std::make_unique<CCost>(simplify_depth(key, leaf_levels.data(), leaf_levels.size()));
       }
 
       if (std::string(it->second->aft_expr.c_str()) == key.c_str()) { // no improvement

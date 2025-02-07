@@ -653,6 +653,7 @@ mod ffi {
     extern "Rust" {
         unsafe fn simplify_depth(s: &str, vars: *const u32, size: usize) -> CCost;
         unsafe fn simplify_size(s: &str, vars: *const u32, size: usize) -> CCost;
+        unsafe fn simplify_best(s: &str, vars: *const u32, size: usize) -> CCost;
         unsafe fn free_string(s: *mut c_char);
     }
 }
@@ -1068,7 +1069,7 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
 // 15. Function to show usage examples and comparisons
 //     (simplify() calls both a tree-based approach and a DAG-based approach).
 // -----------------------------------------------------------------------------------
-pub fn simplify(s: &str, var_dep: &Vec<u32>) {
+pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
     // Initialize logger if not already initialized
     let _ = env_logger::try_init();
 
@@ -1103,17 +1104,8 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
         maj_dup(),
     ];
 
-    // Convert the var_dep to a raw pointer if needed
-    let vars_default: [u32; 26] = [0; 26];
-    let mut vars_ = vars_default.as_ptr();
-    let mut var_len = 26;
-    if !var_dep.is_empty() {
-        vars_ = var_dep.as_ptr();
-        var_len = var_dep.len();
-    }
-
     // 1. Get baseline results
-    let cost_depth = simplify_depth(s, vars_, var_len);
+    let cost_depth = simplify_depth(s, vars, var_len);
     info!(
         "{} {} - {}",
         "Baseline".bright_green(),
@@ -1140,14 +1132,14 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     let serialized_egraph = egg_to_serialized_egraph(
         &saturated_egraph,
         &MIGCostFn_dsi::new(&saturated_egraph, unsafe {
-            std::slice::from_raw_parts(vars_, var_len)
+            std::slice::from_raw_parts(vars, var_len)
         }),
         root_id,
     );
 
     let serialized_egraph_ilp =
         egg_to_serialized_egraph_for_ilp(&saturated_egraph, root_id, unsafe {
-            std::slice::from_raw_parts(vars_, var_len)
+            std::slice::from_raw_parts(vars, var_len)
         });
 
     // 4. Track best results across all methods
@@ -1169,7 +1161,7 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
 
     // Helper function to print results and collect them
     let mut print_result = |method: &str, expr: &str, depth: u32, size: u32| {
-        let is_worse = size > baseline_size || (size == baseline_size && depth > baseline_depth);
+        let is_worse = depth > baseline_depth || (depth == baseline_depth && size > baseline_size);
 
         if is_worse {
             warn!(
@@ -1250,7 +1242,7 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     );
 
     // Find the best result
-    let best_result = results.iter().min_by_key(|r| (r.size, r.depth)).unwrap();
+    let best_result = results.iter().min_by_key(|r| (r.depth, r.size)).unwrap();
 
     // 6. Print summary
     info!("\n{}", "Summary".bright_blue().bold());
@@ -1266,7 +1258,7 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     let all_worse = results
         .iter()
         .skip(1)
-        .all(|r| r.size > baseline_size || (r.size == baseline_size && r.depth > baseline_depth));
+        .all(|r| r.depth > baseline_depth || (r.depth == baseline_depth && r.size > baseline_size));
 
     if all_worse {
         warn!(
@@ -1283,6 +1275,25 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) {
     );
 
     info!("{}\n", "=".repeat(50).blue());
+    ffi::CCost {
+        aft_expr: best_result.expr.to_string(),
+        aft_dep: best_result.depth,
+        aft_size: best_result.size,
+        aft_invs: 0,
+    }
+}
+
+pub fn simplify(s: &str, var_dep: &Vec<u32>) -> ffi::CCost {
+    // Convert the var_dep to a raw pointer if needed
+    let vars_default: [u32; 26] = [0; 26];
+    let mut vars_ = vars_default.as_ptr();
+    let mut var_len = 26;
+    if !var_dep.is_empty() {
+        vars_ = var_dep.as_ptr();
+        var_len = var_dep.len();
+    }
+
+    simplify_best(s, vars_, var_len)
 }
 
 // -----------------------------------------------------------------------------------
