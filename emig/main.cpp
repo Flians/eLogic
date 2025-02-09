@@ -81,6 +81,8 @@ void main_mig() {
     ps.cut_enumeration_ps.cut_limit = 8u;
     mockturtle::rewrite<mockturtle::mig_network, CutSize>(mig, ps, &st);
 
+    mockturtle::exp_map.flush_cost_table();
+
     uint32_t const size_after = mig.num_gates();
     mockturtle::depth_view depth_mig{mig};
     uint32_t const depth_after = depth_mig.depth();
@@ -146,14 +148,18 @@ int main(int argc, char *argv[]) {
     main_aig();
   } else if (op == 1) {
     main_mig();
-  } else {
+  } else if (op == 2) {
     std::vector<uint32_t> leaf_levels = {0, 0, 2, 2, 4, 6, 5, 7};
     auto cost = std::make_unique<CCost>(simplify_size("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))", leaf_levels.data(), leaf_levels.size()));
-    std::cout << "Size: " << cost->aft_size << ", Depth: " << cost->aft_dep << ", Expr: " << cost->aft_expr << std::endl;
+    std::cout << "Size: " << cost->aft_size << ", Depth: " << cost->aft_dep << ", Expr: ";
+    print_rust_vec_string(cost->aft_expr);
 
     std::vector<uint32_t> leaf_levels2 = {0,0,3,4,2,4};
     cost = std::make_unique<CCost>(simplify_size("(M (~ 0) b (M (~ (M a (~ c) e)) f (M 0 d f)))", leaf_levels2.data(), leaf_levels2.size()));
-    std::cout << "Size: " << cost->aft_size << ", Depth: " << cost->aft_dep << ", Expr: " << cost->aft_expr << std::endl;
+    std::cout << "Size: " << cost->aft_size << ", Depth: " << cost->aft_dep << ", Expr: ";
+    print_rust_vec_string(cost->aft_expr);
+  } else { 
+    // clean the library of expr2cost
   }
   return 0;
 }

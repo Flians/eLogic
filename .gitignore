@@ -22,5 +22,6 @@ emig_mig_k4_size_dag.log
 rewrite_elo_aig_k8.json
 rewrite_elo_mig_k8_post2.json
 mig_egg/serd_egraph.json
-*.json
+rewrite_*.json
+mig_*.json
 res/
