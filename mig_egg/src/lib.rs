@@ -644,7 +644,7 @@ mod ffi {
         // bef_dep: u32,
         // bef_size: u32,
         // bef_invs: u32,
-        aft_expr: String,
+        aft_expr: Vec<String>,
         aft_dep: u32,
         aft_size: u32,
         aft_invs: u32,
@@ -662,7 +662,7 @@ impl std::fmt::Display for ffi::CCost {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "expr: {}, depth: {}, size: {}, invs: {}",
+            "expr: {:?}, depth: {}, size: {}, invs: {}",
             self.aft_expr, self.aft_dep, self.aft_size, self.aft_invs
         )
     }
@@ -763,7 +763,7 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     }
     // let aft_expr = best.to_string();
     ffi::CCost {
-        aft_expr: aft_expr,
+        aft_expr: vec![aft_expr],
         aft_dep: aft_dep,
         aft_size: aft_size,
         aft_invs: aft_invs,
@@ -1058,7 +1058,7 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
 
     ffi::CCost {
-        aft_expr: aft_expr,
+        aft_expr: vec![aft_expr],
         aft_dep: dag_cost_depth,
         aft_size: dag_cost_size,
         aft_invs: 0,
@@ -1106,12 +1106,6 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
 
     // 1. Get baseline results
     let cost_depth = simplify_depth(s, vars, var_len);
-    info!(
-        "{} {} - {}",
-        "Baseline".bright_green(),
-        "(simplify_depth)".green(),
-        format!("{}", cost_depth).green()
-    );
 
     let baseline_size = cost_depth.aft_size;
     let baseline_depth = cost_depth.aft_dep;
@@ -1152,12 +1146,6 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
     }
 
     let mut results = Vec::new();
-    results.push(MethodResult {
-        method: "Baseline".to_string(),
-        size: baseline_size,
-        depth: baseline_depth,
-        expr: cost_depth.aft_expr.clone(),
-    });
 
     // Helper function to print results and collect them
     let mut print_result = |method: &str, expr: &str, depth: u32, size: u32| {
@@ -1190,6 +1178,13 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
         });
     };
 
+    print_result(
+        "Baseline (simplify_depth)",
+        &cost_depth.aft_expr[0],
+        baseline_depth,
+        baseline_size,
+    );
+
     // 5. Compare different extractors
     #[cfg(feature = "ilp-cbc")]
     let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
@@ -1217,7 +1212,6 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
     let dag_cost_depth1 =
         extraction_result1.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
     let aft_expr1 = extraction_result1.print_aft_expr(&serialized_egraph);
-
     print_result(
         "DAG-based (faster greedy)",
         &aft_expr1,
@@ -1243,6 +1237,11 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
 
     // Find the best result
     let best_result = results.iter().min_by_key(|r| (r.depth, r.size)).unwrap();
+    let best_exprs: std::collections::HashSet<String> = results
+        .iter()
+        .filter(|r| (r.depth, r.size) == (best_result.depth, best_result.size))
+        .map(|r| r.expr.clone())
+        .collect();
 
     // 6. Print summary
     info!("\n{}", "Summary".bright_blue().bold());
@@ -1271,12 +1270,12 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
     info!(
         "{} {}",
         "Best expression:".bright_green(),
-        best_result.expr.green()
+        format!("{:?}", best_exprs).green()
     );
 
     info!("{}\n", "=".repeat(50).blue());
     ffi::CCost {
-        aft_expr: best_result.expr.to_string(),
+        aft_expr: best_exprs.into_iter().collect(),
         aft_dep: best_result.depth,
         aft_size: best_result.size,
         aft_invs: 0,

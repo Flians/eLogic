@@ -24,6 +24,20 @@
 #include "rust/cxx.h"
 #include "json.hpp"
 
+void print_rust_vec_string(const ::rust::Vec<::rust::String>& vec) {
+    std::cout << "[";
+    bool flag = true;
+    for (const auto& item : vec) {
+      if (flag) {
+        flag = false;
+        std::cout << item;
+      } else {
+        std::cout << ", " << item;
+      }
+    }
+    std::cout << "]" << std::endl;
+}
+
 namespace mockturtle {
 
   class StrCostTable {
@@ -41,8 +55,12 @@ namespace mockturtle {
                           const std::unordered_set<std::string>& bad_exprs) {
         nlohmann::json j;
         for (const auto& [key, cost] : table) {
+            std::unordered_set<std::string> unique_exprs;
+            for (const auto &expr: cost->aft_expr)
+                unique_exprs.emplace(expr);
+
             j["table"][key] = {
-                {"aft_expr", cost->aft_expr},
+                {"aft_expr", unique_exprs},
                 {"aft_dep", cost->aft_dep},
                 {"aft_size", cost->aft_size},
                 {"aft_invs", cost->aft_invs},
@@ -77,9 +95,17 @@ namespace mockturtle {
         in.close();
 
         try {
+          if (j.contains("table")) {
             for (const auto& [key, value] : j["table"].items()) {
                 auto cost = std::make_unique<CCost>();
-                cost->aft_expr = value["aft_expr"].get<std::string>();
+                if (value["aft_expr"].is_string()) {
+                    cost->aft_expr.emplace_back(value["aft_expr"].get<std::string>());
+                } else if (value["aft_expr"].is_array()) {
+                    for (const auto &expr: value["aft_expr"].get<std::unordered_set<std::string>>())
+                      cost->aft_expr.emplace_back(expr);
+                } else {
+                    throw std::runtime_error("Invalid type for aft_expr");
+                }
                 cost->aft_dep = value["aft_dep"];
                 cost->aft_size = value["aft_size"];
                 cost->aft_invs = value["aft_invs"];
@@ -87,16 +113,20 @@ namespace mockturtle {
                 auto [it, inserted] = table.try_emplace(key, std::move(cost));
                 if (!inserted) {
                     auto& existing_cost = *it->second;
-                    if (cost->aft_dep < existing_cost.aft_dep || 
+                    if (cost->aft_dep == existing_cost.aft_dep && cost->aft_size == existing_cost.aft_size) {
+                      for (const auto &expr: cost->aft_expr)
+                        it->second->aft_expr.emplace_back(expr);
+                    } else if (cost->aft_dep < existing_cost.aft_dep || 
                         (cost->aft_dep == existing_cost.aft_dep && cost->aft_size < existing_cost.aft_size)) {
                         it->second = std::move(cost);
                     }
                 }
             }
+          }
 
-            for (const auto& expr : j["bad_exprs"]) {
-                bad_exprs.insert(expr);
-            }
+          if (j.contains("bad_exprs")) {
+            bad_exprs = j["bad_exprs"].get<std::unordered_set<std::string>>();
+          }
         } catch (const nlohmann::json::exception& e) {
             std::cerr << "JSON error: " << e.what() << std::endl;
             table.clear(); 
@@ -110,6 +140,10 @@ namespace mockturtle {
     }
 
     ~StrCostTable() {
+      serialize_to_file(bak_filepath, table, bad_exprs);
+    }
+
+    void flush_cost_table() {
       serialize_to_file(bak_filepath, table, bad_exprs);
     }
 
@@ -138,7 +172,7 @@ namespace mockturtle {
         it->second = std::make_unique<CCost>(simplify_depth(key, leaf_levels.data(), leaf_levels.size()));
       }
 
-      if (std::string(it->second->aft_expr.c_str()) == key.c_str()) { // no improvement
+      if (it->second->aft_expr.size() == 1 && std::string(it->second->aft_expr.begin()->c_str()) == key.c_str()) { // no improvement
         bad_exprs.insert(key_deps);
         table.erase(key);
         return nullptr;

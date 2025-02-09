@@ -660,7 +660,7 @@ namespace mockturtle {
             if (!dcost)
               continue;
             uint32_t aft_dep = dcost->aft_dep;
-            const std::string aft_expr(dcost->aft_expr.data());
+            const std::string aft_expr(dcost->aft_expr.begin()->data());
 
             // skip bad cut
             if (eview._original_expr == aft_expr)
