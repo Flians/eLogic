@@ -1,12 +1,12 @@
 use colored::*;
 use egg::{Id, Language};
 use log::{info, warn};
+use std::cmp;
 use std::ffi::CString;
 use std::fmt;
 use std::iter::Sum;
 use std::ops::{Add, AddAssign};
 use std::os::raw::c_char;
-use std::{cmp, default};
 
 // -----------------------------------------------------------------------------------
 // 1. Define a cost struct (CCost) to keep track of depth (dep), area (aom), and inversions (inv).
@@ -576,14 +576,13 @@ macro_rules! rule {
     };
 }
 
-rule! {neg_false,      "(~ 0)",                 "1"    }
-rule! {neg_true,       "(~ 1)",                 "0"    }
-rule! {true_false,     "1",                     "(~ 0)"}
-rule! {false_true,     "0",                     "(~ 1)"}
+rule! {neg_false,      true_false,              "(~ 0)",                      "1"    }
+rule! {neg_true,       false_true,              "(~ 1)",                      "0"    }
 rule! {double_neg,     double_neg_flip,         "(~ (~ ?a))",                 "?a"                              }
 rule! {neg,            neg_flip,                "(~ (M ?a ?b ?c))",           "(M (~ ?a) (~ ?b) (~ ?c))"        }
 rule! {distri,         distri_flip,             "(M ?a ?b (M ?c ?d ?e))",     "(M (M ?a ?b ?c) (M ?a ?b ?d) ?e)"}
 rule! {com_associ,     com_associ_flip,         "(M ?a ?b (M ?c (~ ?b) ?d))", "(M ?a ?b (M ?c ?a ?d))"          }
+rule! {maj_com_equ,    maj_equ_com,             "(M ?a ?b (~ ?b))",           "(M ?a ?b ?a)"                    }
 rule! {relevance,      "(M ?a ?b (M ?c ?d (M ?a ?b ?e)))", "(M ?a ?b (M ?c ?d (M (~ ?b) ?b ?e)))"               }
 rule! {associ,         "(M ?a ?b (M ?c ?b ?d))","(M ?d ?b (M ?c ?b ?a))"}
 rule! {comm_lm,        "(M ?a ?b ?c)",          "(M ?b ?a ?c)"          }
@@ -598,8 +597,37 @@ rule! {comp_and,       "(& ?a (~ ?a))",         "0"                     }
 rule! {dup_and,        "(& ?a ?a)",             "?a"                    }
 rule! {and_true,       "(& ?a 1)",              "?a"                    }
 rule! {and_false,      "(& ?a 0)",              "0"                     }
-// add (M ?a ?a ?b) => ?a
-rule! {maj_dup,        "(M ?a ?a ?b)",          "?a"                    }
+
+fn rules() -> Vec<CRewrite> {
+    vec![
+        neg_false(),
+        true_false(),
+        neg_true(),
+        false_true(),
+        double_neg(),
+        double_neg_flip(),
+        neg(),
+        neg_flip(),
+        distri(),
+        distri_flip(),
+        com_associ(),
+        com_associ_flip(),
+        maj_com_equ(),
+        maj_equ_com(),
+        associ(),
+        comm_lm(),
+        comm_lr(),
+        comm_mr(),
+        maj_2_equ(),
+        maj_2_com(),
+        associ_and(),
+        comm_and(),
+        comp_and(),
+        dup_and(),
+        and_true(),
+        and_false(),
+    ]
+}
 
 // -----------------------------------------------------------------------------------
 // 9. Simple function for demonstration of equivalence proofs (not strictly needed here).
@@ -638,7 +666,7 @@ fn prove_something(name: &str, start: &str, rewrites: &[CRewrite], goals: &[&str
 // -----------------------------------------------------------------------------------
 #[cxx::bridge]
 mod ffi {
-    #[derive(Debug, Eq, PartialEq)]
+    #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
     struct CCost {
         // bef_expr: String,
         // bef_dep: u32,
@@ -702,32 +730,7 @@ pub fn free_string(s: *mut c_char) {
 // -----------------------------------------------------------------------------------
 pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     // Collect rewrite rules that might help reduce or restructure the expression
-    let all_rules = &[
-        double_neg(),
-        double_neg_flip(),
-        neg(),
-        neg_flip(),
-        distri(),
-        distri_flip(),
-        com_associ(),
-        com_associ_flip(),
-        associ(),
-        comm_lm(),
-        comm_lr(),
-        comm_mr(),
-        maj_2_equ(),
-        maj_2_com(),
-        associ_and(),
-        comm_and(),
-        comp_and(),
-        dup_and(),
-        and_true(),
-        and_false(),
-        true_false(),
-        false_true(),
-        neg_false(),
-        neg_true(),
-    ];
+    let all_rules = rules();
 
     // Parse the original expression
     let bef_expr: egg::RecExpr<MIG> = s.parse().unwrap();
@@ -744,7 +747,7 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     let root = runner.roots[0];
 
     // Run the rewrite rules to saturate or partially simplify the expression
-    runner = runner.run(all_rules);
+    runner = runner.run(&all_rules);
 
     // Extract a *tree* result from the e-graph using a standard Egg Extractor
     let (best_cost, best) =
@@ -985,32 +988,7 @@ pub fn save_serialized_egraph_to_json(
 //     (e.g., "faster_ilp_cbc") to find a minimal node count. We still track depth afterwards.
 // -----------------------------------------------------------------------------------
 pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
-    let all_rules = &[
-        double_neg(),
-        double_neg_flip(),
-        neg(),
-        neg_flip(),
-        distri(),
-        distri_flip(),
-        com_associ(),
-        com_associ_flip(),
-        associ(),
-        comm_lm(),
-        comm_lr(),
-        comm_mr(),
-        maj_2_equ(),
-        maj_2_com(),
-        associ_and(),
-        comm_and(),
-        comp_and(),
-        dup_and(),
-        and_true(),
-        and_false(),
-        true_false(),
-        false_true(),
-        neg_false(),
-        neg_true(),
-    ];
+    let all_rules = rules();
     // parse the expression, the type annotation tells it which Language to use
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
 
@@ -1030,7 +1008,7 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     let root_id = runner.roots[0];
 
     // simplify the expression using a Runner, which runs the given rules over it
-    runner = runner.run(all_rules);
+    runner = runner.run(&all_rules);
     let saturated_egraph = runner.egraph;
 
     // Convert the egraph to a JSON-serializable structure
@@ -1076,33 +1054,7 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
     info!("{}", "=".repeat(50).blue());
     info!("{} {}\n", "Simplifying expression:".bright_blue(), s);
     // Rewrites for the tree-based approach
-    let all_rules = &[
-        double_neg(),
-        double_neg_flip(),
-        neg(),
-        neg_flip(),
-        distri(),
-        distri_flip(),
-        com_associ(),
-        com_associ_flip(),
-        associ(),
-        comm_lm(),
-        comm_lr(),
-        comm_mr(),
-        maj_2_equ(),
-        maj_2_com(),
-        associ_and(),
-        comm_and(),
-        comp_and(),
-        dup_and(),
-        and_true(),
-        and_false(),
-        true_false(),
-        false_true(),
-        neg_false(),
-        neg_true(),
-        maj_dup(),
-    ];
+    let all_rules = rules();
 
     // 1. Get baseline results
     let cost_depth = simplify_depth(s, vars, var_len);
@@ -1119,7 +1071,7 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
         .with_time_limit(std::time::Duration::from_secs(10));
     let root_id = runner.roots[0];
 
-    runner = runner.run(all_rules);
+    runner = runner.run(&all_rules);
     let saturated_egraph = runner.egraph;
 
     // 3. Convert for ILP/greedy extraction
@@ -1302,6 +1254,170 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) -> ffi::CCost {
 mod tests {
     use super::*;
 
+    #[derive(Debug, Clone)]
+    enum Expr {
+        Const(bool),
+        Var(char),
+        Not(Box<Expr>),
+        Majority(Box<Expr>, Box<Expr>, Box<Expr>),
+    }
+
+    fn parse_expression(tokens: &mut Vec<String>) -> Option<Expr> {
+        tokens.pop().and_then(|token| match token.as_str() {
+            "M" => {
+                let a = parse_expression(tokens)?;
+                let b = parse_expression(tokens)?;
+                let c = parse_expression(tokens)?;
+                Some(Expr::Majority(Box::new(a), Box::new(b), Box::new(c)))
+            }
+            "~" => Some(Expr::Not(Box::new(parse_expression(tokens)?))),
+            "0" => Some(Expr::Const(false)),
+            "1" => Some(Expr::Const(true)),
+            var => {
+                let c = var.chars().next()?;
+                if c.is_ascii_lowercase() {
+                    Some(Expr::Var(c))
+                } else {
+                    None
+                }
+            }
+        })
+    }
+
+    fn collect_vars(expr: &Expr, vars: &mut std::collections::HashSet<char>) {
+        match expr {
+            Expr::Var(c) => {
+                vars.insert(*c);
+            }
+            Expr::Not(e) => collect_vars(e, vars),
+            Expr::Majority(a, b, c) => {
+                collect_vars(a, vars);
+                collect_vars(b, vars);
+                collect_vars(c, vars);
+            }
+            _ => {}
+        }
+    }
+
+    fn evaluate(expr: &Expr, vars: &std::collections::HashMap<char, bool>) -> bool {
+        match expr {
+            Expr::Const(val) => *val,
+            Expr::Var(c) => *vars.get(c).expect("存在未定义变量"),
+            Expr::Not(e) => !evaluate(e, vars),
+            Expr::Majority(a, b, c) => {
+                let a_val = evaluate(a, vars);
+                let b_val = evaluate(b, vars);
+                let c_val = evaluate(c, vars);
+                (a_val & b_val) | (a_val & c_val) | (b_val & c_val)
+            }
+        }
+    }
+
+    fn is_equiv(expr1: &str, expr2: &str) -> bool {
+        let preprocess = |s: &str| {
+            s.replace('(', " ")
+                .replace(')', " ")
+                .split_whitespace()
+                .rev()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+        };
+
+        let mut tokens1 = preprocess(expr1);
+        let mut tokens2 = preprocess(expr2);
+        let expr1 = parse_expression(&mut tokens1).expect("解析表达式1失败");
+        let expr2 = parse_expression(&mut tokens2).expect("解析表达式2失败");
+
+        let mut vars = std::collections::HashSet::new();
+        collect_vars(&expr1, &mut vars);
+        collect_vars(&expr2, &mut vars);
+        let var_list: Vec<char> = vars.into_iter().collect();
+
+        let n = var_list.len();
+        for bits in 0..(1 << n) {
+            let mut comb = std::collections::HashMap::new();
+            for (i, var) in var_list.iter().enumerate() {
+                comb.insert(*var, (bits >> i) & 1 == 1);
+            }
+
+            let res1 = evaluate(&expr1, &comb);
+            let res2 = evaluate(&expr2, &comb);
+
+            if res1 != res2 {
+                /*
+                let var_values = var_list
+                    .iter()
+                    .map(|c| format!("{}={}", c, comb[c]))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                println!("不等价案例：{} => {} vs {}", var_values, res1, res2);
+                */
+                return false;
+            }
+        }
+
+        true
+    }
+
+    #[test]
+    fn process_json() {
+        #[derive(serde::Serialize, serde::Deserialize, Debug)]
+        struct JsonData {
+            table: std::collections::HashMap<String, ffi::CCost>,
+            bad_exprs: std::collections::HashSet<String>,
+        }
+
+        let data = std::fs::read_to_string("lib_expr2cost.json").unwrap();
+
+        let mut json_data: JsonData = serde_json::from_str(&data).unwrap();
+
+        // println!("{:#?}", json_data);
+
+        let rules = rules();
+
+        for (key_dep, entry) in json_data.table.iter_mut() {
+            let parts: Vec<&str> = key_dep.split('_').collect();
+            let key = parts[0].to_string();
+            let var_deps: Vec<u32> = parts[1..]
+                .iter()
+                .map(|s| s.parse::<u32>().unwrap())
+                .collect();
+
+            let mut egraph = CEGraph::default();
+
+            let key_expr: egg::RecExpr<MIG> = key.parse().unwrap();
+            let key_expr_id = egraph.add_expr(&key_expr);
+
+            let single_expr = entry.aft_expr.len() == 1;
+            for expr in &entry.aft_expr {
+                let expr: egg::RecExpr<MIG> = expr.parse().unwrap();
+
+                let aft_expr_id = egraph.add_expr(&expr);
+                let runner = egg::Runner::default()
+                    .with_egraph(egraph.clone())
+                    .run(&rules);
+                if runner.egraph.find(key_expr_id) != runner.egraph.find(aft_expr_id) {
+                    println!("Key '{}' is NOT equivalent to expression '{}'", key, expr);
+                }
+
+                let (aft_expr, aft_dep, aft_size, aft_invs) = to_prefix(&expr, &var_deps);
+                if aft_dep != entry.aft_dep || aft_size != entry.aft_size {
+                    println!(
+                        "Key '{}' has different depth {}/{} and size {}/{}",
+                        expr, aft_dep, entry.aft_dep, aft_size, entry.aft_size
+                    );
+                }
+
+                if single_expr {
+                    entry.aft_invs = aft_invs;
+                }
+            }
+        }
+
+        let json_str = serde_json::to_string_pretty(&json_data).unwrap();
+        let _ = std::fs::write("lib_expr2cost.json", json_str);
+    }
+
     #[test]
     fn const_fold() {
         let start = "(M 0 1 0)";
@@ -1352,32 +1468,7 @@ mod tests {
         let maj8 = expr.add(MIG::Maj([not_zero, maj4, maj7]));
         */
 
-        let all_rules = &[
-            double_neg(),
-            double_neg_flip(),
-            neg(),
-            neg_flip(),
-            distri(),
-            distri_flip(),
-            com_associ(),
-            com_associ_flip(),
-            associ(),
-            comm_lm(),
-            comm_lr(),
-            comm_mr(),
-            maj_2_equ(),
-            maj_2_com(),
-            associ_and(),
-            comm_and(),
-            comp_and(),
-            dup_and(),
-            and_true(),
-            and_false(),
-            true_false(),
-            false_true(),
-            neg_false(),
-            neg_true(),
-        ];
+        let all_rules = rules();
 
         let var_dep = vec![0, 0, 2, 5, 3, 4, 5]; // 对应 a, b, c, d, e, f, g
         let expr: egg::RecExpr<MIG> =
@@ -1391,9 +1482,15 @@ mod tests {
                 .parse()
                 .unwrap();
 
+        let var_dep = vec![2, 3, 1, 3, 0]; // 对应 a, b, c, d, e, f, g
+        let expr: egg::RecExpr<MIG> =
+            "(M 0 (~ (M 0 (M 0 (~ a) b) (M 0 (~ d) e))) (M 0 (~ d) (M 0 (~ c) e)))"
+                .parse()
+                .unwrap();
+
         let mut runner = egg::Runner::default().with_expr(&expr);
         let root = runner.roots[0];
-        runner = runner.run(all_rules);
+        runner = runner.run(&all_rules);
 
         let (best_cost, best) =
             egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &var_dep))
@@ -1405,6 +1502,36 @@ mod tests {
         println!("after_dep: {}", depth);
         println!("after_size: {}", ops_count);
         println!("after_invs: {}", inv_count);
+
+        let expr = "Key '(M (~ 0) (M 0 (M (~ 0) a b) (~ (M 0 (M (~ 0) a b) c))) (M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) c))) d))' is NOT equivalent to expression '(M 1 (M 0 (M 1 a b) (~ c)) (M c (~ (M b c (M 0 a c))) d))'";
+        // let expr = "Key '(M (~ 0) (M 0 (~ a) (M (~ 0) g (M (~ e) (M c (~ (M (~ 0) b f)) (M 0 d (~ (M (~ 0) b f)))) (M 0 (~ e) (M (~ c) (M 0 b f) (M (~ d) f (M 0 b f))))))) (M 0 a (~ (M (~ 0) g (M (~ e) (M c (~ (M (~ 0) b f)) (M 0 d (~ (M (~ 0) b f)))) (M 0 (~ e) (M (~ c) (M 0 b f) (M (~ d) f (M 0 b f)))))))))' is NOT equivalent to expression '(~ (M 0 (~ (M 0 (M (M (M 1 b f) (~ c) (M 1 (M 1 b f) (~ d))) e (~ (M (~ c) (M f 0 (M b 0 b)) (M (M b f (~ d)) 0 (M f 0 f))))) (M 0 a (~ g)))) (M a (M (M (M 1 b f) (~ c) (M 1 (M 1 b f) (~ d))) e (~ (M (~ c) (M f 0 (M b 0 b)) (M (M b f (~ d)) 0 (M f 0 f))))) (M 1 a (~ g)))))'";
+        // let expr = "Key '(M 0 (~ (M 0 c (M (~ 0) e f))) (M 0 b (~ (M 0 (~ f) (M 0 (M d (M (~ 0) (M 0 (~ a) c) (M 0 a (~ c))) (~ e)) (~ (M d (M (~ 0) (M 0 (~ a) c) (M 0 a (~ c))) e)))))))' is NOT equivalent to expression '(~ (M (M (M 1 (~ b) (M 0 c e)) (M c 1 (~ b)) f) (M 1 (M (M 1 (~ b) (M 0 c e)) (M c 1 (~ b)) f) (~ (M e d (M 0 (M c 1 a) (~ (M 0 a c)))))) (M 0 (~ f) (M d (M 0 (M c 1 a) (~ (M 0 a c))) (~ e)))))'";
+        // let expr = "Key '(M 0 (~ f) (M a (~ (M (~ 0) c (M 0 (~ d) e))) (M (~ 0) a b)))' is NOT equivalent to expression '(M (~ e) (M 0 (~ f) (M a (M a 1 b) (~ c))) (M 0 (~ f) (M a d (M a (M a 1 b) (~ c)))))'";
+        // let expr = "Key '(M (~ 0) (M 0 (~ a) (M g (~ (M (~ 0) (M 0 f (~ (M 0 (M (~ 0) e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))) (~ (M 0 e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))))))) (M 0 (M (~ 0) e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))) (~ (M (~ 0) f (M 0 e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d)))))))) (M (~ 0) b g))) (M 0 a (~ (M g (~ (M (~ 0) (M 0 f (~ (M 0 (M (~ 0) e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))) (~ (M 0 e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))))))) (M 0 (M (~ 0) e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))) (~ (M (~ 0) f (M 0 e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d)))))))) (M (~ 0) b g)))))' is NOT equivalent to expression '(M 0 (M 1 a (M g (M 0 (M 1 (M 0 (M 1 e (M 0 (~ (M 0 c d)) (M 1 d c))) (M (M 0 c d) 1 (~ (M 0 (M 1 d c) e)))) (~ f)) (M 1 f (M 0 (M 1 e (M 1 (M 0 c d) (~ (M 1 d c)))) (M 1 (M 0 (~ (M 0 c d)) (M 1 d c)) (~ e))))) (M 1 g b))) (~ (M 0 (M g (M 0 (M 1 (M 0 (M 1 e (M 0 (~ (M 0 c d)) (M 1 d c))) (M (M 0 c d) 1 (~ (M 0 (M 1 d c) e)))) (~ f)) (M 1 f (M 0 (M 1 e (M 1 (M 0 c d) (~ (M 1 d c)))) (M 1 (M 0 (~ (M 0 c d)) (M 1 d c)) (~ e))))) (M 1 g b)) a)))'";
+        // let expr = "Key '(M (~ 0) (M 0 (~ (M 0 (~ a) b)) e) (M 0 e (~ (M 0 (~ (M 0 c d)) (M (~ 0) c d)))))' is NOT equivalent to expression '(M (M 1 a (~ b)) e (M e (~ (M 1 c d)) (M 0 c d)))'";
+        let parts: Vec<&str> = expr.split('\'').collect();
+        let expr1: egg::RecExpr<MIG> = parts[1].parse().unwrap();
+        let expr2: egg::RecExpr<MIG> = parts[3].parse().unwrap();
+        let mut egraph = CEGraph::default();
+
+        let expr1_id = egraph.add_expr(&expr1);
+        let expr2_id = egraph.add_expr(&expr2);
+
+        let runner = egg::Runner::default().with_egraph(egraph).run(&all_rules);
+
+        if runner.egraph.find(expr1_id) == runner.egraph.find(expr2_id) {
+            println!("The expressions are equivalent!");
+        } else {
+            println!("The expressions are NOT equivalent!");
+        }
+
+        if runner.egraph.equivs(&expr1, &expr2).is_empty() {
+            println!("The expressions are NOT equivalent!");
+        }
+
+        if !is_equiv(&parts[1], &parts[3]) {
+            println!("The expressions are NOT equivalent!");
+        }
     }
 
     #[test]
@@ -1417,28 +1544,11 @@ mod tests {
             .is_test(true)
             .try_init();
         /*
-        let rules = &[
-            // rules needed for contrapositive
-            double_neg(),
-            double_neg_flip(),
-            neg(),
-            neg_flip(),
-            // and some others
-            distri(),
-            distri_flip(),
-            com_associ(),
-            com_associ_flip(),
-            associ(),
-            comm_lm(),
-            comm_lr(),
-            comm_mr(),
-            maj_2_equ(),
-            maj_2_com(),
-        ];
+        let rules = rules();
         prove_something(
             "chain",
             "(M x 0 (M y 1 (M u 0 v)))",
-            rules,
+            &rules,
             &["(M x 0 (M y x (M u 0 v)))", "(M (M y x 0) x (M 0 u v))"],
         );
         */
@@ -1518,7 +1628,7 @@ mod tests {
             &empty_vec,
         );
         simplify(
-            //worse than baseline 
+            //worse than baseline
             "(M (~ 0) (M 0 (~ c) (M (~ 0) e (M (~ (M (~ 0) a b)) (M 0 (M 0 a (~ b)) h) (M (~ 0) (M (~ 0) a b) g)))) (M 0 d f))",
             &vec![0, 0, 2, 2, 6, 7, 4, 4],
         );

@@ -80,7 +80,7 @@ void main_aig(const bool use_dc) {
     ps.cut_enumeration_ps.cut_limit = 8u;
     baseline::rewrite(aig, exact_lib, ps, &st);
 
-    bool const cec = true; // abc_cec_impl(aig, benchmark_path);
+    bool const cec = abc_cec_impl(aig, benchmark_path);
     exp(benchmark, size_before, aig.num_gates(), depth_before, depth_view(aig).depth(), to_seconds(st.time_total), cec);
   }
 
@@ -104,9 +104,14 @@ void main_mig(const bool use_dc) {
   for (auto const &benchmark : epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
     std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
+    std::string compress2rs_path = fmt::format("{}benchmarks/{}_abc.aig", EXPERIMENTS_PATH, benchmark);
+
+    if (-1 == system(fmt::format("yosys-abc -q \"read_aiger {}; strash; balance -l; resub -K 6 -l; rewrite -l; resub -K 6 -N 2 -l; rf -l; resub -K 8 -l; balance -l; resub -K 8 -N 2 -l; rewrite -l; resub -K 10 -l; rewrite -z -l; resub -K 10 -N 2 -l; balance -l; resub -K 12 -l; refactor -z -l; resub -K 12 -N 2 -l; rewrite -z -l; balance -l; write_aiger {}\"", benchmark_path, compress2rs_path).c_str())) {
+      std::cout << "yosys compress2rs: error" << std::endl;
+    }
 
     mig_network mig;
-    if (lorina::read_aiger(benchmark_path, aiger_reader(mig)) != lorina::return_code::success) {
+    if (lorina::read_aiger(compress2rs_path, aiger_reader(mig)) != lorina::return_code::success) {
       continue;
     }
 
@@ -119,9 +124,11 @@ void main_mig(const bool use_dc) {
     ps.window_size = 8u;
     ps.cut_enumeration_ps.cut_size = CUT_SIZE;
     ps.cut_enumeration_ps.cut_limit = 8u;
-    baseline::rewrite(mig, exact_lib, ps, &st);
+  
+    for (int i = 0 ; i < 3; ++i)
+      baseline::rewrite(mig, exact_lib, ps, &st);
 
-    bool const cec = true; // abc_cec_impl(aig, benchmark_path);
+    bool const cec = abc_cec_impl(mig, benchmark_path);
     exp(benchmark, size_before, mig.num_gates(), depth_before, depth_view(mig).depth(), to_seconds(st.time_total), cec);
   }
 
@@ -144,9 +151,14 @@ void main_xag(const bool use_dc) {
   for (auto const &benchmark : epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
     std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
+    std::string compress2rs_path = fmt::format("{}benchmarks/{}_abc.aig", EXPERIMENTS_PATH, benchmark);
+
+    if (-1 == system(fmt::format("yosys-abc -q \"read_aiger {}; strash; balance -l; resub -K 6 -l; rewrite -l; resub -K 6 -N 2 -l; rf -l; resub -K 8 -l; balance -l; resub -K 8 -N 2 -l; rewrite -l; resub -K 10 -l; rewrite -z -l; resub -K 10 -N 2 -l; balance -l; resub -K 12 -l; refactor -z -l; resub -K 12 -N 2 -l; rewrite -z -l; balance -l; write_aiger {}\"", benchmark_path, compress2rs_path).c_str())) {
+      std::cout << "yosys compress2rs: error" << std::endl;
+    }
 
     xag_network xag;
-    if (lorina::read_aiger(benchmark_path, aiger_reader(xag)) != lorina::return_code::success) {
+    if (lorina::read_aiger(compress2rs_path, aiger_reader(xag)) != lorina::return_code::success) {
       continue;
     }
 
@@ -161,7 +173,7 @@ void main_xag(const bool use_dc) {
     ps.cut_enumeration_ps.cut_limit = 8u;
     baseline::rewrite(xag, exact_lib, ps, &st);
 
-    bool const cec = true; // abc_cec_impl(aig, benchmark_path);
+    bool const cec = abc_cec_impl(xag, benchmark_path);
     exp(benchmark, size_before, xag.num_gates(), depth_before, depth_view(xag).depth(), to_seconds(st.time_total), cec);
   }
 
@@ -176,9 +188,14 @@ int mig_resubstitution(const bool use_dc) {
   for (auto const &benchmark : experiments::epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
     std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
+    std::string compress2rs_path = fmt::format("{}benchmarks/{}_abc.aig", EXPERIMENTS_PATH, benchmark);
 
+    if (-1 == system(fmt::format("yosys-abc -q \"read_aiger {}; strash; balance -l; resub -K 6 -l; rewrite -l; resub -K 6 -N 2 -l; rf -l; resub -K 8 -l; balance -l; resub -K 8 -N 2 -l; rewrite -l; resub -K 10 -l; rewrite -z -l; resub -K 10 -N 2 -l; balance -l; resub -K 12 -l; refactor -z -l; resub -K 12 -N 2 -l; rewrite -z -l; balance -l; write_aiger {}\"", benchmark_path, compress2rs_path).c_str())) {
+      std::cout << "yosys compress2rs: error" << std::endl;
+    }
+    
     mockturtle::mig_network mig;
-    if (lorina::read_aiger(benchmark_path, mockturtle::aiger_reader(mig)) != lorina::return_code::success) {
+    if (lorina::read_aiger(compress2rs_path, mockturtle::aiger_reader(mig)) != lorina::return_code::success) {
       continue;
     }
 
@@ -199,7 +216,7 @@ int mig_resubstitution(const bool use_dc) {
     mig_resubstitution2(fanout_mig, ps, &st);
     mig = cleanup_dangling(mig);
 
-    bool const cec = true; // abc_cec_impl(mig, benchmark_path);
+    bool const cec = experiments::abc_cec_impl(mig, benchmark_path);
     exp(benchmark, size_before, mig.num_gates(), depth_before, mockturtle::depth_view(mig).depth(), mockturtle::to_seconds(st.time_total), cec);
   }
 
@@ -220,9 +237,14 @@ void mig_algebraic_depth_rewriting() {
   for (auto const &benchmark : epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
     std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
+    std::string compress2rs_path = fmt::format("{}benchmarks/{}_abc.aig", EXPERIMENTS_PATH, benchmark);
+
+    if (-1 == system(fmt::format("yosys-abc -q \"read_aiger {}; strash; balance -l; resub -K 6 -l; rewrite -l; resub -K 6 -N 2 -l; rf -l; resub -K 8 -l; balance -l; resub -K 8 -N 2 -l; rewrite -l; resub -K 10 -l; rewrite -z -l; resub -K 10 -N 2 -l; balance -l; resub -K 12 -l; refactor -z -l; resub -K 12 -N 2 -l; rewrite -z -l; balance -l; write_aiger {}\"", benchmark_path, compress2rs_path).c_str())) {
+      std::cout << "yosys compress2rs: error" << std::endl;
+    }
 
     mig_network mig;
-    if (lorina::read_aiger(benchmark_path, aiger_reader(mig)) != lorina::return_code::success) {
+    if (lorina::read_aiger(compress2rs_path, aiger_reader(mig)) != lorina::return_code::success) {
       continue;
     }
 
@@ -234,7 +256,7 @@ void mig_algebraic_depth_rewriting() {
     mockturtle::mig_algebraic_depth_rewriting_stats st;
     mockturtle::mig_algebraic_depth_rewriting(depth_mig, ps, &st);
 
-    bool const cec = true; // abc_cec_impl(aig, benchmark_path);
+    bool const cec = abc_cec_impl(mig, benchmark_path);
     exp(benchmark, size_before, mig.num_gates(), depth_before, depth_view(mig).depth(), to_seconds(st.time_total), cec);
   }
 

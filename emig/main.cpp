@@ -65,14 +65,20 @@ void main_mig() {
   for (auto const &benchmark : experiments::epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
     std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
+    std::string compress2rs_path = fmt::format("{}benchmarks/{}_abc.aig", EXPERIMENTS_PATH, benchmark);
+
+    if (-1 == system(fmt::format("yosys-abc -q \"read_aiger {}; strash; balance -l; resub -K 6 -l; rewrite -l; resub -K 6 -N 2 -l; rf -l; resub -K 8 -l; balance -l; resub -K 8 -N 2 -l; rewrite -l; resub -K 10 -l; rewrite -z -l; resub -K 10 -N 2 -l; balance -l; resub -K 12 -l; refactor -z -l; resub -K 12 -N 2 -l; rewrite -z -l; balance -l; write_aiger {}\"", benchmark_path, compress2rs_path).c_str())) {
+      std::cout << "yosys compress2rs: error" << std::endl;
+    }
 
     mockturtle::mig_network mig;
-    if (lorina::read_aiger(benchmark_path, mockturtle::aiger_reader(mig)) != lorina::return_code::success) {
+    if (lorina::read_aiger(compress2rs_path, mockturtle::aiger_reader(mig)) != lorina::return_code::success) {
       continue;
     }
 
     uint32_t const size_before = mig.num_gates();
     uint32_t const depth_before = mockturtle::depth_view(mig).depth();
+    std::cout << "size_before = " << size_before << ", depth_before = " << depth_before << std::endl;
 
     mockturtle::rewrite_params ps;
     mockturtle::rewrite_stats st;
@@ -81,11 +87,11 @@ void main_mig() {
     ps.cut_enumeration_ps.cut_limit = 8u;
     mockturtle::rewrite<mockturtle::mig_network, CutSize>(mig, ps, &st);
 
-    mockturtle::exp_map.flush_cost_table();
-
     uint32_t const size_after = mig.num_gates();
     mockturtle::depth_view depth_mig{mig};
     uint32_t const depth_after = depth_mig.depth();
+    std::cout << "size_after = " << size_after << ", depth_after = " << depth_after << std::endl;
+    mockturtle::exp_map.flush_cost_table();
 
     double runtime_after_post_rw = 0;
     mockturtle::mig_network mig_post_rw = mig.clone();
@@ -102,6 +108,7 @@ void main_mig() {
     }
     uint32_t const size_after_post_rw = mig_post_rw.num_gates();
     uint32_t const depth_after_post_rw = mockturtle::depth_view(mig_post_rw).depth();
+    std::cout << "size_after_post_rw = " << size_after_post_rw << ", depth_after_post_rw = " << depth_after_post_rw << std::endl;
 
     double runtime_after_post_resub = 0;
     {
@@ -124,16 +131,13 @@ void main_mig() {
 
     uint32_t const size_after_post_resub = mig.num_gates();
     uint32_t const depth_after_post_resub = mockturtle::depth_view(mig).depth();
+    std::cout << "size_after_post_resub = " << size_after_post_resub << ", depth_after_post_resub = " << depth_after_post_resub << std::endl;
+
     exp(benchmark, size_before, 
       size_after, depth_before, depth_after, mockturtle::to_seconds(st.time_total),
       size_after_post_rw, depth_after_post_rw, runtime_after_post_rw,
       size_after_post_resub, depth_after_post_resub, runtime_after_post_resub, 
       cec);
-
-    std::cout << "size_before = " << size_before << ", depth_before = " << depth_before << std::endl;
-    std::cout << "size_after = " << size_after << ", depth_after = " << depth_after << std::endl;
-    std::cout << "size_after_post_rw = " << size_after_post_rw << ", depth_after_post_rw = " << depth_after_post_rw << std::endl;
-    std::cout << "size_after_post_resub = " << size_after_post_resub << ", depth_after_post_resub = " << depth_after_post_resub << std::endl;
   }
 
   exp.save();

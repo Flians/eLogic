@@ -1,7 +1,7 @@
 {
   "version": "0.2.0",
   "env": {
-        "RUSTFLAGS": "-Awarnings"
+    "RUSTFLAGS": "-Awarnings"
   },
   "configurations": [
     {
@@ -9,7 +9,9 @@
       "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/build/emig/emig",
-      "args": [],
+      "args": [
+        "1"
+      ],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build_sh"
     },
@@ -115,9 +117,11 @@
         "args": [
           "test",
           "--no-run",
-          "--lib",         
-          "--features", "ilp-cbc",
-          "--package", "mig_egg"
+          "--lib",
+          "--features",
+          "ilp-cbc",
+          "--package",
+          "mig_egg"
         ],
         // "filter": {
         //   "name": "mig_egg",  
@@ -125,7 +129,7 @@
         // }
       },
       "args": [
-        "--nocapture"       
+        "--nocapture"
       ],
       "cwd": "${workspaceFolder}/mig_egg"
     }
