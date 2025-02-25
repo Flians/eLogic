@@ -52,8 +52,7 @@ void main_aig(const bool use_dc) {
   using namespace experiments;
   using namespace mockturtle;
 
-  experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool>
-      exp(fmt::format("rewrite_aig_{}", use_dc ? "dc" : "nodc"), "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
+  experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool> exp(fmt::format("rewrite_aig_{}", use_dc ? "dc" : "nodc"), "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
 
   xag_npn_resynthesis<aig_network, xag_network, xag_npn_db_kind::aig_complete> resyn;
   exact_library_params ps_exact;
@@ -93,8 +92,7 @@ void main_mig(const bool use_dc) {
   using namespace experiments;
   using namespace mockturtle;
 
-  experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool>
-      exp(fmt::format("rewrite_mig_{}", use_dc ? "dc" : "nodc"), "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
+  experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool> exp(fmt::format("rewrite_mig_{}", use_dc ? "dc" : "nodc"), "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
 
   mig_npn_resynthesis resyn;
   exact_library_params ps_exact;
@@ -104,14 +102,9 @@ void main_mig(const bool use_dc) {
   for (auto const &benchmark : epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
     std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
-    std::string compress2rs_path = fmt::format("{}benchmarks/{}_abc.aig", EXPERIMENTS_PATH, benchmark);
-
-    if (-1 == system(fmt::format("yosys-abc -q \"read_aiger {}; strash; balance -l; resub -K 6 -l; rewrite -l; resub -K 6 -N 2 -l; rf -l; resub -K 8 -l; balance -l; resub -K 8 -N 2 -l; rewrite -l; resub -K 10 -l; rewrite -z -l; resub -K 10 -N 2 -l; balance -l; resub -K 12 -l; refactor -z -l; resub -K 12 -N 2 -l; rewrite -z -l; balance -l; write_aiger {}\"", benchmark_path, compress2rs_path).c_str())) {
-      std::cout << "yosys compress2rs: error" << std::endl;
-    }
 
     mig_network mig;
-    if (lorina::read_aiger(compress2rs_path, aiger_reader(mig)) != lorina::return_code::success) {
+    if (lorina::read_aiger(benchmark_path, aiger_reader(mig)) != lorina::return_code::success) {
       continue;
     }
 
@@ -124,9 +117,7 @@ void main_mig(const bool use_dc) {
     ps.window_size = 8u;
     ps.cut_enumeration_ps.cut_size = CUT_SIZE;
     ps.cut_enumeration_ps.cut_limit = 8u;
-  
-    for (int i = 0 ; i < 3; ++i)
-      baseline::rewrite(mig, exact_lib, ps, &st);
+    baseline::rewrite(mig, exact_lib, ps, &st);
 
     bool const cec = abc_cec_impl(mig, benchmark_path);
     exp(benchmark, size_before, mig.num_gates(), depth_before, depth_view(mig).depth(), to_seconds(st.time_total), cec);
@@ -140,8 +131,7 @@ void main_xag(const bool use_dc) {
   using namespace experiments;
   using namespace mockturtle;
 
-  experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool>
-      exp(fmt::format("rewrite_xag_{}", use_dc ? "dc" : "nodc"), "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
+  experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool> exp(fmt::format("rewrite_xag_{}", use_dc ? "dc" : "nodc"), "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
 
   xag_npn_resynthesis<xag_network, xag_network, xag_npn_db_kind::xag_complete> resyn;
   exact_library_params ps_exact;
@@ -151,14 +141,9 @@ void main_xag(const bool use_dc) {
   for (auto const &benchmark : epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
     std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
-    std::string compress2rs_path = fmt::format("{}benchmarks/{}_abc.aig", EXPERIMENTS_PATH, benchmark);
-
-    if (-1 == system(fmt::format("yosys-abc -q \"read_aiger {}; strash; balance -l; resub -K 6 -l; rewrite -l; resub -K 6 -N 2 -l; rf -l; resub -K 8 -l; balance -l; resub -K 8 -N 2 -l; rewrite -l; resub -K 10 -l; rewrite -z -l; resub -K 10 -N 2 -l; balance -l; resub -K 12 -l; refactor -z -l; resub -K 12 -N 2 -l; rewrite -z -l; balance -l; write_aiger {}\"", benchmark_path, compress2rs_path).c_str())) {
-      std::cout << "yosys compress2rs: error" << std::endl;
-    }
 
     xag_network xag;
-    if (lorina::read_aiger(compress2rs_path, aiger_reader(xag)) != lorina::return_code::success) {
+    if (lorina::read_aiger(benchmark_path, aiger_reader(xag)) != lorina::return_code::success) {
       continue;
     }
 
@@ -182,20 +167,14 @@ void main_xag(const bool use_dc) {
 }
 
 int mig_resubstitution(const bool use_dc) {
-  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool>
-      exp("mig_resubstitution", "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
+  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool> exp("mig_resubstitution", "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
 
   for (auto const &benchmark : experiments::epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
     std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
-    std::string compress2rs_path = fmt::format("{}benchmarks/{}_abc.aig", EXPERIMENTS_PATH, benchmark);
 
-    if (-1 == system(fmt::format("yosys-abc -q \"read_aiger {}; strash; balance -l; resub -K 6 -l; rewrite -l; resub -K 6 -N 2 -l; rf -l; resub -K 8 -l; balance -l; resub -K 8 -N 2 -l; rewrite -l; resub -K 10 -l; rewrite -z -l; resub -K 10 -N 2 -l; balance -l; resub -K 12 -l; refactor -z -l; resub -K 12 -N 2 -l; rewrite -z -l; balance -l; write_aiger {}\"", benchmark_path, compress2rs_path).c_str())) {
-      std::cout << "yosys compress2rs: error" << std::endl;
-    }
-    
     mockturtle::mig_network mig;
-    if (lorina::read_aiger(compress2rs_path, mockturtle::aiger_reader(mig)) != lorina::return_code::success) {
+    if (lorina::read_aiger(benchmark_path, mockturtle::aiger_reader(mig)) != lorina::return_code::success) {
       continue;
     }
 
@@ -231,20 +210,14 @@ void mig_algebraic_depth_rewriting() {
   using namespace experiments;
   using namespace mockturtle;
 
-  experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool>
-      exp("mig_algebraic_depth_rewriting", "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
+  experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool> exp("mig_algebraic_depth_rewriting", "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
 
   for (auto const &benchmark : epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
     std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
-    std::string compress2rs_path = fmt::format("{}benchmarks/{}_abc.aig", EXPERIMENTS_PATH, benchmark);
-
-    if (-1 == system(fmt::format("yosys-abc -q \"read_aiger {}; strash; balance -l; resub -K 6 -l; rewrite -l; resub -K 6 -N 2 -l; rf -l; resub -K 8 -l; balance -l; resub -K 8 -N 2 -l; rewrite -l; resub -K 10 -l; rewrite -z -l; resub -K 10 -N 2 -l; balance -l; resub -K 12 -l; refactor -z -l; resub -K 12 -N 2 -l; rewrite -z -l; balance -l; write_aiger {}\"", benchmark_path, compress2rs_path).c_str())) {
-      std::cout << "yosys compress2rs: error" << std::endl;
-    }
 
     mig_network mig;
-    if (lorina::read_aiger(compress2rs_path, aiger_reader(mig)) != lorina::return_code::success) {
+    if (lorina::read_aiger(benchmark_path, aiger_reader(mig)) != lorina::return_code::success) {
       continue;
     }
 
@@ -266,11 +239,9 @@ void mig_algebraic_depth_rewriting() {
 
 int main(int argc, char *argv[]) {
   int op = 0;
-  if (argc > 1)
-    op = atoi(argv[1]);
+  if (argc > 1) op = atoi(argv[1]);
   bool use_dc = true;
-  if (argc > 2)
-    use_dc = atoi(argv[2]);
+  if (argc > 2) use_dc = atoi(argv[2]);
   if (op == 0) {
     main_aig(use_dc);
   } else if (op == 1) {

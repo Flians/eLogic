@@ -13,29 +13,29 @@
 #include <unordered_set>
 #include <vector>
 
-#include <parallel_hashmap/phmap.h>
 #include <fstream>
+#include <parallel_hashmap/phmap.h>
 
 #include <mockturtle/networks/detail/foreach.hpp>
 #include <mockturtle/traits.hpp>
 #include <mockturtle/views/immutable_view.hpp>
 
+#include "json.hpp"
 #include "mig_egg/src/lib.rs.h"
 #include "rust/cxx.h"
-#include "json.hpp"
 
-void print_rust_vec_string(const ::rust::Vec<::rust::String>& vec) {
-    std::cout << "[";
-    bool flag = true;
-    for (const auto& item : vec) {
-      if (flag) {
-        flag = false;
-        std::cout << item;
-      } else {
-        std::cout << ", " << item;
-      }
+void print_rust_vec_string(const ::rust::Vec<::rust::String> &vec) {
+  std::cout << "[";
+  bool flag = true;
+  for (const auto &item : vec) {
+    if (flag) {
+      flag = false;
+      std::cout << item;
+    } else {
+      std::cout << ", " << item;
     }
-    std::cout << "]" << std::endl;
+  }
+  std::cout << "]" << std::endl;
 }
 
 namespace mockturtle {
@@ -46,110 +46,98 @@ namespace mockturtle {
     std::unordered_set<std::string> bad_exprs;
     std::string bak_filepath;
 
-    bool is_bad(const std::string &key) const {
-      return bad_exprs.find(key) != bad_exprs.end();
+    bool is_bad(const std::string &key) const { return bad_exprs.find(key) != bad_exprs.end(); }
+
+    void serialize_to_file(const std::string &filename, const std::unordered_map<std::string, std::unique_ptr<CCost>> &table, const std::unordered_set<std::string> &bad_exprs) {
+      nlohmann::json j;
+      for (const auto &[key, cost] : table) {
+        std::unordered_set<std::string> unique_exprs;
+        for (const auto &expr : cost->aft_expr)
+          unique_exprs.emplace(expr);
+
+        j["table"][key] = {
+            {"aft_expr", unique_exprs},
+            {"aft_dep", cost->aft_dep},
+            {"aft_size", cost->aft_size},
+            {"aft_invs", cost->aft_invs},
+        };
+      }
+      j["bad_exprs"] = bad_exprs;
+
+      std::ofstream out(filename);
+      out << j.dump(4);
+      out.close();
     }
 
-    void serialize_to_file(const std::string& filename,
-                          const std::unordered_map<std::string, std::unique_ptr<CCost>>& table,
-                          const std::unordered_set<std::string>& bad_exprs) {
-        nlohmann::json j;
-        for (const auto& [key, cost] : table) {
-            std::unordered_set<std::string> unique_exprs;
-            for (const auto &expr: cost->aft_expr)
-                unique_exprs.emplace(expr);
+    void deserialize_from_file(const std::string &filename, std::unordered_map<std::string, std::unique_ptr<CCost>> &table, std::unordered_set<std::string> &bad_exprs) {
+      table.clear();
+      bad_exprs.clear();
 
-            j["table"][key] = {
-                {"aft_expr", unique_exprs},
-                {"aft_dep", cost->aft_dep},
-                {"aft_size", cost->aft_size},
-                {"aft_invs", cost->aft_invs},
-            };
-        }
-        j["bad_exprs"] = bad_exprs;
+      std::ifstream in(filename);
+      if (!in) {
+        std::cerr << "Failed to open file: " << filename << std::endl;
+        return;
+      }
 
-        std::ofstream out(filename);
-        out << j.dump(4); 
-        out.close();
-    }
+      nlohmann::json j;
+      try {
+        in >> j;
+      } catch (const nlohmann::json::parse_error &e) {
+        std::cerr << "JSON parse error: " << e.what() << std::endl;
+        return;
+      }
+      in.close();
 
-    void deserialize_from_file(const std::string& filename,
-                              std::unordered_map<std::string, std::unique_ptr<CCost>>& table,
-                              std::unordered_set<std::string>& bad_exprs) {
-        table.clear();
-        bad_exprs.clear();
+      try {
+        if (j.contains("table")) {
+          for (const auto &[key, value] : j["table"].items()) {
+            auto cost = std::make_unique<CCost>();
+            if (value["aft_expr"].is_string()) {
+              cost->aft_expr.emplace_back(value["aft_expr"].get<std::string>());
+            } else if (value["aft_expr"].is_array()) {
+              for (const auto &expr : value["aft_expr"].get<std::unordered_set<std::string>>())
+                cost->aft_expr.emplace_back(expr);
+            } else {
+              throw std::runtime_error("Invalid type for aft_expr");
+            }
+            cost->aft_dep = value["aft_dep"];
+            cost->aft_size = value["aft_size"];
+            cost->aft_invs = value["aft_invs"];
 
-        std::ifstream in(filename);
-        if (!in) {
-            std::cerr << "Failed to open file: " << filename << std::endl;
-            return;
-        }
-
-        nlohmann::json j;
-        try {
-            in >> j;
-        } catch (const nlohmann::json::parse_error& e) {
-            std::cerr << "JSON parse error: " << e.what() << std::endl;
-            return;
-        }
-        in.close();
-
-        try {
-          if (j.contains("table")) {
-            for (const auto& [key, value] : j["table"].items()) {
-                auto cost = std::make_unique<CCost>();
-                if (value["aft_expr"].is_string()) {
-                    cost->aft_expr.emplace_back(value["aft_expr"].get<std::string>());
-                } else if (value["aft_expr"].is_array()) {
-                    for (const auto &expr: value["aft_expr"].get<std::unordered_set<std::string>>())
-                      cost->aft_expr.emplace_back(expr);
-                } else {
-                    throw std::runtime_error("Invalid type for aft_expr");
-                }
-                cost->aft_dep = value["aft_dep"];
-                cost->aft_size = value["aft_size"];
-                cost->aft_invs = value["aft_invs"];
-
-                auto [it, inserted] = table.try_emplace(key, std::move(cost));
-                if (!inserted) {
-                    auto& existing_cost = *it->second;
-                    if (cost->aft_dep == existing_cost.aft_dep && cost->aft_size == existing_cost.aft_size) {
-                      for (const auto &expr: cost->aft_expr)
-                        it->second->aft_expr.emplace_back(expr);
-                    } else if (cost->aft_dep < existing_cost.aft_dep || 
-                        (cost->aft_dep == existing_cost.aft_dep && cost->aft_size < existing_cost.aft_size)) {
-                        it->second = std::move(cost);
-                    }
-                }
+            auto [it, inserted] = table.try_emplace(key, nullptr);
+            if (!inserted) {
+              auto &existing_cost = *it->second;
+              if (cost->aft_dep == existing_cost.aft_dep && cost->aft_size == existing_cost.aft_size) {
+                for (const auto &expr : cost->aft_expr)
+                  it->second->aft_expr.emplace_back(expr);
+              } else if (cost->aft_dep < existing_cost.aft_dep || (cost->aft_dep == existing_cost.aft_dep && cost->aft_size < existing_cost.aft_size)) {
+                it->second = std::move(cost);
+              }
+            } else {
+              it->second = std::move(cost);
             }
           }
-
-          if (j.contains("bad_exprs")) {
-            bad_exprs = j["bad_exprs"].get<std::unordered_set<std::string>>();
-          }
-        } catch (const nlohmann::json::exception& e) {
-            std::cerr << "JSON error: " << e.what() << std::endl;
-            table.clear(); 
-            bad_exprs.clear();
         }
+
+        if (j.contains("bad_exprs")) {
+          bad_exprs = j["bad_exprs"].get<std::unordered_set<std::string>>();
+        }
+      } catch (const nlohmann::json::exception &e) {
+        std::cerr << "JSON error: " << e.what() << std::endl;
+        table.clear();
+        bad_exprs.clear();
+      }
     }
 
   public:
-    StrCostTable(const std::string& filename = "lib_expr2cost.json") : bak_filepath(filename) {
-      deserialize_from_file(bak_filepath, table, bad_exprs);
-    }
+    StrCostTable(const std::string &filename = "lib_expr2cost.json") : bak_filepath(filename) { deserialize_from_file(bak_filepath, table, bad_exprs); }
 
-    ~StrCostTable() {
-      serialize_to_file(bak_filepath, table, bad_exprs);
-    }
+    ~StrCostTable() { serialize_to_file(bak_filepath, table, bad_exprs); }
 
-    void flush_cost_table() {
-      serialize_to_file(bak_filepath, table, bad_exprs);
-    }
+    void flush_cost_table() { serialize_to_file(bak_filepath, table, bad_exprs); }
 
     const CCost *insert(const std::string &key, const std::vector<uint32_t> &leaf_levels = {}) {
-      if (is_bad(key))
-        return nullptr;
+      if (is_bad(key)) return nullptr;
 
       uint32_t min_level = 0, max_level = 0;
       if (!leaf_levels.empty()) {
@@ -172,7 +160,7 @@ namespace mockturtle {
         it->second = std::make_unique<CCost>(simplify_depth(key, leaf_levels.data(), leaf_levels.size()));
       }
 
-      if (it->second->aft_expr.size() == 1 && std::string(it->second->aft_expr.begin()->c_str()) == key.c_str()) { // no improvement
+      if (it->second->aft_expr.size() == 1 && std::string(it->second->aft_expr[0]) == key) { // no improvement
         bad_exprs.insert(key_deps);
         table.erase(key);
         return nullptr;
@@ -182,14 +170,12 @@ namespace mockturtle {
     }
 
     void set_bad(const std::string &key) {
-      if (bad_exprs.insert(key).second)
-        table.erase(key);
+      if (bad_exprs.insert(key).second) table.erase(key);
     }
 
     void reset(bool all = false) {
       bad_exprs.clear();
-      if (all)
-        table.clear();
+      if (all) table.clear();
     }
 
     const CCost *find(const std::string &key) const {
@@ -229,14 +215,10 @@ namespace mockturtle {
     static constexpr bool is_topologically_sorted = true;
 
   public:
-    explicit egg_view(Ntk const &ntk, std::vector<node> const &leaves, signal const &root)
-        : immutable_view<Ntk>(ntk), _root(root) {
-      construct(leaves);
-    }
+    explicit egg_view(Ntk const &ntk, std::vector<node> const &leaves, signal const &root) : immutable_view<Ntk>(ntk), _root(root) { construct(leaves); }
 
     template <typename _Ntk = Ntk, typename = std::enable_if_t<!std::is_same_v<typename _Ntk::signal, typename _Ntk::node>>>
-    explicit egg_view(Ntk const &ntk, std::vector<signal> const &leaves, signal const &root)
-        : immutable_view<Ntk>(ntk), _root(root) {
+    explicit egg_view(Ntk const &ntk, std::vector<signal> const &leaves, signal const &root) : immutable_view<Ntk>(ntk), _root(root) {
       construct(leaves);
     }
 
@@ -293,7 +275,7 @@ namespace mockturtle {
 
     std::vector<uint32_t> depth_ranking(const std::vector<uint32_t> &leaf_levels) const {
       std::size_t leaf_size = leaf_levels.size();
-      assert(leaf_size==_num_leaves);
+      assert(leaf_size == _num_leaves);
 
       std::vector<std::pair<uint32_t, uint32_t>> value_index_pairs;
       value_index_pairs.reserve(leaf_size);
@@ -301,18 +283,15 @@ namespace mockturtle {
         value_index_pairs.emplace_back(leaf_levels[i], i);
       }
 
-      std::sort(value_index_pairs.begin(), value_index_pairs.end(),
-              [](const std::pair<uint32_t, uint32_t>& a, const std::pair<uint32_t, uint32_t>& b) {
-                  return a.first < b.first;
-              });
+      std::sort(value_index_pairs.begin(), value_index_pairs.end(), [](const std::pair<uint32_t, uint32_t> &a, const std::pair<uint32_t, uint32_t> &b) { return a.first < b.first; });
 
       std::vector<uint32_t> sorted_indices(leaf_size);
       for (size_t i = 0; i < leaf_size; ++i) {
-          if (i > 0 && value_index_pairs[i].first == value_index_pairs[i - 1].first) {
-              sorted_indices[value_index_pairs[i].second] = sorted_indices[value_index_pairs[i - 1].second];
-          } else {
-              sorted_indices[value_index_pairs[i].second] = i;
-          }
+        if (i > 0 && value_index_pairs[i].first == value_index_pairs[i - 1].first) {
+          sorted_indices[value_index_pairs[i].second] = sorted_indices[value_index_pairs[i - 1].second];
+        } else {
+          sorted_indices[value_index_pairs[i].second] = i;
+        }
       }
 
       return sorted_indices;
@@ -347,9 +326,7 @@ namespace mockturtle {
       return _prefix_exprs[index];
     }
 
-    const CCost *optimize_by_egg_lib(const std::vector<uint32_t> &leaf_levels) const {
-      return exp_map.insert(_original_expr, this->depth_ranking(leaf_levels));
-    }
+    const CCost *optimize_by_egg_lib(const std::vector<uint32_t> &leaf_levels) const { return exp_map.insert(_original_expr, this->depth_ranking(leaf_levels)); }
 
     CCost optimize_by_egg(const std::vector<uint32_t> &leaf_levels) const {
       std::vector<uint32_t> const depth_ranking = this->depth_ranking(leaf_levels);
@@ -357,8 +334,7 @@ namespace mockturtle {
     }
 
     void feedback(bool is_bad) const {
-      if (is_bad)
-        exp_map.set_bad(_original_expr);
+      if (is_bad) exp_map.set_bad(_original_expr);
     }
 
     static signal rebuild(Ntk &ntk, const char *aft_expr, const std::uint32_t aft_expr_len, const std::vector<node> &leaves) {
@@ -381,8 +357,7 @@ namespace mockturtle {
           while (!signal_stack.empty()) {
             cid = signal_stack.top();
             signal_stack.pop();
-            if (cid == gap)
-              break;
+            if (cid == gap) break;
             children.push_back(cid);
           }
           // 2. build node
@@ -428,8 +403,7 @@ namespace mockturtle {
     }
 
     inline void add_leaf(node const &leaf) {
-      if (this->visited(leaf) == this->trav_id())
-        return;
+      if (this->visited(leaf) == this->trav_id()) return;
 
       add_node(leaf, std::string(1, 'a' + _num_leaves));
       this->set_visited(leaf, this->trav_id());

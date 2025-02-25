@@ -1383,24 +1383,30 @@ mod tests {
                 .map(|s| s.parse::<u32>().unwrap())
                 .collect();
 
-            let mut egraph = CEGraph::default();
-
-            let key_expr: egg::RecExpr<MIG> = key.parse().unwrap();
-            let key_expr_id = egraph.add_expr(&key_expr);
+            // let key_expr: egg::RecExpr<MIG> = key.parse().unwrap();
+            // let mut egraph = CEGraph::default();
+            // let key_expr_id = egraph.add_expr(&key_expr);
 
             let single_expr = entry.aft_expr.len() == 1;
             for expr in &entry.aft_expr {
-                let expr: egg::RecExpr<MIG> = expr.parse().unwrap();
+                let mut egraph = CEGraph::default();
+                let expr_mig: egg::RecExpr<MIG> = expr.parse().unwrap();
+                let aft_expr_id = egraph.add_expr(&expr_mig);
 
-                let aft_expr_id = egraph.add_expr(&expr);
+                /*
                 let runner = egg::Runner::default()
                     .with_egraph(egraph.clone())
                     .run(&rules);
                 if runner.egraph.find(key_expr_id) != runner.egraph.find(aft_expr_id) {
                     println!("Key '{}' is NOT equivalent to expression '{}'", key, expr);
                 }
+                */
+                if !is_equiv(&key, &expr) {
+                    println!("Key '{}' is NOT equivalent to expression '{}'", key, expr);
+                }
 
-                let (aft_expr, aft_dep, aft_size, aft_invs) = to_prefix(&expr, &var_deps);
+                let (aft_expr, aft_dep, aft_size, aft_invs) =
+                    to_prefix(&egraph.id_to_expr(aft_expr_id), &var_deps);
                 if aft_dep != entry.aft_dep || aft_size != entry.aft_size {
                     println!(
                         "Key '{}' has different depth {}/{} and size {}/{}",
@@ -1424,7 +1430,7 @@ mod tests {
         let start_expr: egg::RecExpr<MIG> = start.parse().unwrap();
         let end = "0";
         let end_expr: egg::RecExpr<MIG> = end.parse().unwrap();
-        let mut eg: CEGraph = egg::EGraph::default();
+        let mut eg: CEGraph = CEGraph::default();
         eg.add_expr(&start_expr);
         eg.rebuild();
 
