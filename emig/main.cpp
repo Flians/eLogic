@@ -11,14 +11,13 @@
 // #include <mockturtle/algorithms/rewrite.hpp>
 #include <mockturtle/mockturtle.hpp>
 
-#define EXPERIMENTS_PATH "tools/mockturtle/experiments/"
+#define EXPERIMENTS_PATH "./tools/mockturtle/experiments/"
 
 const uint32_t CutSize = 8u;
 
 void main_aig() {
 
-  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool>
-      exp(fmt::format("rewrite_elo_aig_k{}", CutSize), "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
+  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool> exp(fmt::format("rewrite_elo_aig_k{}", CutSize), "benchmark", "size_before", "depth_before", "size_after", "depth_after", "runtime", "equivalent");
 
   for (auto const &benchmark : experiments::epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
@@ -42,7 +41,7 @@ void main_aig() {
     bool const cec = experiments::abc_cec_impl(aig, benchmark_path);
     uint32_t const size_after = aig.num_gates();
     uint32_t const depth_after = mockturtle::depth_view(aig).depth();
-    exp(benchmark, size_before, aig.num_gates(), depth_before, depth_after, mockturtle::to_seconds(st.time_total), cec);
+    exp(benchmark, size_before, depth_before, aig.num_gates(), depth_after, mockturtle::to_seconds(st.time_total), cec);
 
     std::cout << "size_before = " << size_before << ", depth_before = " << depth_before << std::endl;
     std::cout << "size_after = " << size_after << ", depth_after = " << depth_after << std::endl;
@@ -53,9 +52,8 @@ void main_aig() {
 }
 
 void main_mig() {
-
-  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, uint32_t, uint32_t, float, uint32_t, uint32_t, float, bool>
-      exp(fmt::format("rewrite_elo_mig_k{}_post2", CutSize), "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "size_post_rw", "depth_post_rw", "runtime_post_rw","size_post_resub", "depth_post_resub", "runtime_post_resub", "equivalent");
+  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, uint32_t, uint32_t, float, uint32_t, uint32_t, float, bool> exp(
+      fmt::format("rewrite_elo_mig_k{}_post2", CutSize), "benchmark", "size_before", "depth_before", "size_after", "depth_after", "runtime", "size_post_rw", "depth_post_rw", "runtime_post_rw", "size_post_resub", "depth_post_resub", "runtime_post_resub", "equivalent");
 
   mockturtle::mig_npn_resynthesis resyn;
   mockturtle::exact_library_params ps_exact;
@@ -65,14 +63,9 @@ void main_mig() {
   for (auto const &benchmark : experiments::epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
     std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
-    std::string compress2rs_path = fmt::format("{}benchmarks/{}_abc.aig", EXPERIMENTS_PATH, benchmark);
-
-    if (-1 == system(fmt::format("yosys-abc -q \"read_aiger {}; strash; balance -l; resub -K 6 -l; rewrite -l; resub -K 6 -N 2 -l; rf -l; resub -K 8 -l; balance -l; resub -K 8 -N 2 -l; rewrite -l; resub -K 10 -l; rewrite -z -l; resub -K 10 -N 2 -l; balance -l; resub -K 12 -l; refactor -z -l; resub -K 12 -N 2 -l; rewrite -z -l; balance -l; write_aiger {}\"", benchmark_path, compress2rs_path).c_str())) {
-      std::cout << "yosys compress2rs: error" << std::endl;
-    }
 
     mockturtle::mig_network mig;
-    if (lorina::read_aiger(compress2rs_path, mockturtle::aiger_reader(mig)) != lorina::return_code::success) {
+    if (lorina::read_aiger(benchmark_path, mockturtle::aiger_reader(mig)) != lorina::return_code::success) {
       continue;
     }
 
@@ -133,11 +126,7 @@ void main_mig() {
     uint32_t const depth_after_post_resub = mockturtle::depth_view(mig).depth();
     std::cout << "size_after_post_resub = " << size_after_post_resub << ", depth_after_post_resub = " << depth_after_post_resub << std::endl;
 
-    exp(benchmark, size_before, 
-      size_after, depth_before, depth_after, mockturtle::to_seconds(st.time_total),
-      size_after_post_rw, depth_after_post_rw, runtime_after_post_rw,
-      size_after_post_resub, depth_after_post_resub, runtime_after_post_resub, 
-      cec);
+    exp(benchmark, size_before, depth_before, size_after, depth_after, mockturtle::to_seconds(st.time_total), size_after_post_rw, depth_after_post_rw, runtime_after_post_rw, size_after_post_resub, depth_after_post_resub, runtime_after_post_resub, cec);
   }
 
   exp.save();
@@ -146,8 +135,7 @@ void main_mig() {
 
 int main(int argc, char *argv[]) {
   int op = 0;
-  if (argc >= 2)
-    op = atoi(argv[1]);
+  if (argc >= 2) op = atoi(argv[1]);
   if (op == 0) {
     main_aig();
   } else if (op == 1) {
@@ -158,11 +146,11 @@ int main(int argc, char *argv[]) {
     std::cout << "Size: " << cost->aft_size << ", Depth: " << cost->aft_dep << ", Expr: ";
     print_rust_vec_string(cost->aft_expr);
 
-    std::vector<uint32_t> leaf_levels2 = {0,0,3,4,2,4};
+    std::vector<uint32_t> leaf_levels2 = {0, 0, 3, 4, 2, 4};
     cost = std::make_unique<CCost>(simplify_size("(M (~ 0) b (M (~ (M a (~ c) e)) f (M 0 d f)))", leaf_levels2.data(), leaf_levels2.size()));
     std::cout << "Size: " << cost->aft_size << ", Depth: " << cost->aft_dep << ", Expr: ";
     print_rust_vec_string(cost->aft_expr);
-  } else { 
+  } else {
     // clean the library of expr2cost
   }
   return 0;

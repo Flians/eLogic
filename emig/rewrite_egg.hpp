@@ -69,8 +69,7 @@ namespace mockturtle {
   public:
     /*! \brief Returns the cut set of a node */
     cut_set_t &cuts(uint32_t node_index) {
-      if (node_index >= _cuts.size())
-        _cuts.resize(node_index + 1);
+      if (node_index >= _cuts.size()) _cuts.resize(node_index + 1);
 
       return _cuts[node_index];
     }
@@ -88,19 +87,13 @@ namespace mockturtle {
     }
 
     /*! \brief Returns the total number of tuples that were tried to be merged */
-    auto total_tuples() const {
-      return _total_tuples;
-    }
+    auto total_tuples() const { return _total_tuples; }
 
     /*! \brief Returns the total number of cuts in the database. */
-    auto total_cuts() const {
-      return _total_cuts;
-    }
+    auto total_cuts() const { return _total_cuts; }
 
     /*! \brief Returns the number of nodes for which cuts are computed */
-    auto nodes_size() const {
-      return _cuts.size();
-    }
+    auto nodes_size() const { return _cuts.size(); }
 
     /* compute positions of leave indices in cut `sub` (subset) with respect to
      * leaves in cut `sup` (super set).
@@ -129,9 +122,7 @@ namespace mockturtle {
      * \param tt Truth table to add
      * \return Literal id from the truth table store
      */
-    uint32_t insert_truth_table(kitty::static_truth_table<NumVars> const &tt) {
-      return _truth_tables.insert(tt);
-    }
+    uint32_t insert_truth_table(kitty::static_truth_table<NumVars> const &tt) { return _truth_tables.insert(tt); }
 
   private:
     template <typename _Ntk, uint32_t _NumVars, bool _ComputeTruth, typename _CutData>
@@ -154,9 +145,7 @@ namespace mockturtle {
       }
     }
 
-    void clear_cut_set(uint32_t index) {
-      _cuts[index].clear();
-    }
+    void clear_cut_set(uint32_t index) { _cuts[index].clear(); }
 
   private:
     /* compressed representation of cuts */
@@ -178,11 +167,7 @@ namespace mockturtle {
       using cut_t = typename dynamic_network_cuts2<Ntk, NumVars, ComputeTruth, CutData>::cut_t;
       using cut_set_t = typename dynamic_network_cuts2<Ntk, NumVars, ComputeTruth, CutData>::cut_set_t;
 
-      explicit dynamic_cut_enumeration_impl(Ntk const &ntk, cut_enumeration_params const &ps, cut_enumeration_stats &st, dynamic_network_cuts2<Ntk, NumVars, ComputeTruth, CutData> &cuts)
-          : ntk(ntk),
-            ps(ps),
-            st(st),
-            cuts(cuts) {
+      explicit dynamic_cut_enumeration_impl(Ntk const &ntk, cut_enumeration_params const &ps, cut_enumeration_stats &st, dynamic_network_cuts2<Ntk, NumVars, ComputeTruth, CutData> &cuts) : ntk(ntk), ps(ps), st(st), cuts(cuts) {
         assert(ps.cut_limit < cuts.max_cut_num && "cut_limit exceeds the compile-time limit for the maximum number of cuts");
       }
 
@@ -221,12 +206,9 @@ namespace mockturtle {
           return;
         }
 
-        if (cuts.cuts(index).size() > 0)
-          return;
+        if (cuts.cuts(index).size() > 0) return;
 
-        ntk.foreach_fanin(n, [&](auto const &f) {
-          compute_cuts(ntk.get_node(f));
-        });
+        ntk.foreach_fanin(n, [&](auto const &f) { compute_cuts(ntk.get_node(f)); });
 
         if constexpr (Ntk::min_fanin_size == 2 && Ntk::max_fanin_size == 2) {
           merge_cuts2(index);
@@ -237,17 +219,13 @@ namespace mockturtle {
 
       void init_cuts() {
         cuts.add_zero_cut(ntk.node_to_index(ntk.get_node(ntk.get_constant(false))));
-        if (ntk.get_node(ntk.get_constant(false)) != ntk.get_node(ntk.get_constant(true)))
-          cuts.add_zero_cut(ntk.node_to_index(ntk.get_node(ntk.get_constant(true))));
-        ntk.foreach_ci([&](auto const &n) {
-          cuts.add_unit_cut(ntk.node_to_index(n));
-        });
+        if (ntk.get_node(ntk.get_constant(false)) != ntk.get_node(ntk.get_constant(true))) cuts.add_zero_cut(ntk.node_to_index(ntk.get_node(ntk.get_constant(true))));
+        ntk.foreach_ci([&](auto const &n) { cuts.add_unit_cut(ntk.node_to_index(n)); });
       }
 
       void clear_cuts(node<Ntk> const &n) {
         const auto index = ntk.node_to_index(n);
-        if (cuts.cuts(index).size() == 0)
-          return;
+        if (cuts.cuts(index).size() == 0) return;
 
         cuts.clear_cut_set(index);
       }
@@ -506,9 +484,7 @@ namespace mockturtle {
     /*! \brief Candidates */
     uint32_t candidates{0};
 
-    void report() const {
-      std::cout << fmt::format("[i] total time       = {:>5.2f} secs\n", to_seconds(time_total));
-    }
+    void report() const { std::cout << fmt::format("[i] total time       = {:>5.2f} secs\n", to_seconds(time_total)); }
   };
 
   namespace detail {
@@ -521,10 +497,7 @@ namespace mockturtle {
       using node_data = typename Ntk::storage::element_type::node_type;
 
     public:
-      rewrite_impl(Ntk &ntk, rewrite_params const &ps, rewrite_stats &st, NodeCostFn const &cost_fn)
-          : ntk(ntk), ps(ps), st(st), cost_fn(cost_fn), required(ntk, UINT32_MAX) {
-        register_events();
-      }
+      rewrite_impl(Ntk &ntk, rewrite_params const &ps, rewrite_stats &st, NodeCostFn const &cost_fn) : ntk(ntk), ps(ps), st(st), cost_fn(cost_fn), required(ntk, UINT32_MAX) { register_events(); }
 
       ~rewrite_impl() {
         if constexpr (has_level_v<Ntk>) {
@@ -543,8 +516,7 @@ namespace mockturtle {
           compute_required();
         }
 
-        if (ps.use_egg)
-          perform_rewriting_egg();
+        if (ps.use_egg) perform_rewriting_egg();
 
         st.estimated_gain = _estimated_gain;
         st.candidates = _candidates;
@@ -566,32 +538,23 @@ namespace mockturtle {
         best_leaves.reserve(NumVars);
         leaf_levels.reserve(NumVars);
         leaves.reserve(NumVars);
-        // signal<Ntk> best_signal;
 
-        /*
-        std::unordered_set<node<Ntk>> pos;
         ntk.foreach_gate([&](auto const &n, auto i) {
-          pos.insert(n);
-        });
-        const uint32_t min_leaves = NumVars >> 1;
-        */
-        ntk.foreach_gate([&](auto const &n, auto i) {
-          if (ntk.fanout_size(n) == 0u || ntk.is_dead(n))
-            return;
+          if (ntk.fanout_size(n) == 0u || ntk.is_dead(n)) return;
 
           int32_t best_gain = -1;
-          uint32_t best_dep = UINT32_MAX;
+          uint32_t best_level = UINT32_MAX;
+          bool best_phase = false;
+
           std::string best_expr_aft;
           bool is_on_critical_path = false;
 
           /* update level for node */
           if constexpr (has_level_v<Ntk>) {
             uint32_t level = 0;
-            ntk.foreach_fanin(n, [&](auto const &f) {
-              level = std::max(level, ntk.level(ntk.get_node(f)));
-            });
+            ntk.foreach_fanin(n, [&](auto const &f) { level = std::max(level, ntk.level(ntk.get_node(f))); });
             ntk.set_level(n, level + 1);
-            best_dep = level + 1;
+            best_level = level + 1;
             is_on_critical_path = ntk.is_on_critical_path(n);
           }
 
@@ -604,12 +567,10 @@ namespace mockturtle {
             printf("%lu\n", n);
           }
           */
-          // const bool is_po = pos.find(n) != pos.end();
-          const uint32_t original_level = best_dep;
+          const uint32_t original_level = best_level;
           for (auto &cut : cuts.cuts(ntk.node_to_index(n))) {
             /* skip trivial cut */
             const size_t cur_cut_size = cut->size();
-            // if ((is_po && cur_cut_size == 1 && *cut->begin() == ntk.node_to_index(n)) || (!is_po && cur_cut_size < min_leaves)) {
             if ((cur_cut_size == 1 && *cut->begin() == ntk.node_to_index(n))) {
               continue;
             }
@@ -637,8 +598,7 @@ namespace mockturtle {
             }
 
             // useless cut
-            if (flag)
-              continue;
+            if (flag) continue;
 
             /* measure the MFFC contained in the cut */
             const uint32_t mffc_size = measure_mffc_deref(n, cut);
@@ -652,63 +612,57 @@ namespace mockturtle {
             // assert(mffc_size == mffc_size2 && "mffc_size == mffc_size2");
 
             // skip bad cut
-            if (mffc_size <= 1 || eview._original_size < 2 || eview.has_bug)
-              continue;
+            if (mffc_size <= 1 || eview._original_size < 2 || eview.has_bug) continue;
 
             // optimize by egg
-            const CCost* dcost = eview.optimize_by_egg_lib(leaf_levels);
-            if (!dcost)
-              continue;
+            const CCost *dcost = eview.optimize_by_egg_lib(leaf_levels);
+            if (!dcost) continue;
             uint32_t aft_dep = dcost->aft_dep;
-            const std::string aft_expr(dcost->aft_expr[0]);
+            for (const auto &expr : dcost->aft_expr) {
+              const std::string aft_expr(expr);
 
-            // skip bad cut
-            if (eview._original_expr == aft_expr)
-              continue;
+              // skip bad cut
+              if (eview._original_expr == aft_expr) continue;
 
-            // rewrite using egg
-            const uint32_t size_bef = ntk.size();
-            const signal<Ntk> new_f = egg_view<Ntk>::rebuild(ntk, aft_expr.data(), aft_expr.size(), leaves);
-            const uint32_t size_aft = ntk.size();
-            const int32_t nodes_added = size_aft - size_bef;
-            const int32_t gain = mffc_size - nodes_added;
-            if constexpr (has_level_v<Ntk>) {
-              aft_dep = ntk.level(ntk.get_node(new_f));
-            }
+              // rewrite using egg
+              const uint32_t size_bef = ntk.size();
+              const signal<Ntk> new_f = egg_view<Ntk>::rebuild(ntk, aft_expr.data(), aft_expr.size(), leaves);
+              const uint32_t size_aft = ntk.size();
+              const int32_t nodes_added = size_aft - size_bef;
+              const int32_t gain = mffc_size - nodes_added;
+              if constexpr (has_level_v<Ntk>) {
+                aft_dep = ntk.level(ntk.get_node(new_f));
+              }
 
-            // discard if dag.root and n are the same
-            if (n == ntk.get_node(new_f)) {
-              assert(nodes_added == 0);
-              continue;
-            }
+              // discard if dag.root and n are the same
+              if (n == ntk.get_node(new_f)) {
+                assert(nodes_added == 0);
+                continue;
+              }
 
-            // discard if no gain
-            if (gain < 0) {
-              // ntk.take_out_node(ntk.get_node(new_f));
+              // discard if no gain
+              if (gain < 0) {
+                // ntk.take_out_node(ntk.get_node(new_f));
+                set_news_dead(ntk, size_bef, size_aft);
+                continue;
+              }
+
+              if ((is_on_critical_path && gain > best_gain && aft_dep <= best_level) || (!is_on_critical_path && gain > best_gain) || (gain == best_gain && aft_dep < best_level)) {
+                // if ((gain > best_gain && aft_dep <= best_level) || (gain == best_gain && aft_dep < best_level)) {
+                best_gain = gain;
+                best_level = aft_dep;
+                best_leaves = leaves;
+                best_expr_aft = aft_expr;
+              } else {
+                // ntk.take_out_node(ntk.get_node(new_f));
+              }
               set_news_dead(ntk, size_bef, size_aft);
-              continue;
             }
 
-            if ((is_on_critical_path && gain > best_gain && aft_dep <= best_dep) ||
-                (!is_on_critical_path && gain > best_gain) ||
-                (gain == best_gain && aft_dep < best_dep)) {
-              // if ((gain > best_gain && aft_dep <= best_dep) || (gain == best_gain && aft_dep < best_dep)) {
-              // if (best_gain != -1) ntk.take_out_node(ntk.get_node(best_signal));
-              // best_signal = new_f;
-              best_gain = gain;
-              best_dep = aft_dep;
-              best_leaves = leaves;
-              best_expr_aft = aft_expr;
-            } else {
-              // ntk.take_out_node(ntk.get_node(new_f));
-            }
-            set_news_dead(ntk, size_bef, size_aft);
-
-            if (cut->size() == 0 || (cut->size() == 1 && *cut->begin() != ntk.node_to_index(n)))
-              break;
+            if (cut->size() == 0 || (cut->size() == 1 && *cut->begin() != ntk.node_to_index(n))) break;
           }
 
-          if (best_gain > 0 || (best_gain == 0 && best_dep < original_level)) {
+          if (best_gain > 0 || (best_gain == 0 && best_level < original_level)) {
             // build the optimal sub-graph
             const signal<Ntk> best_signal = egg_view<Ntk>::rebuild(ntk, best_expr_aft.data(), best_expr_aft.size(), best_leaves);
 
@@ -717,11 +671,6 @@ namespace mockturtle {
 
             clear_cuts_fanout_rec(cuts, cut_manager, ntk.get_node(best_signal));
           }
-          /*
-           else if (best_gain != -1) {
-            ntk.take_out_node(ntk.get_node(best_signal));
-          }
-          */
         });
       }
 
@@ -759,29 +708,29 @@ namespace mockturtle {
 
       uint32_t recursive_deref(mockturtle::node<Ntk> const &n) {
         /* terminate? */
-        if (ntk.is_constant(n) || ntk.is_pi(n))
-          return 0;
+        if (ntk.is_constant(n) || ntk.is_pi(n)) return 0;
 
         /* recursively collect nodes */
         uint32_t value{cost_fn(ntk, n)};
         ntk.foreach_fanin(n, [&](auto const &s) {
           if (ntk.decr_fanout_size(ntk.get_node(s)) == 0) {
             value += recursive_deref(ntk.get_node(s));
-          } });
+          }
+        });
         return value;
       }
 
       uint32_t recursive_ref(mockturtle::node<Ntk> const &n) {
         /* terminate? */
-        if (ntk.is_constant(n) || ntk.is_pi(n))
-          return 0;
+        if (ntk.is_constant(n) || ntk.is_pi(n)) return 0;
 
         /* recursively collect nodes */
         uint32_t value{cost_fn(ntk, n)};
         ntk.foreach_fanin(n, [&](auto const &s) {
           if (ntk.incr_fanout_size(ntk.get_node(s)) == 0) {
             value += recursive_ref(ntk.get_node(s));
-          } });
+          }
+        });
         return value;
       }
 
@@ -794,8 +743,7 @@ namespace mockturtle {
 
       void set_dead(Ntk &ntk, node<Ntk> const &n) {
         /* we cannot delete CIs, constants, or already dead nodes */
-        if (n == 0 || ntk.is_ci(n) || ntk.is_dead(n))
-          return;
+        if (n == 0 || ntk.is_ci(n) || ntk.is_dead(n)) return;
 
         auto &nobj = ntk._storage->nodes[n];
         nobj.data[0].h1 = UINT32_C(0x80000000); /* fanout size 0, but dead */
@@ -815,17 +763,13 @@ namespace mockturtle {
 
       void compute_required() {
         if constexpr (has_level_v<Ntk>) {
-          ntk.foreach_po([&](auto const &f) {
-            required[f] = ntk.depth();
-          });
+          ntk.foreach_po([&](auto const &f) { required[f] = ntk.depth(); });
 
           for (uint32_t index = ntk.size() - 1; index > ntk.num_pis(); index--) {
             node<Ntk> n = ntk.index_to_node(index);
             uint32_t req = required[n];
 
-            ntk.foreach_fanin(n, [&](auto const &f) {
-              required[f] = std::min(required[f], req - 1);
-            });
+            ntk.foreach_fanin(n, [&](auto const &f) { required[f] = std::min(required[f], req - 1); });
           }
         }
       }
@@ -855,9 +799,7 @@ namespace mockturtle {
             update_node_level(n);
           };
 
-          auto const update_level_of_deleted_node = [&](node<Ntk> const &n) {
-            ntk.set_level(n, -1);
-          };
+          auto const update_level_of_deleted_node = [&](node<Ntk> const &n) { ntk.set_level(n, -1); };
 
           add_event = ntk.events().register_add_event(update_level_of_new_node);
           modified_event = ntk.events().register_modified_event(update_level_of_existing_node);
@@ -885,9 +827,7 @@ namespace mockturtle {
 
             /* update only one more level */
             if (top_most) {
-              ntk.foreach_fanout(n, [&](const auto &p) {
-                update_node_level(p, false);
-              });
+              ntk.foreach_fanout(n, [&](const auto &p) { update_node_level(p, false); });
             }
           }
         }
