@@ -19,6 +19,11 @@ void main_aig() {
 
   experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool> exp(fmt::format("rewrite_elo_aig_k{}", CutSize), "benchmark", "size_before", "depth_before", "size_after", "depth_after", "runtime", "equivalent");
 
+  mockturtle::xag_npn_resynthesis<mockturtle::aig_network, mockturtle::xag_network, mockturtle::xag_npn_db_kind::aig_complete> resyn;
+  mockturtle::exact_library_params ps_exact;
+  ps_exact.compute_dc_classes = true;
+  mockturtle::exact_library<mockturtle::aig_network, 4u> exact_lib(resyn, ps_exact);
+
   for (auto const &benchmark : experiments::epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
     std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
@@ -35,8 +40,8 @@ void main_aig() {
     mockturtle::rewrite_stats st;
     ps.use_egg = true;
     ps.cut_enumeration_ps.cut_size = CutSize;
-    ps.cut_enumeration_ps.cut_limit = 8u;
-    mockturtle::rewrite<mockturtle::aig_network, CutSize>(aig, ps, &st);
+    ps.cut_enumeration_ps.cut_limit = 15u;
+    mockturtle::rewrite<mockturtle::aig_network, mockturtle::exact_library<mockturtle::aig_network, 4u>, CutSize>(aig, exact_lib, ps, &st);
 
     bool const cec = experiments::abc_cec_impl(aig, benchmark_path);
     uint32_t const size_after = aig.num_gates();
@@ -77,8 +82,8 @@ void main_mig() {
     mockturtle::rewrite_stats st;
     ps.use_egg = true;
     ps.cut_enumeration_ps.cut_size = CutSize;
-    ps.cut_enumeration_ps.cut_limit = 8u;
-    mockturtle::rewrite<mockturtle::mig_network, CutSize>(mig, ps, &st);
+    ps.cut_enumeration_ps.cut_limit = 15u;
+    mockturtle::rewrite<mockturtle::mig_network, mockturtle::exact_library<mockturtle::mig_network, 4u>, CutSize>(mig, exact_lib, ps, &st);
 
     uint32_t const size_after = mig.num_gates();
     mockturtle::depth_view depth_mig{mig};
@@ -92,10 +97,10 @@ void main_mig() {
       // post optimizaiton using rewrite
       baseline::rewrite_params ps_size;
       baseline::rewrite_stats st_size;
-      ps.use_dont_cares = true;
-      ps.window_size = 8u;
-      ps.cut_enumeration_ps.cut_size = 4u;
-      ps.cut_enumeration_ps.cut_limit = 8u;
+      ps_size.use_dont_cares = true;
+      ps_size.window_size = 8u;
+      ps_size.cut_enumeration_ps.cut_size = 4u;
+      ps_size.cut_enumeration_ps.cut_limit = 15u;
       baseline::rewrite(mig_post_rw, exact_lib, ps_size, &st_size);
       runtime_after_post_rw = mockturtle::to_seconds(st_size.time_total);
     }
@@ -108,12 +113,11 @@ void main_mig() {
       // post optimizaiton using resubstitution
       mockturtle::resubstitution_params ps_size;
       mockturtle::resubstitution_stats st_size;
-      ps_size.max_pis = CutSize;
+      ps_size.max_pis = 8u;
       ps_size.max_inserts = 1u;
       ps_size.progress = false;
       ps_size.window_size = 12u;
       ps_size.use_dont_cares = true;
-      // ps.preserve_depth = true;
       mockturtle::fanout_view fanout_mig{depth_mig};
       mockturtle::mig_resubstitution2(fanout_mig, ps_size, &st_size);
       mig = cleanup_dangling(mig);
@@ -152,6 +156,7 @@ int main(int argc, char *argv[]) {
     print_rust_vec_string(cost->aft_expr);
   } else {
     // clean the library of expr2cost
+    mockturtle::exp_map.merge_cost_table("mig_egg/lib_expr2cost.json");
   }
   return 0;
 }

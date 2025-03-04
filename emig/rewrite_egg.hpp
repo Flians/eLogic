@@ -9,6 +9,7 @@
 #include <mockturtle/utils/node_map.hpp>
 #include <mockturtle/utils/stopwatch.hpp>
 #include <mockturtle/views/color_view.hpp>
+#include <mockturtle/views/cut_view.hpp>
 #include <mockturtle/views/depth_view.hpp>
 #include <mockturtle/views/fanout_view.hpp>
 #include <mockturtle/views/window_view.hpp>
@@ -489,15 +490,17 @@ namespace mockturtle {
 
   namespace detail {
 
-    template <class Ntk, uint32_t NumVars, class NodeCostFn>
+    template <class Ntk, class Library, uint32_t NumVars, class NodeCostFn>
     class rewrite_impl {
+      static constexpr uint32_t num_vars = 4u;
+      static constexpr uint32_t max_window_size = 8u;
       using network_cuts_t = dynamic_network_cuts2<Ntk, NumVars, false, cut_enumeration_rewrite_cut>;
       using cut_manager_t = detail2::dynamic_cut_enumeration_impl<Ntk, NumVars, false, cut_enumeration_rewrite_cut>;
       using cut_t = typename network_cuts_t::cut_t;
       using node_data = typename Ntk::storage::element_type::node_type;
 
     public:
-      rewrite_impl(Ntk &ntk, rewrite_params const &ps, rewrite_stats &st, NodeCostFn const &cost_fn) : ntk(ntk), ps(ps), st(st), cost_fn(cost_fn), required(ntk, UINT32_MAX) { register_events(); }
+      rewrite_impl(Ntk &ntk, Library &library, rewrite_params const &ps, rewrite_stats &st, NodeCostFn const &cost_fn) : ntk(ntk), library(library), ps(ps), st(st), cost_fn(cost_fn), required(ntk, UINT32_MAX) { register_events(); }
 
       ~rewrite_impl() {
         if constexpr (has_level_v<Ntk>) {
@@ -524,14 +527,19 @@ namespace mockturtle {
 
     private:
       void perform_rewriting_egg() {
+        const auto size = ntk.size();
+
         /* initialize the cut manager */
         cut_enumeration_stats cst;
-        network_cuts_t cuts(ntk.size() + (ntk.size() >> 1));
+        network_cuts_t cuts(size + (size >> 1));
         cut_manager_t cut_manager(ntk, ps.cut_enumeration_ps, cst, cuts);
 
         /* initialize cuts for constant nodes and PIs */
         cut_manager.init_cuts();
 
+        std::array<mockturtle::signal<Ntk>, num_vars> best_leaves4;
+        std::array<mockturtle::signal<Ntk>, num_vars> leaves4;
+        mockturtle::signal<Ntk> best_signal;
         std::vector<node<Ntk>> best_leaves;
         std::vector<uint32_t> leaf_levels;
         std::vector<node<Ntk>> leaves;
@@ -578,7 +586,6 @@ namespace mockturtle {
             leaves.clear();
             leaf_levels.clear();
             bool flag = 0;
-            uint32_t min_fin_level = UINT32_MAX;
             for (auto const leaf_index : *cut) {
               node<Ntk> cur_leaf = ntk.index_to_node(leaf_index);
               if (ntk.is_dead(cur_leaf)) {
@@ -593,85 +600,195 @@ namespace mockturtle {
                   break;
                 }
                 leaf_levels.push_back(cl);
-                min_fin_level = std::min(min_fin_level, cl);
               }
             }
 
             // useless cut
             if (flag) continue;
 
-            /* measure the MFFC contained in the cut */
-            const uint32_t mffc_size = measure_mffc_deref(n, cut);
-            /* restore contained MFFC */
-            measure_mffc_ref(n, cut);
-            if (mffc_size <= 1) continue;
-
-            // build egg graph
-            egg_view<Ntk> eview(ntk, leaves, ntk.make_signal(n));
-            // const uint32_t mffc_size2 = eview._mffc_size;
-            // assert(mffc_size == mffc_size2 && "mffc_size == mffc_size2");
-
-            // skip bad cut
-            if (mffc_size <= 1 || eview._original_size < 2 || eview.has_bug) continue;
-
-            // optimize by egg
-            const CCost *dcost = eview.optimize_by_egg_lib(leaf_levels);
-            if (!dcost) continue;
-            uint32_t aft_dep = dcost->aft_dep;
-            for (const auto &expr : dcost->aft_expr) {
-              const std::string aft_expr(expr);
-
-              // skip bad cut
-              if (eview._original_expr == aft_expr) continue;
-
-              // rewrite using egg
-              const uint32_t size_bef = ntk.size();
-              const signal<Ntk> new_f = egg_view<Ntk>::rebuild(ntk, aft_expr.data(), aft_expr.size(), leaves);
-              const uint32_t size_aft = ntk.size();
-              const int32_t nodes_added = size_aft - size_bef;
-              const int32_t gain = mffc_size - nodes_added;
-              if constexpr (has_level_v<Ntk>) {
-                aft_dep = ntk.level(ntk.get_node(new_f));
-              }
-
-              // discard if dag.root and n are the same
-              if (n == ntk.get_node(new_f)) {
-                assert(nodes_added == 0);
-                continue;
-              }
-
-              // discard if no gain
-              if (gain < 0) {
-                // ntk.take_out_node(ntk.get_node(new_f));
-                set_news_dead(ntk, size_bef, size_aft);
-                continue;
-              }
-
-              if ((is_on_critical_path && gain > best_gain && aft_dep <= best_level) || (!is_on_critical_path && gain > best_gain) || (gain == best_gain && aft_dep < best_level)) {
-                // if ((gain > best_gain && aft_dep <= best_level) || (gain == best_gain && aft_dep < best_level)) {
-                best_gain = gain;
-                best_level = aft_dep;
+            /* select a cut*/
+            if (cur_cut_size > num_vars) {
+              if (select_cut_by_egg(n, cut, is_on_critical_path, leaves, leaf_levels, best_expr_aft, best_gain, best_level)) {
                 best_leaves = leaves;
-                best_expr_aft = aft_expr;
-              } else {
-                // ntk.take_out_node(ntk.get_node(new_f));
               }
-              set_news_dead(ntk, size_bef, size_aft);
+            } else {
+              cut_view<Ntk> cut_mig{ntk, leaves, ntk.make_signal(n)};
+              if (select_cut_by_exact(n, cut, is_on_critical_path, leaves4, cut_mig, best_signal, best_gain, best_level, best_phase)) {
+                best_leaves4 = leaves4;
+                best_leaves.clear();
+              }
             }
 
             if (cut->size() == 0 || (cut->size() == 1 && *cut->begin() != ntk.node_to_index(n))) break;
           }
 
           if (best_gain > 0 || (best_gain == 0 && best_level < original_level)) {
-            // build the optimal sub-graph
-            const signal<Ntk> best_signal = egg_view<Ntk>::rebuild(ntk, best_expr_aft.data(), best_expr_aft.size(), best_leaves);
-
-            // replace node wth the new structure
-            ntk.substitute_node_no_restrash(n, best_signal);
+            if (!best_leaves.empty()) {
+              // build the optimal sub-graph
+              best_signal = egg_view<Ntk>::rebuild(ntk, best_expr_aft.data(), best_expr_aft.size(), best_leaves);
+              // replace node wth the new structure
+              ntk.substitute_node_no_restrash(n, best_signal);
+            } else {
+              // replace node wth the new structure
+              auto &db = library.get_database();
+              mockturtle::topo_view topo{db, best_signal};
+              best_signal = cleanup_dangling(topo, ntk, best_leaves4.begin(), best_leaves4.end()).front();
+              ntk.substitute_node_no_restrash(n, best_signal ^ best_phase);
+            }
 
             clear_cuts_fanout_rec(cuts, cut_manager, ntk.get_node(best_signal));
           }
         });
+      }
+
+      bool select_cut_by_egg(mockturtle::node<Ntk> const &n, cut_t const *cut, bool const &is_on_critical_path, std::vector<node<Ntk>> const &leaves, std::vector<uint32_t> const &leaf_levels, std::string &best_expr_aft, int32_t &best_gain = -1,
+                             uint32_t &best_level = UINT32_MAX) {
+
+        /* measure the MFFC contained in the cut */
+        const uint32_t mffc_size = measure_mffc_deref(n, cut);
+        /* restore contained MFFC */
+        measure_mffc_ref(n, cut);
+        if (mffc_size <= 1) return false;
+
+        // build egg graph
+        egg_view<Ntk> eview(ntk, leaves, ntk.make_signal(n));
+        // const uint32_t mffc_size2 = eview._mffc_size;
+        // assert(mffc_size == mffc_size2 && "mffc_size == mffc_size2");
+
+        // skip bad cut
+        if (mffc_size <= 1 || eview._original_size < 2 || eview.has_bug) return false;
+
+        // optimize by egg
+        const CCost *dcost = eview.optimize_by_egg_lib(leaf_levels);
+        if (!dcost) return false;
+        uint32_t aft_dep = dcost->aft_dep;
+        bool find_better = false;
+        for (const auto &expr : dcost->aft_expr) {
+          const std::string aft_expr(expr);
+
+          // skip bad cut
+          if (eview._original_expr == aft_expr) continue;
+
+          // rewrite using egg
+          const uint32_t size_bef = ntk.size();
+          const signal<Ntk> new_f = egg_view<Ntk>::rebuild(ntk, aft_expr.data(), aft_expr.size(), leaves);
+          const uint32_t size_aft = ntk.size();
+          const int32_t nodes_added = size_aft - size_bef;
+          const int32_t gain = mffc_size - nodes_added;
+          if constexpr (has_level_v<Ntk>) {
+            aft_dep = ntk.level(ntk.get_node(new_f));
+          }
+
+          // discard if dag.root and n are the same
+          if (n == ntk.get_node(new_f)) {
+            assert(nodes_added == 0);
+            continue;
+          }
+
+          // discard if no gain
+          if (gain < 0) {
+            // ntk.take_out_node(ntk.get_node(new_f));
+            set_news_dead(ntk, size_bef, size_aft);
+            continue;
+          }
+
+          if ((is_on_critical_path && gain > best_gain && aft_dep <= best_level) || (!is_on_critical_path && gain > best_gain) || (gain == best_gain && aft_dep < best_level)) {
+            // if ((gain > best_gain && aft_dep <= best_level) || (gain == best_gain && aft_dep < best_level)) {
+            // if ((gain > best_gain) || (gain == best_gain && aft_dep < best_level)) {
+            best_gain = gain;
+            best_level = aft_dep;
+            best_expr_aft = aft_expr;
+            find_better = true;
+          } else {
+            // ntk.take_out_node(ntk.get_node(new_f));
+          }
+          set_news_dead(ntk, size_bef, size_aft);
+          if (!ps.allow_multiple_structures) break;
+        }
+        return find_better;
+      }
+
+      bool select_cut_by_exact(mockturtle::node<Ntk> const &n, cut_t const *cut, bool const &is_on_critical_path, std::array<mockturtle::signal<Ntk>, num_vars> &leaves, mockturtle::cut_view<Ntk> const &cut_mig, mockturtle::signal<Ntk> &best_signal, int32_t &best_gain = -1,
+                               uint32_t &best_level = UINT32_MAX, bool &best_phase = false) {
+        auto &db = library.get_database();
+
+        std::array<uint8_t, num_vars> permutation;
+
+        /* Boolean matching */
+        auto tt = mockturtle::simulate<kitty::static_truth_table<num_vars>>(cut_mig)[0];
+        auto config = kitty::exact_npn_canonization(tt);
+        auto tt_npn = std::get<0>(config);
+        auto neg = std::get<1>(config);
+        auto perm = std::get<2>(config);
+
+        auto const structures = library.get_supergates(tt_npn);
+
+        if (structures == nullptr) {
+          return false;
+        }
+
+        uint32_t negation = 0;
+        for (auto j = 0u; j < num_vars; ++j) {
+          permutation[perm[j]] = j;
+          negation |= ((neg >> perm[j]) & 1) << j;
+        }
+
+        /* save output negation to apply */
+        bool phase = (neg >> num_vars == 1) ? true : false;
+
+        {
+          auto j = 0u;
+          for (auto const leaf : *cut) {
+            leaves[permutation[j++]] = ntk.make_signal(ntk.index_to_node(leaf));
+          }
+
+          while (j < num_vars)
+            leaves[permutation[j++]] = ntk.get_constant(false);
+        }
+
+        for (auto j = 0u; j < num_vars; ++j) {
+          if ((negation >> j) & 1) {
+            leaves[j] = !leaves[j];
+          }
+        }
+
+        bool find_better = false;
+        {
+          /* measure the MFFC contained in the cut */
+          int32_t mffc_size = measure_mffc_deref(n, cut);
+
+          for (auto const &dag : *structures) {
+            auto [nodes_added, level] = evaluate_entry(n, db.get_node(dag.root), leaves);
+            int32_t gain = mffc_size - nodes_added;
+
+            /* discard if dag.root and n are the same */
+            if (ntk.node_to_index(n) == db.value(db.get_node(dag.root)) >> 1) continue;
+
+            /* discard if no gain */
+            if (gain < 0) continue;
+
+            /* discard if level increases */
+            if constexpr (mockturtle::has_level_v<Ntk>) {
+              if (ps.preserve_depth && level > required[n]) continue;
+            }
+
+            if ((is_on_critical_path && gain > best_gain && level <= best_level) || (!is_on_critical_path && gain > best_gain) || (gain == best_gain && level < best_level)) {
+              // if ((gain > best_gain) || (gain == best_gain && level < best_level)) {
+              ++_candidates;
+              best_gain = gain;
+              best_signal = dag.root;
+              best_phase = phase;
+              best_level = level;
+              find_better = true;
+            }
+
+            if (!ps.allow_multiple_structures) break;
+          }
+
+          /* restore contained MFFC */
+          measure_mffc_ref(n, cut);
+        }
+        return find_better;
       }
 
       uint32_t measure_mffc_ref(mockturtle::node<Ntk> const &n, cut_t const *cut) {
@@ -761,6 +878,104 @@ namespace mockturtle {
         }
       }
 
+      inline std::pair<int32_t, uint32_t> evaluate_entry(mockturtle::node<Ntk> const &current_root, mockturtle::node<Ntk> const &n, std::array<mockturtle::signal<Ntk>, num_vars> const &leaves) {
+        auto &db = library.get_database();
+        db.incr_trav_id();
+
+        return evaluate_entry_rec(current_root, n, leaves);
+      }
+
+      std::pair<int32_t, uint32_t> evaluate_entry_rec(mockturtle::node<Ntk> const &current_root, mockturtle::node<Ntk> const &n, std::array<mockturtle::signal<Ntk>, num_vars> const &leaves) {
+        auto &db = library.get_database();
+        if (db.is_pi(n) || db.is_constant(n)) return {0, 0};
+        if (db.visited(n) == db.trav_id()) return {0, 0};
+
+        db.set_visited(n, db.trav_id());
+
+        int32_t area = 0;
+        uint32_t level = 0;
+        bool hashed = true;
+
+        std::array<mockturtle::signal<Ntk>, Ntk::max_fanin_size> node_data;
+        db.foreach_fanin(n, [&](auto const &f, auto i) {
+          mockturtle::node<Ntk> g = db.get_node(f);
+          if (db.is_constant(g)) {
+            node_data[i] = f; /* ntk.get_costant( db.is_complemented( f ) ) */
+            return;
+          }
+          if (db.is_pi(g)) {
+            node_data[i] = leaves[db.node_to_index(g) - 1] ^ db.is_complemented(f);
+            if constexpr (mockturtle::has_level_v<Ntk>) {
+              level = std::max(level, ntk.level(ntk.get_node(leaves[db.node_to_index(g) - 1])));
+            }
+            return;
+          }
+
+          auto [area_rec, level_rec] = evaluate_entry_rec(current_root, g, leaves);
+          area += area_rec;
+          level = std::max(level, level_rec);
+
+          /* check value */
+          if (db.value(g) < UINT32_MAX) {
+            mockturtle::signal<Ntk> s;
+            s.data = static_cast<uint64_t>(db.value(g));
+            node_data[i] = s ^ db.is_complemented(f);
+          } else {
+            hashed = false;
+          }
+        });
+
+        if (hashed) {
+          /* try hash */
+          /* AIG, XAG, MIG, and XMG are supported now */
+          std::optional<mockturtle::signal<Ntk>> val;
+          do {
+            /* XAG */
+            if constexpr (mockturtle::has_has_and_v<Ntk> && mockturtle::has_has_xor_v<Ntk>) {
+              if (db.is_and(n))
+                val = ntk.has_and(node_data[0], node_data[1]);
+              else
+                val = ntk.has_xor(node_data[0], node_data[1]);
+              break;
+            }
+
+            /* AIG */
+            if constexpr (mockturtle::has_has_and_v<Ntk>) {
+              val = ntk.has_and(node_data[0], node_data[1]);
+              break;
+            }
+
+            /* XMG */
+            if constexpr (mockturtle::has_has_maj_v<Ntk> && mockturtle::has_has_xor3_v<Ntk>) {
+              if (db.is_maj(n))
+                val = ntk.has_maj(node_data[0], node_data[1], node_data[2]);
+              else
+                val = ntk.has_xor3(node_data[0], node_data[1], node_data[2]);
+              break;
+            }
+
+            /* MAJ */
+            if constexpr (mockturtle::has_has_maj_v<Ntk>) {
+              val = ntk.has_maj(node_data[0], node_data[1], node_data[2]);
+              break;
+            }
+            std::cerr << "[e] Only AIGs, XAGs, MAJs, and XMGs are currently supported \n";
+          } while (false);
+
+          if (val.has_value()) {
+            /* bad condition (current root is contained in the DAG): return a very high cost */
+            if (db.get_node(*val) == current_root) return {UINT32_MAX / 2, level + 1};
+
+            /* annotate hashing info */
+            db.set_value(n, val->data);
+            return {area + (ntk.fanout_size(ntk.get_node(*val)) > 0 ? 0 : cost_fn(ntk, n)), level + 1};
+          }
+        }
+
+        db.set_value(n, UINT32_MAX);
+        return {area + cost_fn(ntk, n), level + 1};
+      }
+
       void compute_required() {
         if constexpr (has_level_v<Ntk>) {
           ntk.foreach_po([&](auto const &f) { required[f] = ntk.depth(); });
@@ -835,6 +1050,7 @@ namespace mockturtle {
 
     private:
       Ntk &ntk;
+      Library &library;
       rewrite_params const &ps;
       rewrite_stats &st;
       NodeCostFn cost_fn;
@@ -876,8 +1092,8 @@ namespace mockturtle {
    * \param pst Rewrite statistics
    * \param cost_fn Node cost function (a functor with signature `uint32_t(Ntk const&, node<Ntk> const&)`)
    */
-  template <class Ntk, uint32_t NumVars = 4u, class NodeCostFn = unit_cost<Ntk>>
-  void rewrite(Ntk &ntk, rewrite_params const &ps = {}, rewrite_stats *pst = nullptr, NodeCostFn const &cost_fn = {}) {
+  template <class Ntk, class Library, uint32_t NumVars = 4u, class NodeCostFn = unit_cost<Ntk>>
+  void rewrite(Ntk &ntk, Library &library, rewrite_params const &ps = {}, rewrite_stats *pst = nullptr, NodeCostFn const &cost_fn = {}) {
     static_assert(is_network_type_v<Ntk>, "Ntk is not a network type");
     static_assert(has_get_node_v<Ntk>, "Ntk does not implement the get_node method");
     static_assert(has_size_v<Ntk>, "Ntk does not implement the size method");
@@ -898,13 +1114,13 @@ namespace mockturtle {
       using fanout_view_t = fanout_view<depth_view_t>;
       fanout_view_t fanout_view{depth_ntk};
 
-      detail::rewrite_impl<fanout_view_t, NumVars, NodeCostFn> p(fanout_view, ps, st, cost_fn);
+      detail::rewrite_impl<fanout_view_t, Library, NumVars, NodeCostFn> p(fanout_view, library, ps, st, cost_fn);
       p.run();
     } else {
       using fanout_view_t = fanout_view<Ntk>;
       fanout_view_t fanout_view{ntk};
 
-      detail::rewrite_impl<fanout_view_t, NumVars, NodeCostFn> p(fanout_view, ps, st, cost_fn);
+      detail::rewrite_impl<fanout_view_t, Library, NumVars, NodeCostFn> p(fanout_view, library, ps, st, cost_fn);
       p.run();
     }
 

@@ -76,7 +76,7 @@ void main_aig(const bool use_dc) {
     ps.use_dont_cares = use_dc;
     ps.window_size = 8u;
     ps.cut_enumeration_ps.cut_size = CUT_SIZE;
-    ps.cut_enumeration_ps.cut_limit = 8u;
+    ps.cut_enumeration_ps.cut_limit = 15u;
     baseline::rewrite(aig, exact_lib, ps, &st);
 
     bool const cec = abc_cec_impl(aig, benchmark_path);
@@ -116,7 +116,7 @@ void main_mig(const bool use_dc) {
     ps.use_dont_cares = use_dc;
     ps.window_size = 8u;
     ps.cut_enumeration_ps.cut_size = CUT_SIZE;
-    ps.cut_enumeration_ps.cut_limit = 8u;
+    ps.cut_enumeration_ps.cut_limit = 15u;
     baseline::rewrite(mig, exact_lib, ps, &st);
 
     bool const cec = abc_cec_impl(mig, benchmark_path);
@@ -155,7 +155,7 @@ void main_xag(const bool use_dc) {
     ps.use_dont_cares = use_dc;
     ps.window_size = 8u;
     ps.cut_enumeration_ps.cut_size = CUT_SIZE;
-    ps.cut_enumeration_ps.cut_limit = 8u;
+    ps.cut_enumeration_ps.cut_limit = 15u;
     baseline::rewrite(xag, exact_lib, ps, &st);
 
     bool const cec = abc_cec_impl(xag, benchmark_path);
