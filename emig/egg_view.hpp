@@ -70,8 +70,8 @@ namespace mockturtle {
     }
 
     void deserialize_from_file(const std::string &filename, std::unordered_map<std::string, std::unique_ptr<CCost>> &table, std::unordered_set<std::string> &bad_exprs) {
-      table.clear();
-      bad_exprs.clear();
+      // table.clear();
+      // bad_exprs.clear();
 
       std::ifstream in(filename);
       if (!in) {
@@ -135,6 +135,8 @@ namespace mockturtle {
     ~StrCostTable() { serialize_to_file(bak_filepath, table, bad_exprs); }
 
     void flush_cost_table() { serialize_to_file(bak_filepath, table, bad_exprs); }
+
+    void merge_cost_table(const std::string &filename) { deserialize_from_file(filename, table, bad_exprs); }
 
     const CCost *insert(const std::string &key, const std::vector<uint32_t> &leaf_levels = {}) {
       if (is_bad(key)) return nullptr;

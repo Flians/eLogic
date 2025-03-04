@@ -743,7 +743,11 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     }
 
     // Create a Runner and initialize with the expression
-    let mut runner = egg::Runner::default().with_expr(&bef_expr);
+    let mut runner = egg::Runner::default()
+        .with_expr(&bef_expr)
+        .with_iter_limit(100)
+        .with_node_limit(10000)
+        .with_time_limit(std::time::Duration::from_secs(10));
     let root = runner.roots[0];
 
     // Run the rewrite rules to saturate or partially simplify the expression
@@ -1001,8 +1005,8 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     // create an e-graph with the given expression
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(1000)
-        .with_node_limit(5000)
+        .with_iter_limit(100)
+        .with_node_limit(10000)
         .with_time_limit(std::time::Duration::from_secs(10));
     // the Runner knows which e-class the expression given with `with_expr` is in
     let root_id = runner.roots[0];
@@ -1066,8 +1070,8 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(2000)
-        .with_node_limit(8000)
+        .with_iter_limit(100)
+        .with_node_limit(10000)
         .with_time_limit(std::time::Duration::from_secs(10));
     let root_id = runner.roots[0];
 

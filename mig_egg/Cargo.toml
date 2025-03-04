@@ -20,7 +20,7 @@ rustc-hash = "2.0.0"
 indexmap = "2.0.0"
 rpds = "1.1.0"
 egraph-serialize = { version = "0.2.0"}
-ordered-float = "4.5.0"
+ordered-float = "5.0.0"
 fxhash = "0.2.1"
 hashbrown = "0.15.1"
 log = "0.4.20"
