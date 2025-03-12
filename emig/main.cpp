@@ -81,6 +81,7 @@ void main_mig() {
     mockturtle::rewrite_params ps;
     mockturtle::rewrite_stats st;
     ps.use_egg = true;
+    ps.window_size = 8u;
     ps.cut_enumeration_ps.cut_size = CutSize;
     ps.cut_enumeration_ps.cut_limit = 15u;
     mockturtle::rewrite<mockturtle::mig_network, mockturtle::exact_library<mockturtle::mig_network, 4u>, CutSize>(mig, exact_lib, ps, &st);
