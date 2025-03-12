@@ -25,6 +25,63 @@
 #include "rust/cxx.h"
 #include <experiments.hpp>
 
+#define USE_DC 1
+
+namespace mockturtle {
+  namespace detail {
+
+    template <class SimulationType, class Ntk, class Simulator, class Container>
+    void incremental_simulate_nodes_with_node_map(Ntk const &ntk, Container &node_to_value, Simulator const &sim, uint &current_leaves, uint max_leaves) {
+
+      if (current_leaves == 0) {
+        /* constants */
+        if (!node_to_value.has(ntk.get_node(ntk.get_constant(false)))) {
+          node_to_value[ntk.get_node(ntk.get_constant(false))] = sim.compute_constant(ntk.constant_value(ntk.get_node(ntk.get_constant(false))));
+        }
+        if (ntk.get_node(ntk.get_constant(false)) != ntk.get_node(ntk.get_constant(true))) {
+          if (!node_to_value.has(ntk.get_node(ntk.get_constant(true)))) {
+            node_to_value[ntk.get_node(ntk.get_constant(true))] = sim.compute_constant(ntk.constant_value(ntk.get_node(ntk.get_constant(true))));
+          }
+        }
+
+        /* pi */
+        ntk.foreach_pi([&](auto const &n, auto i) {
+          if (!node_to_value.has(n)) {
+            node_to_value[n] = sim.compute_pi(i);
+          }
+        });
+      }
+
+      if (current_leaves >= max_leaves) return; // simulated
+
+      for (uint32_t j = std::max(static_cast<uint>(1u + ntk.num_pis()), current_leaves); j <= max_leaves; j++) {
+        auto n = ntk.index_to_node(j);
+        if constexpr (has_is_crossing_v<Ntk>) {
+          if (ntk.is_crossing(n)) {
+            continue;
+          }
+        }
+
+        if (!node_to_value.has(n)) {
+          std::vector<SimulationType> fanin_values(ntk.fanin_size(n));
+
+          auto const fanin_fun = [&](auto const &f, auto i) { fanin_values[i] = node_to_value[ntk.get_node(f)]; };
+
+          if constexpr (is_crossed_network_type_v<Ntk>) {
+            ntk.foreach_fanin_ignore_crossings(n, fanin_fun);
+          } else {
+            ntk.foreach_fanin(n, fanin_fun);
+          }
+
+          node_to_value[n] = ntk.compute(n, fanin_values.begin(), fanin_values.end());
+        }
+      }
+      current_leaves = max_leaves;
+    }
+
+  } // namespace detail
+} // namespace mockturtle
+
 namespace mockturtle {
 
   /* forward declarations */
@@ -547,6 +604,16 @@ namespace mockturtle {
         leaf_levels.reserve(NumVars);
         leaves.reserve(NumVars);
 
+#ifdef USE_DC
+        // for dont care
+        mockturtle::reconvergence_driven_cut_parameters rps;
+        rps.max_leaves = ps.window_size;
+        mockturtle::reconvergence_driven_cut_statistics rst;
+        mockturtle::detail::reconvergence_driven_cut_impl<Ntk, false, mockturtle::has_level_v<Ntk>> reconv_cuts(ntk, rps, rst);
+        mockturtle::unordered_node_map<kitty::static_truth_table<max_window_size>, Ntk> tts(ntk);
+        mockturtle::color_view<Ntk> color_ntk{ntk};
+#endif
+
         ntk.foreach_gate([&](auto const &n, auto i) {
           if (ntk.fanout_size(n) == 0u || ntk.is_dead(n)) return;
 
@@ -569,12 +636,17 @@ namespace mockturtle {
           cut_manager.clear_cuts(n);
           cut_manager.compute_cuts(n);
 
-          /*
-          if (n == 209) {
-            bool res = experiments::abc_cec_impl(ntk, "/home/flynn/workplace/MIGBalance/tools/mockturtle/experiments/benchmarks/div.aig");
-            printf("%lu\n", n);
-          }
-          */
+#ifdef USE_DC
+          /* compute window */
+          std::vector<mockturtle::node<Ntk>> roots = {n};
+          auto const extended_leaves = reconv_cuts.run(roots).first;
+          std::vector<mockturtle::node<Ntk>> gates{collect_nodes(color_ntk, extended_leaves, roots)};
+          mockturtle::window_view window_ntk{color_ntk, extended_leaves, roots, gates};
+          mockturtle::default_simulator<kitty::static_truth_table<max_window_size>> sim;
+          tts.reset();
+          uint global_max_leaves = 0;
+#endif
+
           const uint32_t original_level = best_level;
           for (auto &cut : cuts.cuts(ntk.node_to_index(n))) {
             /* skip trivial cut */
@@ -586,8 +658,16 @@ namespace mockturtle {
             leaves.clear();
             leaf_levels.clear();
             bool flag = 0;
+#ifdef USE_DC
+            bool containment = true;
+#endif
             for (auto const leaf_index : *cut) {
               node<Ntk> cur_leaf = ntk.index_to_node(leaf_index);
+#ifdef USE_DC
+              if (window_ntk.is_pi(cur_leaf) || !window_ntk.belongs_to(cur_leaf)) {
+                containment = false;
+              }
+#endif
               if (ntk.is_dead(cur_leaf)) {
                 flag = 1;
                 break;
@@ -613,10 +693,17 @@ namespace mockturtle {
               }
             } else {
               cut_view<Ntk> cut_mig{ntk, leaves, ntk.make_signal(n)};
+#ifdef USE_DC
+              if (select_cut_by_exact_dc(n, cut, is_on_critical_path, leaves4, cut_mig, tts, window_ntk, sim, global_max_leaves, containment, best_signal, best_gain, best_level, best_phase)) {
+                best_leaves4 = leaves4;
+                best_leaves.clear();
+              }
+#else
               if (select_cut_by_exact(n, cut, is_on_critical_path, leaves4, cut_mig, best_signal, best_gain, best_level, best_phase)) {
                 best_leaves4 = leaves4;
                 best_leaves.clear();
               }
+#endif
             }
 
             if (cut->size() == 0 || (cut->size() == 1 && *cut->begin() != ntk.node_to_index(n))) break;
@@ -641,14 +728,13 @@ namespace mockturtle {
         });
       }
 
-      bool select_cut_by_egg(mockturtle::node<Ntk> const &n, cut_t const *cut, bool const &is_on_critical_path, std::vector<node<Ntk>> const &leaves, std::vector<uint32_t> const &leaf_levels, std::string &best_expr_aft, int32_t &best_gain = -1,
-                             uint32_t &best_level = UINT32_MAX) {
+      bool
+      select_cut_by_egg(mockturtle::node<Ntk> const &n, cut_t const *cut, bool const &is_on_critical_path, std::vector<node<Ntk>> const &leaves, std::vector<uint32_t> const &leaf_levels, std::string &best_expr_aft, int32_t &best_gain = -1, uint32_t &best_level = UINT32_MAX) {
 
-        /* measure the MFFC contained in the cut */
+        // measure the MFFC contained in the cut
         const uint32_t mffc_size = measure_mffc_deref(n, cut);
-        /* restore contained MFFC */
+        // restore contained MFFC
         measure_mffc_ref(n, cut);
-        if (mffc_size <= 1) return false;
 
         // build egg graph
         egg_view<Ntk> eview(ntk, leaves, ntk.make_signal(n));
@@ -656,7 +742,8 @@ namespace mockturtle {
         // assert(mffc_size == mffc_size2 && "mffc_size == mffc_size2");
 
         // skip bad cut
-        if (mffc_size <= 1 || eview._original_size < 2 || eview.has_bug) return false;
+        // if (mffc_size <= 1 || eview._original_size < 2 || eview.has_bug)
+        if (eview.has_bug) return false;
 
         // optimize by egg
         const CCost *dcost = eview.optimize_by_egg_lib(leaf_levels);
@@ -700,16 +787,40 @@ namespace mockturtle {
             best_expr_aft = aft_expr;
             find_better = true;
           } else {
-            // ntk.take_out_node(ntk.get_node(new_f));
           }
+          // ntk.take_out_node(ntk.get_node(new_f));
           set_news_dead(ntk, size_bef, size_aft);
           if (!ps.allow_multiple_structures) break;
         }
         return find_better;
       }
 
-      bool select_cut_by_exact(mockturtle::node<Ntk> const &n, cut_t const *cut, bool const &is_on_critical_path, std::array<mockturtle::signal<Ntk>, num_vars> &leaves, mockturtle::cut_view<Ntk> const &cut_mig, mockturtle::signal<Ntk> &best_signal, int32_t &best_gain = -1,
-                               uint32_t &best_level = UINT32_MAX, bool &best_phase = false) {
+#ifdef USE_DC
+      bool select_cut_by_exact_dc(mockturtle::node<Ntk> const &n,
+                                  cut_t const *cut,
+                                  bool const &is_on_critical_path,
+                                  std::array<mockturtle::signal<Ntk>, num_vars> &leaves,
+                                  mockturtle::cut_view<Ntk> const &cut_mig,
+                                  mockturtle::unordered_node_map<kitty::static_truth_table<max_window_size>, Ntk> &tts,
+                                  mockturtle::window_view<mockturtle::color_view<Ntk>> &window_ntk,
+                                  mockturtle::default_simulator<kitty::static_truth_table<max_window_size>> &sim,
+                                  uint &global_max_leaves,
+                                  const bool containment,
+                                  mockturtle::signal<Ntk> &best_signal,
+                                  int32_t &best_gain = -1,
+                                  uint32_t &best_level = UINT32_MAX,
+                                  bool &best_phase = false) {
+#else
+      bool select_cut_by_exact(mockturtle::node<Ntk> const &n,
+                               cut_t const *cut,
+                               bool const &is_on_critical_path,
+                               std::array<mockturtle::signal<Ntk>, num_vars> &leaves,
+                               mockturtle::cut_view<Ntk> const &cut_mig,
+                               mockturtle::signal<Ntk> &best_signal,
+                               int32_t &best_gain = -1,
+                               uint32_t &best_level = UINT32_MAX,
+                               bool &best_phase = false) {
+#endif
         auto &db = library.get_database();
 
         std::array<uint8_t, num_vars> permutation;
@@ -721,7 +832,37 @@ namespace mockturtle {
         auto neg = std::get<1>(config);
         auto perm = std::get<2>(config);
 
+#ifdef USE_DC
+        kitty::static_truth_table<num_vars> care;
+
+        if (containment) {
+          /* incremental simulation */
+          uint local_max_leaves = 0; // index
+          for (auto const &l : *cut) {
+            local_max_leaves = std::max(local_max_leaves, window_ntk.node_to_index(l));
+          }
+          mockturtle::detail::incremental_simulate_nodes_with_node_map<kitty::static_truth_table<max_window_size>>(window_ntk, tts, sim, global_max_leaves, local_max_leaves);
+
+          /* compute care set */
+          for (auto i = 0u; i < (1u << window_ntk.num_pis()); ++i) {
+            uint32_t entry{0u};
+            auto j = 0u;
+            for (auto const &l : *cut) {
+              entry |= kitty::get_bit(tts[l], i) << j;
+              ++j;
+            }
+            kitty::set_bit(care, entry);
+          }
+        } else {
+          /* completely specified */
+          care = ~care;
+        }
+
+        auto const dc_npn = apply_npn_transformation(~care, neg & ~(1 << num_vars), perm);
+        auto const structures = library.get_supergates(tt_npn, dc_npn, neg, perm);
+#else
         auto const structures = library.get_supergates(tt_npn);
+#endif
 
         if (structures == nullptr) {
           return false;

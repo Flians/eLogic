@@ -38,6 +38,16 @@ void print_rust_vec_string(const ::rust::Vec<::rust::String> &vec) {
   std::cout << "]" << std::endl;
 }
 
+int count_char(const std::string &str, const char sch = '_') {
+  int count = 0;
+  for (char ch : str) {
+    if (ch == sch) {
+      count++;
+    }
+  }
+  return count;
+}
+
 namespace mockturtle {
 
   class StrCostTable {
@@ -91,6 +101,7 @@ namespace mockturtle {
       try {
         if (j.contains("table")) {
           for (const auto &[key, value] : j["table"].items()) {
+            if (int _num = count_char(key); _num > 0 && _num <= 4) continue;
             auto cost = std::make_unique<CCost>();
             if (value["aft_expr"].is_string()) {
               cost->aft_expr.emplace_back(value["aft_expr"].get<std::string>());
@@ -120,7 +131,8 @@ namespace mockturtle {
         }
 
         if (j.contains("bad_exprs")) {
-          bad_exprs = j["bad_exprs"].get<std::unordered_set<std::string>>();
+          auto cur_bad_exprs = j["bad_exprs"].get<std::unordered_set<std::string>>();
+          bad_exprs.insert(cur_bad_exprs.begin(), cur_bad_exprs.end());
         }
       } catch (const nlohmann::json::exception &e) {
         std::cerr << "JSON error: " << e.what() << std::endl;
@@ -390,6 +402,7 @@ namespace mockturtle {
         }
       }
       signal new_root = signal_stack.top();
+      assert(signal_stack.size() == 1);
       return new_root;
     }
 
