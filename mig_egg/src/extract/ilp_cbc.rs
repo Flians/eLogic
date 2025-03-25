@@ -12,25 +12,35 @@ struct ClassVars {
     nodes: Vec<Col>,
 }
 
-pub struct CbcExtractorWithTimeout<const TIMEOUT_IN_SECONDS: u32>;
-
-impl<const TIMEOUT_IN_SECONDS: u32> Extractor for CbcExtractorWithTimeout<TIMEOUT_IN_SECONDS> {
-    fn extract(&self, egraph: &EGraph, roots: &[ClassId]) -> ExtractionResult {
-        return extract(egraph, roots, TIMEOUT_IN_SECONDS);
+pub struct CbcExtractor {
+    first_depth: bool,
+}
+impl Default for CbcExtractor {
+    fn default() -> Self {
+        CbcExtractor { first_depth: true }
     }
 }
-
-#[derive(Default)]
-pub struct CbcExtractor;
+impl CbcExtractor {
+    pub fn new(f_dep: Option<bool>) -> Self {
+        Self {
+            first_depth: f_dep.unwrap_or(true),
+        }
+    }
+}
 
 impl Extractor for CbcExtractor {
     fn extract(&self, egraph: &EGraph, roots: &[ClassId]) -> ExtractionResult {
         // return extract(egraph, roots, std::u32::MAX);
-        return extract(egraph, roots, 30);
+        return extract(egraph, roots, 30, self.first_depth);
     }
 }
 
-fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> ExtractionResult {
+fn extract(
+    egraph: &EGraph,
+    roots: &[ClassId],
+    timeout_seconds: u32,
+    first_depth: bool,
+) -> ExtractionResult {
     println!("extracting with cbc");
     let mut model = Model::default();
     model.set_parameter("log", "0");
@@ -141,7 +151,8 @@ fn extract(egraph: &EGraph, roots: &[ClassId], timeout_seconds: u32) -> Extracti
         println!("Unfinished CBC solution => fallback to FasterGreedyDag");
         assert!(timeout_seconds != std::u32::MAX);
         let initial_result =
-            super::faster_greedy_dag::FasterGreedyDagExtractor.extract(egraph, roots);
+            super::faster_greedy_dag::FasterGreedyDagExtractor::new(Some(first_depth))
+                .extract(egraph, roots);
         log::info!("Unfinished CBC solution => fallback to FasterGreedyDag");
         return initial_result;
     }

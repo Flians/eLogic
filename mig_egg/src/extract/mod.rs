@@ -100,52 +100,6 @@ impl ExtractionResult {
         }
     }
 
-    pub fn print_extracted_term(
-        &self,
-        egraph: &EGraph,
-        cost_function: &MIGCostFn_dsi,
-    ) -> (String, CCost) {
-        let mut metrics: CCost = CCost::default();
-        let mut result = String::new();
-        for root in &egraph.root_eclasses {
-            let (term, term_metrics) = self.print_term(egraph, cost_function, root);
-            result.push_str(&term);
-            metrics = CCost::merge(&metrics, &term_metrics);
-        }
-        (result, metrics)
-    }
-
-    fn print_term(
-        &self,
-        egraph: &EGraph,
-        cost_function: &MIGCostFn_dsi,
-        class_id: &ClassId,
-    ) -> (String, CCost) {
-        let node_id = &self.choices[class_id];
-        let node = &egraph[node_id];
-        let metrics = cost_function.cal_cur_cost_bystr(node.op.as_str());
-
-        if node.children.is_empty() {
-            // Leaf node
-            (format!("{}", node.op), metrics)
-        } else {
-            // Internal node
-            let mut children_terms = Vec::new();
-            let mut to_cost = CCost::default();
-            for child in &node.children {
-                let (child_term, child_metrics) =
-                    self.print_term(egraph, cost_function, egraph.nid_to_cid(child));
-                to_cost = CCost::merge(&to_cost, &child_metrics);
-                children_terms.push(child_term);
-            }
-
-            (
-                format!("({} {})", node.op, children_terms.join(" ")),
-                metrics + to_cost,
-            )
-        }
-    }
-
     pub fn check(&self, egraph: &EGraph) {
         // should be a root
         assert!(!egraph.root_eclasses.is_empty());
@@ -262,30 +216,13 @@ impl ExtractionResult {
         }
         costs.values().sum()
     }
-    pub fn dag_cost_size_from_node(
+
+    pub fn dag_cost_size(
         &self,
         egraph: &EGraph,
-        node_id: &NodeId,
-        visited: &mut FxHashSet<NodeId>,
+        roots: &[ClassId],
+        first_depth: Option<bool>,
     ) -> u32 {
-        // 如果节点已经访问过（环检测），直接返回 0
-        if !visited.insert(node_id.clone()) {
-            return 0;
-        }
-
-        let node = &egraph[node_id];
-
-        // 递归计算所有子节点的总大小
-        let total_child_size: u32 = node
-            .children
-            .iter()
-            .map(|child| self.dag_cost_size_from_node(egraph, child, visited)) // 对每个子节点递归调用
-            .sum();
-
-        // 当前节点的大小贡献
-        total_child_size + CCost::decode(node.cost.into()).aom
-    }
-    pub fn dag_cost_size(&self, egraph: &EGraph, roots: &[ClassId]) -> u32 {
         let mut costs: IndexMap<ClassId, Cost> = IndexMap::new();
         let mut todo: Vec<ClassId> = roots.to_vec();
 
@@ -299,9 +236,14 @@ impl ExtractionResult {
                 todo.push(egraph.nid_to_cid(child).clone());
             }
         }
-        costs
-            .into_iter()
-            .fold(0, |sum, (_, cost)| sum + CCost::decode(cost.into()).aom)
+        costs.into_iter().fold(0, |sum, (_, cost)| {
+            let cur_cost = CCost::decode(cost.into());
+            sum + if first_depth.unwrap_or(true) {
+                cur_cost.aom
+            } else {
+                cur_cost.dep
+            }
+        })
     }
 
     pub fn dag_cost_size_enhanced(&self, egraph: &EGraph, roots: &[ClassId]) -> u32 {
@@ -317,8 +259,8 @@ impl ExtractionResult {
             let node = &egraph[node_id];
 
             match node.op.as_str() {
-                "M"  => total_ops += 1,
-                _ => {} // 变量和常量不增加计数
+                "M" => total_ops += 1,
+                _ => {}
             }
 
             for child_nid in &node.children {
@@ -329,15 +271,20 @@ impl ExtractionResult {
         total_ops
     }
 
-    pub fn dag_cost_depth(&self, egraph: &EGraph, roots: &[ClassId]) -> u32 {
+    pub fn dag_cost_depth(
+        &self,
+        egraph: &EGraph,
+        roots: &[ClassId],
+        first_depth: Option<bool>,
+    ) -> u32 {
         let mut depth = CCost::default().dep;
         for root in roots {
-            let depth_new = self.calculate_depth(egraph, root);
+            let depth_new = self.calculate_depth(egraph, root, first_depth);
             depth = cmp::max(depth, depth_new);
         }
         depth
     }
-    fn calculate_depth(&self, egraph: &EGraph, roots: &ClassId) -> u32 {
+    fn calculate_depth(&self, egraph: &EGraph, roots: &ClassId, first_depth: Option<bool>) -> u32 {
         let node_id = &self.choices[roots];
         let node = &egraph[node_id];
         let max_child_depth = node
@@ -345,12 +292,18 @@ impl ExtractionResult {
             .iter()
             .map(|child| {
                 let child_cid = egraph.nid_to_cid(child);
-                self.calculate_depth(egraph, child_cid)
+                self.calculate_depth(egraph, child_cid, first_depth)
             })
             .max()
             .unwrap_or(0);
 
-        max_child_depth + CCost::decode(node.cost.into()).dep
+        let cur_cost = CCost::decode(node.cost.into());
+        max_child_depth
+            + if first_depth.unwrap_or(true) {
+                cur_cost.dep
+            } else {
+                cur_cost.aom
+            }
     }
 
     pub fn node_sum_cost<M>(&self, egraph: &EGraph, node: &Node, costs: &M) -> Cost

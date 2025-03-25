@@ -37,11 +37,19 @@ impl fmt::Display for CCost {
 
 impl CCost {
     /// Merges two costs by taking the maximum depth and summing up the area and inversions.
-    pub fn merge(a: &CCost, b: &CCost) -> CCost {
-        CCost {
-            dep: a.dep.max(b.dep),
-            aom: a.aom + b.aom,
-            inv: a.inv + b.inv,
+    pub fn merge(a: &CCost, b: &CCost, f_dep: Option<bool>) -> CCost {
+        if f_dep.unwrap_or(true) {
+            CCost {
+                dep: a.dep.max(b.dep),
+                aom: a.aom + b.aom,
+                inv: a.inv + b.inv,
+            }
+        } else {
+            CCost {
+                dep: a.dep + b.dep,
+                aom: a.aom.max(b.aom),
+                inv: a.inv + b.inv,
+            }
         }
     }
 
@@ -114,26 +122,6 @@ impl AddAssign for CCost {
         self.dep += other.dep;
         self.aom += other.aom;
         self.inv += other.inv;
-    }
-}
-
-impl Sum for CCost {
-    /// Custom summation that merges each CCost pair.
-    /// For example, used for iterators of multiple costs.
-    fn sum<I>(iter: I) -> Self
-    where
-        I: Iterator<Item = Self>,
-    {
-        iter.fold(CCost::default(), |acc, cost| CCost::merge(&acc, &cost))
-    }
-}
-
-impl<'a> Sum<&'a CCost> for CCost {
-    fn sum<I>(iter: I) -> Self
-    where
-        I: Iterator<Item = &'a CCost>,
-    {
-        iter.fold(CCost::default(), |acc, cost| CCost::merge(&acc, cost))
     }
 }
 
@@ -441,14 +429,16 @@ pub struct MIGCostFn_dsi<'a> {
     egraph: &'a CEGraph,
     visited: std::collections::HashMap<egg::Id, CCost>,
     original_dep: &'a [u32],
+    first_depth: bool,
 }
 
 impl<'a> MIGCostFn_dsi<'a> {
-    pub fn new(graph: &'a CEGraph, vars_: &'a [u32]) -> Self {
+    pub fn new(graph: &'a CEGraph, vars_: &'a [u32], f_dep: Option<bool>) -> Self {
         Self {
             egraph: graph,
             visited: std::collections::HashMap::default(),
             original_dep: vars_,
+            first_depth: f_dep.unwrap_or(true),
         }
     }
 
@@ -514,10 +504,18 @@ impl<'a> MIGCostFn_dsi<'a> {
             MIG::Not(..) => 1,
             _ => 0,
         };
-        CCost {
-            dep: op_depth,
-            aom: op_area,
-            inv: op_inv,
+        if self.first_depth {
+            CCost {
+                dep: op_depth,
+                aom: op_area,
+                inv: op_inv,
+            }
+        } else {
+            CCost {
+                dep: op_area,
+                aom: op_depth,
+                inv: op_inv,
+            }
         }
     }
 }
@@ -532,18 +530,17 @@ impl<'a> egg::CostFunction<MIG> for MIGCostFn_dsi<'a> {
         C: FnMut(egg::Id) -> Self::Cost,
     {
         let cur_cost = self.cal_cur_cost(enode);
-        let new_cost = cur_cost
+        cur_cost
             + enode.fold(Default::default(), |sum, id| {
-                Self::Cost::merge(&sum, &costs(id))
-            });
+                Self::Cost::merge(&sum, &costs(id), Some(self.first_depth))
+            })
         /*
         Self::Cost {
-            dep: op_depth + enode.fold(0, |max, id| max.max(costs(id).dep)),
-            aom: enode.fold(op_area, |sum, id| sum + costs(id).aom),
-            inv: enode.fold(op_inv, |sum, id| sum + costs(id).inv),
+            dep: enode.fold(cur_cost.aom, |sum, id| sum + costs(id).dep),
+            aom: cur_cost.dep + enode.fold(0, |max, id| max.max(costs(id).aom)),
+            inv: enode.fold(cur_cost.inv, |sum, id| sum + costs(id).inv),
         }
         */
-        new_cost
     }
 }
 
@@ -679,10 +676,48 @@ mod ffi {
     }
 
     extern "Rust" {
-        unsafe fn simplify_depth(s: &str, vars: *const u32, size: usize) -> CCost;
-        unsafe fn simplify_size(s: &str, vars: *const u32, size: usize) -> CCost;
-        unsafe fn simplify_best(s: &str, vars: *const u32, size: usize) -> CCost;
+        unsafe fn simplify_depth(
+            s: &str,
+            vars: *const u32,
+            size: usize,
+            first_depth: bool,
+        ) -> CCost;
+        unsafe fn simplify_size(s: &str, vars: *const u32, size: usize, first_depth: bool)
+            -> CCost;
+        unsafe fn simplify_best(s: &str, vars: *const u32, size: usize, first_depth: bool)
+            -> CCost;
+        fn merge_ccost(depth: &CCost, size: &CCost) -> CCost;
         unsafe fn free_string(s: *mut c_char);
+    }
+}
+
+fn merge_ccost(depth: &ffi::CCost, size: &ffi::CCost) -> ffi::CCost {
+    if depth.aft_dep < size.aft_dep && depth.aft_size <= size.aft_size {
+        return depth.clone();
+    }
+    if size.aft_dep < depth.aft_dep && size.aft_size <= depth.aft_size {
+        return size.clone();
+    }
+
+    let mut merged_expr = depth.aft_expr.clone();
+    merged_expr.extend(size.aft_expr.clone());
+    let unique_set: std::collections::HashSet<String> = merged_expr.into_iter().collect();
+    ffi::CCost {
+        aft_expr: unique_set.into_iter().collect(),
+        aft_dep: depth.aft_dep,
+        aft_size: depth.aft_size,
+        aft_invs: depth.aft_invs,
+    }
+}
+
+impl Clone for ffi::CCost {
+    fn clone(&self) -> Self {
+        ffi::CCost {
+            aft_expr: self.aft_expr.clone(),
+            aft_dep: self.aft_dep,
+            aft_size: self.aft_size,
+            aft_invs: self.aft_invs,
+        }
     }
 }
 
@@ -728,7 +763,7 @@ pub fn free_string(s: *mut c_char) {
 // -----------------------------------------------------------------------------------
 // 12. The main function we compare: simplify_depth, which extracts a tree (not DAG).
 // -----------------------------------------------------------------------------------
-pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
+pub fn simplify_depth(s: &str, vars: *const u32, size: usize, first_depth: bool) -> ffi::CCost {
     // Collect rewrite rules that might help reduce or restructure the expression
     let all_rules = rules();
 
@@ -745,22 +780,24 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     // Create a Runner and initialize with the expression
     let mut runner = egg::Runner::default()
         .with_expr(&bef_expr)
-        .with_iter_limit(100)
+        .with_iter_limit(30)
         .with_node_limit(10000)
-        .with_time_limit(std::time::Duration::from_secs(10));
+        .with_time_limit(std::time::Duration::from_secs(5));
     let root = runner.roots[0];
 
     // Run the rewrite rules to saturate or partially simplify the expression
     runner = runner.run(&all_rules);
 
     // Extract a *tree* result from the e-graph using a standard Egg Extractor
-    let (best_cost, best) =
-        egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &vars_))
-            .find_best(root);
+    let (best_cost, best) = egg::Extractor::new(
+        &runner.egraph,
+        MIGCostFn_dsi::new(&runner.egraph, &vars_, Some(first_depth)),
+    )
+    .find_best(root);
 
     // Convert the best expression to prefix form to get depth, size, and #inversions
     let (aft_expr, mut aft_dep, aft_size, aft_invs) = to_prefix(&best, &vars_);
-    if best_cost.dep != aft_dep {
+    if (first_depth && best_cost.dep != aft_dep) || (!first_depth && best_cost.aom != aft_dep) {
         println!(
             "{} with {:?} to {} with {},{},{}",
             s, vars_, aft_expr, aft_dep, aft_size, aft_invs
@@ -991,7 +1028,7 @@ pub fn save_serialized_egraph_to_json(
 // 14. The second major function: "simplify_size", which uses a DAG-based ILP extractor
 //     (e.g., "faster_ilp_cbc") to find a minimal node count. We still track depth afterwards.
 // -----------------------------------------------------------------------------------
-pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
+pub fn simplify_size(s: &str, vars: *const u32, size: usize, first_depth: bool) -> ffi::CCost {
     let all_rules = rules();
     // parse the expression, the type annotation tells it which Language to use
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
@@ -1005,8 +1042,8 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     // create an e-graph with the given expression
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(100)
-        .with_node_limit(10000)
+        .with_iter_limit(1000)
+        .with_node_limit(5000)
         .with_time_limit(std::time::Duration::from_secs(10));
     // the Runner knows which e-class the expression given with `with_expr` is in
     let root_id = runner.roots[0];
@@ -1016,27 +1053,24 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
     let saturated_egraph = runner.egraph;
 
     // Convert the egraph to a JSON-serializable structure
-    #[cfg(not(feature = "ilp-cbc"))]
     let serialized_egraph = egg_to_serialized_egraph(
         &saturated_egraph,
-        &MIGCostFn_dsi::new(&saturated_egraph, vars_),
+        &MIGCostFn_dsi::new(&saturated_egraph, vars_, Some(first_depth)),
         root_id,
     );
-    #[cfg(feature = "ilp-cbc")]
-    let serialized_egraph = egg_to_serialized_egraph_for_ilp(&saturated_egraph, root_id, vars_);
 
     // Use custom extraction code
-    #[cfg(feature = "ilp-cbc")]
-    let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
-    #[cfg(not(feature = "ilp-cbc"))]
-    // let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
-    let extractor = extract::faster_greedy_dag::FasterGreedyDagExtractor {};
+    let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor::new(Some(first_depth));
+    // let extractor = extract::faster_greedy_dag::FasterGreedyDagExtractor::new(Some(first_depth));
 
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_size =
-        extraction_result.dag_cost_size(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_depth =
-        extraction_result.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_size = extraction_result
+        .dag_cost_size_enhanced(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_depth = extraction_result.dag_cost_depth(
+        &serialized_egraph,
+        &serialized_egraph.root_eclasses,
+        Some(first_depth),
+    );
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
 
     ffi::CCost {
@@ -1051,7 +1085,7 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize) -> ffi::CCost {
 // 15. Function to show usage examples and comparisons
 //     (simplify() calls both a tree-based approach and a DAG-based approach).
 // -----------------------------------------------------------------------------------
-pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
+pub fn simplify_best(s: &str, vars: *const u32, var_len: usize, first_depth: bool) -> ffi::CCost {
     // Initialize logger if not already initialized
     let _ = env_logger::try_init();
 
@@ -1061,7 +1095,7 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
     let all_rules = rules();
 
     // 1. Get baseline results
-    let cost_depth = simplify_depth(s, vars, var_len);
+    let cost_depth = simplify_depth(s, vars, var_len, first_depth);
 
     let baseline_size = cost_depth.aft_size;
     let baseline_depth = cost_depth.aft_dep;
@@ -1070,8 +1104,8 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(100)
-        .with_node_limit(10000)
+        .with_iter_limit(1000)
+        .with_node_limit(5000)
         .with_time_limit(std::time::Duration::from_secs(10));
     let root_id = runner.roots[0];
 
@@ -1081,16 +1115,20 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
     // 3. Convert for ILP/greedy extraction
     let serialized_egraph = egg_to_serialized_egraph(
         &saturated_egraph,
-        &MIGCostFn_dsi::new(&saturated_egraph, unsafe {
-            std::slice::from_raw_parts(vars, var_len)
-        }),
+        &MIGCostFn_dsi::new(
+            &saturated_egraph,
+            unsafe { std::slice::from_raw_parts(vars, var_len) },
+            Some(first_depth),
+        ),
         root_id,
     );
 
+    /*
     let serialized_egraph_ilp =
         egg_to_serialized_egraph_for_ilp(&saturated_egraph, root_id, unsafe {
             std::slice::from_raw_parts(vars, var_len)
         });
+    */
 
     // 4. Track best results across all methods
     #[derive(Clone)]
@@ -1142,15 +1180,19 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
     );
 
     // 5. Compare different extractors
+    /*
     #[cfg(feature = "ilp-cbc")]
-    let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::default();
+    let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::new(Some(first_depth));
 
     let extraction_result =
         extractor.extract(&serialized_egraph_ilp, &serialized_egraph_ilp.root_eclasses);
     let dag_cost_size = extraction_result
         .dag_cost_size_enhanced(&serialized_egraph_ilp, &serialized_egraph_ilp.root_eclasses);
-    let dag_cost_depth = extraction_result
-        .dag_cost_depth(&serialized_egraph_ilp, &serialized_egraph_ilp.root_eclasses);
+    let dag_cost_depth = extraction_result.dag_cost_depth(
+        &serialized_egraph_ilp,
+        &serialized_egraph_ilp.root_eclasses,
+        Some(first_depth),
+    );
     let aft_expr = extraction_result.print_aft_expr(&serialized_egraph_ilp);
     print_result(
         "DAG-based (faster ILP)",
@@ -1158,15 +1200,19 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
         dag_cost_depth,
         dag_cost_size,
     );
+    */
 
     // Test faster greedy extractor
-    let extractor1 = extract::faster_greedy_dag::FasterGreedyDagExtractor {};
+    let extractor1 = extract::faster_greedy_dag::FasterGreedyDagExtractor::new(Some(first_depth));
     let extraction_result1 =
         extractor1.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
     let dag_cost_size1 = extraction_result1
         .dag_cost_size_enhanced(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_depth1 =
-        extraction_result1.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_depth1 = extraction_result1.dag_cost_depth(
+        &serialized_egraph,
+        &serialized_egraph.root_eclasses,
+        Some(first_depth),
+    );
     let aft_expr1 = extraction_result1.print_aft_expr(&serialized_egraph);
     print_result(
         "DAG-based (faster greedy)",
@@ -1176,13 +1222,16 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize) -> ffi::CCost {
     );
 
     // Test global greedy extractor
-    let extractor2 = extract::global_greedy_dag::GlobalGreedyDagExtractor {};
+    let extractor2 = extract::global_greedy_dag::GlobalGreedyDagExtractor::new(Some(first_depth));
     let extraction_result2 =
         extractor2.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
     let dag_cost_size2 = extraction_result2
         .dag_cost_size_enhanced(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_depth2 =
-        extraction_result2.dag_cost_depth(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_depth2 = extraction_result2.dag_cost_depth(
+        &serialized_egraph,
+        &serialized_egraph.root_eclasses,
+        Some(first_depth),
+    );
     let aft_expr2 = extraction_result2.print_aft_expr(&serialized_egraph);
     print_result(
         "DAG-based (global greedy)",
@@ -1248,7 +1297,7 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) -> ffi::CCost {
         var_len = var_dep.len();
     }
 
-    simplify_best(s, vars_, var_len)
+    simplify_best(s, vars_, var_len, true)
 }
 
 // -----------------------------------------------------------------------------------
@@ -1379,53 +1428,84 @@ mod tests {
 
         let rules = rules();
 
-        for (key_dep, entry) in json_data.table.iter_mut() {
-            let parts: Vec<&str> = key_dep.split('_').collect();
-            let key = parts[0].to_string();
-            let var_deps: Vec<u32> = parts[1..]
-                .iter()
-                .map(|s| s.parse::<u32>().unwrap())
-                .collect();
+        let mut update_count = 0;
+        let item_size = json_data.table.len();
+        while item_size > update_count {
+            let mut processed_in_batch = 0;
+            for (key_dep, entry) in json_data.table.iter_mut().skip(update_count) {
+                let parts: Vec<&str> = key_dep.split('_').collect();
+                let key = parts[0].to_string();
+                let var_deps: Vec<u32> = parts[1..]
+                    .iter()
+                    .map(|s| s.parse::<u32>().unwrap())
+                    .collect();
 
-            // let key_expr: egg::RecExpr<MIG> = key.parse().unwrap();
-            // let mut egraph = CEGraph::default();
-            // let key_expr_id = egraph.add_expr(&key_expr);
+                // let key_expr: egg::RecExpr<MIG> = key.parse().unwrap();
+                // let mut egraph = CEGraph::default();
+                // let key_expr_id = egraph.add_expr(&key_expr);
 
-            let single_expr = entry.aft_expr.len() == 1;
-            for expr in &entry.aft_expr {
-                let mut egraph = CEGraph::default();
-                let expr_mig: egg::RecExpr<MIG> = expr.parse().unwrap();
-                let aft_expr_id = egraph.add_expr(&expr_mig);
-
-                /*
-                let runner = egg::Runner::default()
-                    .with_egraph(egraph.clone())
-                    .run(&rules);
-                if runner.egraph.find(key_expr_id) != runner.egraph.find(aft_expr_id) {
-                    println!("Key '{}' is NOT equivalent to expression '{}'", key, expr);
-                }
-                */
-                if !is_equiv(&key, &expr) {
-                    println!("Key '{}' is NOT equivalent to expression '{}'", key, expr);
-                }
-
-                let (aft_expr, aft_dep, aft_size, aft_invs) =
-                    to_prefix(&egraph.id_to_expr(aft_expr_id), &var_deps);
-                if aft_dep != entry.aft_dep || aft_size != entry.aft_size {
-                    println!(
-                        "Key '{}' has different depth {}/{} and size {}/{}",
-                        expr, aft_dep, entry.aft_dep, aft_size, entry.aft_size
-                    );
-                }
-
+                let single_expr = entry.aft_expr.len() == 1;
                 if single_expr {
-                    entry.aft_invs = aft_invs;
+                    let opt_strs = simplify(&key, &var_deps);
+                    if opt_strs.aft_dep < entry.aft_dep
+                        || (opt_strs.aft_dep == entry.aft_dep && opt_strs.aft_size < entry.aft_size)
+                    {
+                        entry.aft_dep = opt_strs.aft_dep;
+                        entry.aft_size = opt_strs.aft_size;
+                        entry.aft_invs = opt_strs.aft_invs;
+                        entry.aft_expr = opt_strs.aft_expr;
+
+                        processed_in_batch += 1;
+                        if processed_in_batch >= 100 {
+                            break;
+                        }
+                    }
+                }
+                if false {
+                    // check equivalence
+                    for expr in &entry.aft_expr {
+                        let mut egraph = CEGraph::default();
+                        let expr_mig: egg::RecExpr<MIG> = expr.parse().unwrap();
+                        let aft_expr_id = egraph.add_expr(&expr_mig);
+
+                        /*
+                        let runner = egg::Runner::default()
+                            .with_egraph(egraph.clone())
+                            .run(&rules);
+                        if runner.egraph.find(key_expr_id) != runner.egraph.find(aft_expr_id) {
+                            println!("Key '{}' is NOT equivalent to expression '{}'", key, expr);
+                        }
+                        */
+                        if !is_equiv(&key, &expr) {
+                            println!("Key '{}' is NOT equivalent to expression '{}'", key, expr);
+                        }
+
+                        let (aft_expr, aft_dep, aft_size, aft_invs) =
+                            to_prefix(&egraph.id_to_expr(aft_expr_id), &var_deps);
+                        if aft_dep != entry.aft_dep || aft_size != entry.aft_size {
+                            println!(
+                                "Key '{}' has different depth {}/{} and size {}/{}",
+                                expr, aft_dep, entry.aft_dep, aft_size, entry.aft_size
+                            );
+                        }
+
+                        if single_expr {
+                            entry.aft_invs = aft_invs;
+                        }
+                    }
                 }
             }
-        }
 
-        let json_str = serde_json::to_string_pretty(&json_data).unwrap();
-        let _ = std::fs::write("lib_expr2cost.json", json_str);
+            update_count += processed_in_batch;
+            if processed_in_batch > 0 {
+                let file = std::fs::File::create("lib_expr2cost.json").unwrap();
+                let mut writer = std::io::BufWriter::new(file);
+                serde_json::to_writer_pretty(&mut writer, &json_data).unwrap();
+                std::io::Write::flush(&mut writer).unwrap();
+            } else {
+                break;
+            }
+        }
     }
 
     #[test]
@@ -1502,9 +1582,11 @@ mod tests {
         let root = runner.roots[0];
         runner = runner.run(&all_rules);
 
-        let (best_cost, best) =
-            egg::Extractor::new(&runner.egraph, MIGCostFn_dsi::new(&runner.egraph, &var_dep))
-                .find_best(root);
+        let (best_cost, best) = egg::Extractor::new(
+            &runner.egraph,
+            MIGCostFn_dsi::new(&runner.egraph, &var_dep, None),
+        )
+        .find_best(root);
 
         let (prefix_expr, depth, ops_count, inv_count) = to_prefix(&best, &var_dep);
         println!("default cost: {:?}", best_cost);

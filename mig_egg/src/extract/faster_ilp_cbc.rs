@@ -3,7 +3,6 @@ use coin_cbc::{Col, Model, Sense};
 use colored::Colorize;
 use indexmap::{IndexMap, IndexSet};
 use log::info;
-use ordered_float::NotNan;
 use std::collections::VecDeque;
 
 // -------------------------------------------------------------------------
@@ -101,22 +100,32 @@ impl ClassILP {
 // ============ Two-phase ILP Extractor ============
 
 /// First minimize size, then minimize depth while keeping size constant
-pub struct TwoPhaseCbcExtractorWithTimeout<const TIMEOUT_IN_SECONDS: u32>;
-
-impl<const TIMEOUT_IN_SECONDS: u32> Extractor
-    for TwoPhaseCbcExtractorWithTimeout<TIMEOUT_IN_SECONDS>
-{
-    fn extract(&self, egraph: &EGraph, roots: &[ClassId]) -> ExtractionResult {
-        two_phase_extract(egraph, roots, &Config::default(), TIMEOUT_IN_SECONDS)
-    }
-}
 
 /// To keep the original naming
-#[derive(Default)]
-pub struct FasterCbcExtractor;
+pub struct FasterCbcExtractor {
+    first_depth: bool,
+}
+impl Default for FasterCbcExtractor {
+    fn default() -> Self {
+        FasterCbcExtractor { first_depth: true }
+    }
+}
+impl FasterCbcExtractor {
+    pub fn new(f_dep: Option<bool>) -> Self {
+        Self {
+            first_depth: f_dep.unwrap_or(true),
+        }
+    }
+}
 impl Extractor for FasterCbcExtractor {
     fn extract(&self, egraph: &EGraph, roots: &[ClassId]) -> ExtractionResult {
-        two_phase_extract(egraph, roots, &Config::default(), 30)
+        two_phase_extract(
+            egraph,
+            roots,
+            &Config::default(),
+            30,
+            Some(self.first_depth),
+        )
     }
 }
 
@@ -126,6 +135,7 @@ fn two_phase_extract(
     roots_slice: &[ClassId],
     config: &Config,
     timeout: u32,
+    first_depth: Option<bool>,
 ) -> ExtractionResult {
     let mut roots = roots_slice.to_vec();
     roots.sort();
@@ -133,7 +143,7 @@ fn two_phase_extract(
 
     // Phase1: minimize size
     let (vars, initial_result, min_size_solution, min_size_objval) =
-        solve_min_size(egraph, &roots, config, timeout);
+        solve_min_size(egraph, &roots, config, timeout, first_depth);
 
     // Phase2: fix size, then minimize depth
     let mut result = solve_min_depth_with_size_constraint(
@@ -145,6 +155,7 @@ fn two_phase_extract(
         &min_size_solution,
         min_size_objval,
         &initial_result,
+        first_depth,
     );
 
     // If phase 2 has no solution, use phase 1 result
@@ -163,6 +174,7 @@ fn solve_min_size(
     roots: &[ClassId],
     config: &Config,
     timeout: u32,
+    first_depth: Option<bool>,
 ) -> (
     IndexMap<ClassId, ClassILP>,
     ExtractionResult,
@@ -200,7 +212,8 @@ fn solve_min_size(
         .collect();
 
     // Use Greedy DAG as initial solution
-    let initial_result = super::faster_greedy_dag::FasterGreedyDagExtractor.extract(egraph, roots);
+    let initial_result =
+        super::faster_greedy_dag::FasterGreedyDagExtractor::new(first_depth).extract(egraph, roots);
     let initial_result_cost = initial_result.dag_cost(egraph, roots);
 
     // Preprocessing
@@ -258,7 +271,11 @@ fn solve_min_size(
                 continue;
             }
             let c = CCost::decode(cost_bits);
-            let aom = c.aom as f64;
+            let aom = if first_depth.unwrap_or(true) {
+                c.aom as f64
+            } else {
+                c.dep as f64
+            };
             if aom > 0.0 {
                 model.set_obj_coeff(node_active, aom);
             }
@@ -306,6 +323,7 @@ fn solve_min_depth_with_size_constraint(
     size_solution: &Vec<(ClassId, usize)>,
     best_size_obj: f64,
     initial_result: &ExtractionResult,
+    first_depth: Option<bool>,
 ) -> ExtractionResult {
     let mut model = Model::default();
     model.set_parameter("loglevel", "0");
@@ -365,7 +383,11 @@ fn solve_min_depth_with_size_constraint(
     for (cid, class) in &vars {
         for (&node_active, &cost) in class.variables.iter().zip(&class.costs) {
             let c = CCost::decode(cost.into_inner());
-            let aom = c.aom as f64;
+            let aom = if first_depth.unwrap_or(true) {
+                c.aom as f64
+            } else {
+                c.dep as f64
+            };
             if aom > 0.0 {
                 // sum_aom_col - aom * node_active = 0
                 let row = model.add_row();
@@ -387,7 +409,11 @@ fn solve_min_depth_with_size_constraint(
     for class in vars.values() {
         for (&node_active, &cost) in class.variables.iter().zip(&class.costs) {
             let c = CCost::decode(cost.into_inner());
-            let dep = c.dep as f64;
+            let dep = if first_depth.unwrap_or(true) {
+                c.dep as f64
+            } else {
+                c.aom as f64
+            };
             if dep > 0.0 {
                 let row = model.add_row();
                 model.set_row_upper(row, 0.0);

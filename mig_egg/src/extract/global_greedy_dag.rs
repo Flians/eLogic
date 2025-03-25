@@ -35,9 +35,16 @@ pub struct TermDag {
     nodes: Vec<Term>,
     info: Vec<TermInfo>,
     hash_cons: HashMap<Term, TermId>,
+    first_depth: bool,
 }
 
 impl TermDag {
+    pub fn new(f_dep: Option<bool>) -> Self {
+        let mut new_obj = TermDag::default();
+        new_obj.first_depth = f_dep.unwrap_or(true);
+        new_obj
+    }
+
     /// Makes a new term using a node and children terms
     /// Correctly computes total_cost with sharing
     /// If this term contains itself, returns None
@@ -98,7 +105,7 @@ impl TermDag {
                     return None;
                 }
                 let child_cost = self.get_cost(&mut reachable, *child);
-                cost = CCost::merge(&cost, &child_cost);
+                cost = CCost::merge(&cost, &child_cost, Some(self.first_depth));
             }
 
             if cost > target {
@@ -137,7 +144,7 @@ impl TermDag {
             let mut cost = self.node_cost(id);
             for child in &self.nodes[id].children {
                 let child_cost = self.get_cost(shared, *child);
-                cost = CCost::merge(&cost, &child_cost);
+                cost = CCost::merge(&cost, &child_cost, Some(self.first_depth));
             }
             *shared = shared.insert(eclass);
             cost
@@ -153,19 +160,29 @@ impl TermDag {
     }
 }
 
-#[derive(Default)]
-pub struct GlobalGreedyDagExtractor;
+pub struct GlobalGreedyDagExtractor {
+    first_depth: bool,
+}
+impl Default for GlobalGreedyDagExtractor {
+    fn default() -> Self {
+        GlobalGreedyDagExtractor { first_depth: true }
+    }
+}
+impl GlobalGreedyDagExtractor {
+    pub fn new(f_dep: Option<bool>) -> Self {
+        Self {
+            first_depth: f_dep.unwrap_or(true),
+        }
+    }
+}
 impl Extractor for GlobalGreedyDagExtractor {
     fn extract(&self, egraph: &EGraph, _roots: &[ClassId]) -> ExtractionResult {
         // println!("GlobalGreedyDagExtractor");
         let mut keep_going = true;
 
         let nodes = egraph.nodes.clone();
-        let mut termdag = TermDag::default();
+        let mut termdag = TermDag::new(Some(self.first_depth));
         let mut best_in_class: HashMap<ClassId, TermId> = HashMap::default();
-
-        // Track best costs seen so far
-        let mut best_costs: HashMap<ClassId, CCost> = HashMap::default();
 
         let mut i = 0;
         while keep_going {
@@ -179,7 +196,7 @@ impl Extractor for GlobalGreedyDagExtractor {
 
             'node_loop: for (node_id, node) in node_entries {
                 let mut children: Vec<TermId> = vec![];
-                // Collect children, preferring ones with lower costs
+                // compute the cost set from the children
                 for child in &node.children {
                     let child_cid = egraph.nid_to_cid(child);
                     if let Some(best) = best_in_class.get(child_cid) {
