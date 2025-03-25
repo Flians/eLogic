@@ -746,7 +746,7 @@ namespace mockturtle {
         if (eview.has_bug) return false;
 
         // optimize by egg
-        const CCost *dcost = eview.optimize_by_egg_lib(leaf_levels);
+        const CCost *dcost = eview.optimize_by_egg_lib(leaf_levels, is_on_critical_path);
         if (!dcost) return false;
         uint32_t aft_dep = dcost->aft_dep;
         bool find_better = false;

@@ -11,7 +11,21 @@ struct CostSet {
     choice: NodeId,
 }
 
-pub struct FasterGreedyDagExtractor;
+pub struct FasterGreedyDagExtractor {
+    first_depth: bool,
+}
+impl Default for FasterGreedyDagExtractor {
+    fn default() -> Self {
+        FasterGreedyDagExtractor { first_depth: true }
+    }
+}
+impl FasterGreedyDagExtractor {
+    pub fn new(f_dep: Option<bool>) -> Self {
+        Self {
+            first_depth: f_dep.unwrap_or(true),
+        }
+    }
+}
 
 impl FasterGreedyDagExtractor {
     fn calculate_cost_set(
@@ -20,6 +34,7 @@ impl FasterGreedyDagExtractor {
         costs: &FxHashMap<ClassId, CostSet>,
         best_cost: CCost,
         extraction_result: &ExtractionResult, // 传入 ExtractionResult
+        first_depth: bool,
     ) -> CostSet {
         let node = &egraph[&node_id];
         let cid = egraph.nid_to_cid(&node_id);
@@ -82,20 +97,24 @@ impl FasterGreedyDagExtractor {
             .iter()
             .map(|child| {
                 let child_cid = egraph.nid_to_cid(child);
-                extraction_result.calculate_depth(egraph, child_cid) // 调用 ExtractionResult 的递归深度计算
+                extraction_result.calculate_depth(egraph, child_cid, Some(first_depth))
+                // 调用 ExtractionResult 的递归深度计算
             })
             .max()
             .unwrap_or(0);
 
         // 如果当前节点的操作符是 "M"，深度加 1
-        let max_depth = if node.op == "M" {
+        let max_depth = if node.op == "M" || node.op == "&" {
             max_child_depth + 1
         } else {
             max_child_depth
         };
 
         // 计算 DAG 的大小
-        let total_size: u32 = result.values().map(|cost| cost.aom).sum();
+        let total_size: u32 = result
+            .values()
+            .map(|cost| if first_depth { cost.aom } else { cost.dep })
+            .sum();
 
         // 构造结果
         let result_cost = if contains {
@@ -167,6 +186,7 @@ impl Extractor for FasterGreedyDagExtractor {
                     &costs,
                     prev_cost,
                     &result, // 传递 ExtractionResult 的引用
+                    self.first_depth,
                 );
 
                 if cost_set.total < prev_cost {
