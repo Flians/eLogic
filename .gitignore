@@ -24,5 +24,3 @@ rewrite_elo_mig_k8_post2.json
 mig_egg/serd_egraph.json
 rewrite_*.json
 mig_*.json
-res/lib_expr2cost.json
-mig_egg/lib_expr2cost.json
