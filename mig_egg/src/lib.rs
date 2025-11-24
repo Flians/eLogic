@@ -4,7 +4,6 @@ use log::{info, warn};
 use std::cmp;
 use std::ffi::CString;
 use std::fmt;
-use std::iter::Sum;
 use std::ops::{Add, AddAssign};
 use std::os::raw::c_char;
 
@@ -426,8 +425,8 @@ impl egg::Analysis<MIG> for ConstantFold {
 // -----------------------------------------------------------------------------------
 #[derive(Clone)]
 pub struct MIGCostFn_dsi<'a> {
-    egraph: &'a CEGraph,
-    visited: std::collections::HashMap<egg::Id, CCost>,
+    // egraph: &'a CEGraph,
+    // visited: std::collections::HashMap<egg::Id, CCost>,
     original_dep: &'a [u32],
     first_depth: bool,
 }
@@ -435,15 +434,15 @@ pub struct MIGCostFn_dsi<'a> {
 impl<'a> MIGCostFn_dsi<'a> {
     pub fn new(graph: &'a CEGraph, vars_: &'a [u32], f_dep: Option<bool>) -> Self {
         Self {
-            egraph: graph,
-            visited: std::collections::HashMap::default(),
+            // egraph: graph,
+            // visited: std::collections::HashMap::default(),
             original_dep: vars_,
             first_depth: f_dep.unwrap_or(true),
         }
     }
 
     pub fn reset(&mut self) {
-        self.visited.clear();
+        // self.visited.clear();
     }
 
     /// Calculate cost from a string-based operator (used in older references).
@@ -547,13 +546,10 @@ impl<'a> egg::CostFunction<MIG> for MIGCostFn_dsi<'a> {
 /// Implementation for egg::LpCostFunction trait (used by ILP extraction).
 #[cfg_attr(docsrs, doc(cfg(feature = "lp")))]
 impl<'a> egg::LpCostFunction<MIG, ConstantFold> for MIGCostFn_dsi<'a> {
-    fn node_cost(&mut self, _egraph: &CEGraph, _eclass: egg::Id, _enode: &MIG) -> f64 {
-        match _enode {
-            MIG::And(..) => 1.0,
-            MIG::Maj(..) => 1.0,
-            MIG::Not(..) => 0.0,
-            _ => 0.0,
-        }
+    fn node_cost(&mut self, _egraph: &CEGraph, _eclass: egg::Id, enode: &MIG) -> f64 {
+        let cur_cost = self.cal_cur_cost(enode);
+
+        cur_cost.aom as f64
     }
 }
 
@@ -573,27 +569,34 @@ macro_rules! rule {
     };
 }
 
-rule! {neg_false,      true_false,              "(~ 0)",                      "1"    }
-rule! {neg_true,       false_true,              "(~ 1)",                      "0"    }
-rule! {double_neg,     double_neg_flip,         "(~ (~ ?a))",                 "?a"                              }
-rule! {neg,            neg_flip,                "(~ (M ?a ?b ?c))",           "(M (~ ?a) (~ ?b) (~ ?c))"        }
-rule! {distri,         distri_flip,             "(M ?a ?b (M ?c ?d ?e))",     "(M (M ?a ?b ?c) (M ?a ?b ?d) ?e)"}
-rule! {com_associ,     com_associ_flip,         "(M ?a ?b (M ?c (~ ?b) ?d))", "(M ?a ?b (M ?c ?a ?d))"          }
-rule! {maj_com_equ,    maj_equ_com,             "(M ?a ?b (~ ?b))",           "(M ?a ?b ?a)"                    }
-rule! {relevance,      "(M ?a ?b (M ?c ?d (M ?a ?b ?e)))", "(M ?a ?b (M ?c ?d (M (~ ?b) ?b ?e)))"               }
-rule! {associ,         "(M ?a ?b (M ?c ?b ?d))","(M ?d ?b (M ?c ?b ?a))"}
-rule! {comm_lm,        "(M ?a ?b ?c)",          "(M ?b ?a ?c)"          }
-rule! {comm_lr,        "(M ?a ?b ?c)",          "(M ?c ?b ?a)"          }
-rule! {comm_mr,        "(M ?a ?b ?c)",          "(M ?a ?c ?b)"          }
-rule! {maj_2_equ,      "(M ?a ?b ?b)",          "?b"                    }
-rule! {maj_2_com,      "(M ?a ?b (~ ?b))",      "?a"                    }
+rule! {neg_false,      true_false,              "(~ 0)",                              "1"    }
+rule! {neg_true,       false_true,              "(~ 1)",                              "0"    }
+rule! {double_neg,     double_neg_flip,         "(~ (~ ?a))",                         "?a"   }
 
-rule! {associ_and,     "(& ?a (& ?b ?c))",      "(& ?b (& ?a ?c))"      }
-rule! {comm_and,       "(& ?a ?b)",             "(& ?b ?a)"             }
-rule! {comp_and,       "(& ?a (~ ?a))",         "0"                     }
-rule! {dup_and,        "(& ?a ?a)",             "?a"                    }
-rule! {and_true,       "(& ?a 1)",              "?a"                    }
-rule! {and_false,      "(& ?a 0)",              "0"                     }
+rule! {neg,            neg_flip,                "(~ (M ?a ?b ?c))",                   "(M (~ ?a) (~ ?b) (~ ?c))"        }
+rule! {distri,         distri_flip,             "(M ?a ?b (M ?c ?d ?e))",             "(M (M ?a ?b ?c) (M ?a ?b ?d) ?e)"}
+rule! {com_associ,     com_associ_flip,         "(M ?a ?b (M ?c (~ ?b) ?d))",         "(M ?a ?b (M ?c ?a ?d))"          }
+rule! {maj_com_equ,    maj_equ_com,             "(M ?a ?b (~ ?b))",                   "(M ?a ?b ?a)"                    }
+rule! {xnor_0,         xnor_0_flip,             "(M ?a (M 0 ?b ?c) (~ (M 1 ?b ?c)))", "(M 0 ?a (M 1 (M 0 ?b ?c) (~ (M 1 ?b ?c))))"}
+rule! {xor_1,          xor_1_flip,              "(M ?a (~ (M 0 ?b ?c)) (M 1 ?b ?c))", "(M 1 ?a (M 0 (~ (M 0 ?b ?c)) (M 1 ?b ?c)))"}
+rule! {pull_out_e, push_in_e,
+    "(M 0 ?s (M ?a (M 0 ?t (M 1 ?d ?e)) (M 1 ?a ?b)))",
+    "(M ?e (M 0 ?s (M ?a (M 1 ?a ?b) ?t)) (M 0 ?s (M ?a ?d (M ?a (M 1 ?a ?b) ?t))))"
+}
+rule! {relevance,      "(M ?a ?b (M ?c ?d (M ?a ?b ?e)))", "(M ?a ?b (M ?c ?d (M (~ ?b) ?b ?e)))"}
+rule! {associ,         "(M ?a ?b (M ?c ?b ?d))",           "(M ?d ?b (M ?c ?b ?a))"}
+rule! {comm_lm,        "(M ?a ?b ?c)",                     "(M ?b ?a ?c)"          }
+rule! {comm_lr,        "(M ?a ?b ?c)",                     "(M ?c ?b ?a)"          }
+rule! {comm_mr,        "(M ?a ?b ?c)",                     "(M ?a ?c ?b)"          }
+rule! {maj_2_equ,      "(M ?a ?b ?b)",                     "?b"                    }
+rule! {maj_2_com,      "(M ?a ?b (~ ?b))",                 "?a"                    }
+
+rule! {associ_and,     "(& ?a (& ?b ?c))",                 "(& ?b (& ?a ?c))"      }
+rule! {comm_and,       "(& ?a ?b)",                        "(& ?b ?a)"             }
+rule! {comp_and,       "(& ?a (~ ?a))",                    "0"                     }
+rule! {dup_and,        "(& ?a ?a)",                        "?a"                    }
+rule! {and_true,       "(& ?a 1)",                         "?a"                    }
+rule! {and_false,      "(& ?a 0)",                         "0"                     }
 
 fn rules() -> Vec<CRewrite> {
     vec![
@@ -617,12 +620,16 @@ fn rules() -> Vec<CRewrite> {
         comm_mr(),
         maj_2_equ(),
         maj_2_com(),
-        associ_and(),
-        comm_and(),
-        comp_and(),
-        dup_and(),
-        and_true(),
-        and_false(),
+        xnor_0(),
+        xnor_0_flip(),
+        xor_1(),
+        xor_1_flip(),
+        // associ_and(),
+        // comm_and(),
+        // comp_and(),
+        // dup_and(),
+        // and_true(),
+        // and_false(),
     ]
 }
 
@@ -683,9 +690,9 @@ mod ffi {
             first_depth: bool,
         ) -> CCost;
         unsafe fn simplify_size(s: &str, vars: *const u32, size: usize, first_depth: bool)
-            -> CCost;
+        -> CCost;
         unsafe fn simplify_best(s: &str, vars: *const u32, size: usize, first_depth: bool)
-            -> CCost;
+        -> CCost;
         fn merge_ccost(depth: &CCost, size: &CCost) -> CCost;
         unsafe fn free_string(s: *mut c_char);
     }
@@ -783,17 +790,34 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize, first_depth: bool)
         .with_iter_limit(30)
         .with_node_limit(10000)
         .with_time_limit(std::time::Duration::from_secs(5));
-    let root = runner.roots[0];
 
     // Run the rewrite rules to saturate or partially simplify the expression
     runner = runner.run(&all_rules);
+    let mut roots: Vec<Id> = runner
+        .roots
+        .iter()
+        .map(|root| runner.egraph.find(*root))
+        .collect();
+    let root = roots[0];
 
     // Extract a *tree* result from the e-graph using a standard Egg Extractor
-    let (best_cost, best) = egg::Extractor::new(
-        &runner.egraph,
-        MIGCostFn_dsi::new(&runner.egraph, &vars_, Some(first_depth)),
-    )
-    .find_best(root);
+    let best: egg::RecExpr<MIG>;
+    let mut best_cost = CCost::max();
+    if true {
+        (best_cost, best) = egg::Extractor::new(
+            &runner.egraph,
+            MIGCostFn_dsi::new(&runner.egraph, &vars_, Some(first_depth)),
+        )
+        .find_best(root);
+    } else {
+        let mut lp_extractor = egg::LpExtractor::new(
+            &runner.egraph,
+            MIGCostFn_dsi::new(&runner.egraph, &vars_, Some(true)),
+        );
+        // lp_extractor.timeout(10.0);
+
+        (best, roots) = lp_extractor.solve_multiple(&roots);
+    }
 
     // Convert the best expression to prefix form to get depth, size, and #inversions
     let (aft_expr, mut aft_dep, aft_size, aft_invs) = to_prefix(&best, &vars_);
@@ -1509,6 +1533,40 @@ mod tests {
     }
 
     #[test]
+    fn prove_equiv_pair_with_core_rules() {
+        let e1 = "(M 0 (~ f) (M a (~ (M (~ 0) c (M 0 (~ d) e))) (M (~ 0) a b)))";
+        let e2 =
+            "(M (~ e) (M 0 (~ f) (M a (M a 1 b) (~ c))) (M 0 (~ f) (M a d (M a (M a 1 b) (~ c)))))";
+
+        // Build runner with our core rules
+        let rewrites = rules();
+
+        let expr1: egg::RecExpr<MIG> = e1.parse().unwrap();
+        let expr2: egg::RecExpr<MIG> = e2.parse().unwrap();
+
+        let mut egraph = CEGraph::default();
+        let id1 = egraph.add_expr(&expr1);
+        let id2 = egraph.add_expr(&expr2);
+
+        let runner = egg::Runner::default()
+            .with_egraph(egraph)
+            .with_iter_limit(1000)
+            .with_node_limit(100_000)
+            .run(&rewrites);
+
+        let unified = runner.egraph.find(id1) == runner.egraph.find(id2);
+        let egraph_equiv = !runner.egraph.equivs(&expr1, &expr2).is_empty();
+        assert!(
+            is_equiv(e1, e2),
+            "Expressions not equivalent by brute force"
+        );
+        assert!(
+            (unified || egraph_equiv),
+            "Expressions not proven equivalent by rules"
+        );
+    }
+
+    #[test]
     fn const_fold() {
         let start = "(M 0 1 0)";
         let start_expr: egg::RecExpr<MIG> = start.parse().unwrap();
@@ -1596,14 +1654,16 @@ mod tests {
         println!("after_invs: {}", inv_count);
 
         let expr = "Key '(M (~ 0) (M 0 (M (~ 0) a b) (~ (M 0 (M (~ 0) a b) c))) (M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) c))) d))' is NOT equivalent to expression '(M 1 (M 0 (M 1 a b) (~ c)) (M c (~ (M b c (M 0 a c))) d))'";
-        // let expr = "Key '(M (~ 0) (M 0 (~ a) (M (~ 0) g (M (~ e) (M c (~ (M (~ 0) b f)) (M 0 d (~ (M (~ 0) b f)))) (M 0 (~ e) (M (~ c) (M 0 b f) (M (~ d) f (M 0 b f))))))) (M 0 a (~ (M (~ 0) g (M (~ e) (M c (~ (M (~ 0) b f)) (M 0 d (~ (M (~ 0) b f)))) (M 0 (~ e) (M (~ c) (M 0 b f) (M (~ d) f (M 0 b f)))))))))' is NOT equivalent to expression '(~ (M 0 (~ (M 0 (M (M (M 1 b f) (~ c) (M 1 (M 1 b f) (~ d))) e (~ (M (~ c) (M f 0 (M b 0 b)) (M (M b f (~ d)) 0 (M f 0 f))))) (M 0 a (~ g)))) (M a (M (M (M 1 b f) (~ c) (M 1 (M 1 b f) (~ d))) e (~ (M (~ c) (M f 0 (M b 0 b)) (M (M b f (~ d)) 0 (M f 0 f))))) (M 1 a (~ g)))))'";
-        // let expr = "Key '(M 0 (~ (M 0 c (M (~ 0) e f))) (M 0 b (~ (M 0 (~ f) (M 0 (M d (M (~ 0) (M 0 (~ a) c) (M 0 a (~ c))) (~ e)) (~ (M d (M (~ 0) (M 0 (~ a) c) (M 0 a (~ c))) e)))))))' is NOT equivalent to expression '(~ (M (M (M 1 (~ b) (M 0 c e)) (M c 1 (~ b)) f) (M 1 (M (M 1 (~ b) (M 0 c e)) (M c 1 (~ b)) f) (~ (M e d (M 0 (M c 1 a) (~ (M 0 a c)))))) (M 0 (~ f) (M d (M 0 (M c 1 a) (~ (M 0 a c))) (~ e)))))'";
-        // let expr = "Key '(M 0 (~ f) (M a (~ (M (~ 0) c (M 0 (~ d) e))) (M (~ 0) a b)))' is NOT equivalent to expression '(M (~ e) (M 0 (~ f) (M a (M a 1 b) (~ c))) (M 0 (~ f) (M a d (M a (M a 1 b) (~ c)))))'";
-        // let expr = "Key '(M (~ 0) (M 0 (~ a) (M g (~ (M (~ 0) (M 0 f (~ (M 0 (M (~ 0) e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))) (~ (M 0 e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))))))) (M 0 (M (~ 0) e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))) (~ (M (~ 0) f (M 0 e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d)))))))) (M (~ 0) b g))) (M 0 a (~ (M g (~ (M (~ 0) (M 0 f (~ (M 0 (M (~ 0) e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))) (~ (M 0 e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))))))) (M 0 (M (~ 0) e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))) (~ (M (~ 0) f (M 0 e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d)))))))) (M (~ 0) b g)))))' is NOT equivalent to expression '(M 0 (M 1 a (M g (M 0 (M 1 (M 0 (M 1 e (M 0 (~ (M 0 c d)) (M 1 d c))) (M (M 0 c d) 1 (~ (M 0 (M 1 d c) e)))) (~ f)) (M 1 f (M 0 (M 1 e (M 1 (M 0 c d) (~ (M 1 d c)))) (M 1 (M 0 (~ (M 0 c d)) (M 1 d c)) (~ e))))) (M 1 g b))) (~ (M 0 (M g (M 0 (M 1 (M 0 (M 1 e (M 0 (~ (M 0 c d)) (M 1 d c))) (M (M 0 c d) 1 (~ (M 0 (M 1 d c) e)))) (~ f)) (M 1 f (M 0 (M 1 e (M 1 (M 0 c d) (~ (M 1 d c)))) (M 1 (M 0 (~ (M 0 c d)) (M 1 d c)) (~ e))))) (M 1 g b)) a)))'";
+        //let expr = "Key '(M (~ 0) (M 0 (~ a) (M (~ 0) g (M (~ e) (M c (~ (M (~ 0) b f)) (M 0 d (~ (M (~ 0) b f)))) (M 0 (~ e) (M (~ c) (M 0 b f) (M (~ d) f (M 0 b f))))))) (M 0 a (~ (M (~ 0) g (M (~ e) (M c (~ (M (~ 0) b f)) (M 0 d (~ (M (~ 0) b f)))) (M 0 (~ e) (M (~ c) (M 0 b f) (M (~ d) f (M 0 b f)))))))))' is NOT equivalent to expression '(~ (M 0 (~ (M 0 (M (M (M 1 b f) (~ c) (M 1 (M 1 b f) (~ d))) e (~ (M (~ c) (M f 0 (M b 0 b)) (M (M b f (~ d)) 0 (M f 0 f))))) (M 0 a (~ g)))) (M a (M (M (M 1 b f) (~ c) (M 1 (M 1 b f) (~ d))) e (~ (M (~ c) (M f 0 (M b 0 b)) (M (M b f (~ d)) 0 (M f 0 f))))) (M 1 a (~ g)))))'";
+        //let expr = "Key '(M 0 (~ (M 0 c (M (~ 0) e f))) (M 0 b (~ (M 0 (~ f) (M 0 (M d (M (~ 0) (M 0 (~ a) c) (M 0 a (~ c))) (~ e)) (~ (M d (M (~ 0) (M 0 (~ a) c) (M 0 a (~ c))) e)))))))' is NOT equivalent to expression '(~ (M (M (M 1 (~ b) (M 0 c e)) (M c 1 (~ b)) f) (M 1 (M (M 1 (~ b) (M 0 c e)) (M c 1 (~ b)) f) (~ (M e d (M 0 (M c 1 a) (~ (M 0 a c)))))) (M 0 (~ f) (M d (M 0 (M c 1 a) (~ (M 0 a c))) (~ e)))))'";
+        //let expr = "Key '(M (~ 0) (M 0 (~ a) (M g (~ (M (~ 0) (M 0 f (~ (M 0 (M (~ 0) e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))) (~ (M 0 e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))))))) (M 0 (M (~ 0) e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))) (~ (M (~ 0) f (M 0 e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d)))))))) (M (~ 0) b g))) (M 0 a (~ (M g (~ (M (~ 0) (M 0 f (~ (M 0 (M (~ 0) e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))) (~ (M 0 e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))))))) (M 0 (M (~ 0) e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d))) (~ (M (~ 0) f (M 0 e (M (~ 0) (M 0 c (~ d)) (M 0 (~ c) d)))))))) (M (~ 0) b g)))))' is NOT equivalent to expression '(M 0 (M 1 a (M g (M 0 (M 1 (M 0 (M 1 e (M 0 (~ (M 0 c d)) (M 1 d c))) (M (M 0 c d) 1 (~ (M 0 (M 1 d c) e)))) (~ f)) (M 1 f (M 0 (M 1 e (M 1 (M 0 c d) (~ (M 1 d c)))) (M 1 (M 0 (~ (M 0 c d)) (M 1 d c)) (~ e))))) (M 1 g b))) (~ (M 0 (M g (M 0 (M 1 (M 0 (M 1 e (M 0 (~ (M 0 c d)) (M 1 d c))) (M (M 0 c d) 1 (~ (M 0 (M 1 d c) e)))) (~ f)) (M 1 f (M 0 (M 1 e (M 1 (M 0 c d) (~ (M 1 d c)))) (M 1 (M 0 (~ (M 0 c d)) (M 1 d c)) (~ e))))) (M 1 g b)) a)))'";
+
         // let expr = "Key '(M (~ 0) (M 0 (~ (M 0 (~ a) b)) e) (M 0 e (~ (M 0 (~ (M 0 c d)) (M (~ 0) c d)))))' is NOT equivalent to expression '(M (M 1 a (~ b)) e (M e (~ (M 1 c d)) (M 0 c d)))'";
+        // let expr = "Key '(M 0 (~ f) (M a (~ (M (~ 0) c (M 0 (~ d) e))) (M (~ 0) a b)))' is NOT equivalent to expression '(M (~ e) (M 0 (~ f) (M a (M a 1 b) (~ c))) (M 0 (~ f) (M a d (M a (M a 1 b) (~ c)))))'";
         let parts: Vec<&str> = expr.split('\'').collect();
-        let expr1: egg::RecExpr<MIG> = parts[1].parse().unwrap();
-        let expr2: egg::RecExpr<MIG> = parts[3].parse().unwrap();
+        println!("parts: {:?}", parts);
+        let expr1: egg::RecExpr<MIG> = parts[1].parse().unwrap(); //"(M x u (M y (~ u) z))".parse().unwrap();
+        let expr2: egg::RecExpr<MIG> = parts[3].parse().unwrap(); //"(M x u (M y x z))".parse().unwrap();
         let mut egraph = CEGraph::default();
 
         let expr1_id = egraph.add_expr(&expr1);
@@ -1619,10 +1679,14 @@ mod tests {
 
         if runner.egraph.equivs(&expr1, &expr2).is_empty() {
             println!("The expressions are NOT equivalent!");
+        } else {
+            println!("The expressions are equivalent!");
         }
 
         if !is_equiv(&parts[1], &parts[3]) {
             println!("The expressions are NOT equivalent!");
+        } else {
+            println!("The expressions are equivalent!");
         }
     }
 
@@ -1661,18 +1725,36 @@ mod tests {
         simplify("(M x 0 (M y 1 (M u 0 v)))", &empty_vec);
         simplify("(M (M w x (~ z)) x (M z x y))", &empty_vec);
         simplify("(M c (M c d (M e f b)) a)", &empty_vec);
-        simplify("(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))",&empty_vec);
-        simplify("(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))",&empty_vec);
+        simplify(
+            "(M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) (~ (M 0 a b))))) (M 0 (~ c) (M 0 (M (~ 0) a b) (~ (M 0 a b)))))",
+            &empty_vec,
+        );
+        simplify(
+            "(M (~ 0) (M 0 (M 0 a c) (~ (M 0 (M (~ 0) b d) (~ (M 0 b d))))) (M 0 (~ (M 0 a c)) (M 0 (M (~ 0) b d) (~ (M 0 b d)))))",
+            &empty_vec,
+        );
         simplify("(M 0 (~ (M 0 (~ a) b)) (M 0 c (~ d)))", &empty_vec);
         simplify(
             "(M (~ 0) (M 0 a (~ (M 0 b (~ c)))) (M 0 (~ a) (M 0 b (~ c))))",
             &empty_vec,
         );
         simplify("(M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b))", &empty_vec);
-        simplify("(M (~ 0) (M (~ e) (M (~ 0) c (M 0 (~ a) b)) (M 0 (M 0 c (M 0 (~ a) b)) (M (~ 0) c (M 0 (~ a) b)))) (M (M 0 (~ d) g) h (M 0 (~ f) h)))",&empty_vec);
-        simplify("(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))",&empty_vec);
-        simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))",&empty_vec);
-        simplify("(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))", &vec![0, 0, 2, 2, 4, 6, 5, 7]);
+        simplify(
+            "(M (~ 0) (M (~ e) (M (~ 0) c (M 0 (~ a) b)) (M 0 (M 0 c (M 0 (~ a) b)) (M (~ 0) c (M 0 (~ a) b)))) (M (M 0 (~ d) g) h (M 0 (~ f) h)))",
+            &empty_vec,
+        );
+        simplify(
+            "(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))",
+            &empty_vec,
+        );
+        simplify(
+            "(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))",
+            &empty_vec,
+        );
+        simplify(
+            "(M (~ 0) (M 0 (M 0 c (~ (M (~ 0) (M 0 a (~ b)) (M 0 (~ a) b)))) h) (M (M 0 (~ c) d) (M 0 e (~ f)) (~ (M 0 (M 0 (~ c) d) g))))",
+            &vec![0, 0, 2, 2, 4, 6, 5, 7],
+        );
         simplify(
             "(M (~ 0) b (M (~ (M a (~ c) e)) f (M 0 d f)))",
             &vec![0, 0, 3, 4, 2, 4],

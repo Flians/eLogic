@@ -1,0 +1,43 @@
+nohup: ignoring input
+[i] processing adder
+[i] processing bar
+[i] processing div
+[i] processing hyp
+[i] processing log2
+[i] processing max
+[i] processing multiplier
+[i] processing sin
+[i] processing sqrt
+[i] processing square
+[i] processing arbiter
+[i] processing cavlc
+[i] processing ctrl
+[i] processing dec
+[i] processing i2c
+[i] processing int2float
+[i] processing mem_ctrl
+[i] processing priority
+[i] processing router
+[i] processing voter
+[i] dataset [34m##GITHUB##
+[0m|  benchmark | size_before | depth_before | size_after | depth_after | runtime | size_after2 | depth_after2 | runtime2 | equivalent |
+|      adder |        1020 |          255 |        516 |         130 |    0.02 |         514 |          130 |     0.01 |       true |
+|        bar |        3336 |           12 |       3010 |          13 |    0.14 |        3010 |           13 |     0.12 |       true |
+|        div |       57247 |         4372 |      46360 |        4308 |    5.92 |       38210 |         3020 |     3.03 |       true |
+|        hyp |      214335 |        24801 |     156590 |        9155 |   56.25 |      146181 |         9123 |    11.08 |       true |
+|       log2 |       32060 |          444 |      29312 |         421 |    2.81 |       29119 |          421 |     1.92 |       true |
+|        max |        2865 |          287 |       2356 |         208 |    0.13 |        2320 |          208 |     0.09 |       true |
+| multiplier |       27062 |          274 |      24370 |         272 |    2.32 |       24106 |          273 |     1.46 |       true |
+|        sin |        5416 |          225 |       4934 |         195 |    0.45 |        4877 |          195 |     0.34 |       true |
+|       sqrt |       24618 |         5058 |      18813 |        5956 |    2.17 |       11955 |         2529 |     1.48 |       true |
+|     square |       18484 |          250 |      16392 |         134 |    1.41 |       16105 |          134 |     1.02 |       true |
+|    arbiter |       11839 |           87 |      11839 |          87 |    0.39 |       11839 |           87 |     0.40 |       true |
+|      cavlc |         693 |           16 |        598 |          15 |    0.03 |         598 |           15 |     0.01 |       true |
+|       ctrl |         174 |           10 |        108 |           7 |    0.01 |         104 |            7 |     0.00 |       true |
+|        dec |         304 |            3 |        304 |           3 |    0.03 |         304 |            3 |     0.02 |       true |
+|        i2c |        1342 |           20 |       1203 |          17 |    0.05 |        1195 |           17 |     0.03 |       true |
+|  int2float |         260 |           16 |        210 |          14 |    0.01 |         208 |           14 |     0.01 |       true |
+|   mem_ctrl |       46836 |          114 |      41180 |         113 |    3.13 |       40985 |          113 |     1.47 |       true |
+|   priority |         978 |          250 |        875 |         241 |    0.06 |         863 |          241 |     0.04 |       true |
+|     router |         257 |           54 |        242 |          52 |    0.02 |         242 |           52 |     0.01 |       true |
+|      voter |       13758 |           70 |       8094 |          63 |    1.05 |        5560 |           59 |     0.39 |       true |

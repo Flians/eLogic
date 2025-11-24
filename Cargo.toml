@@ -3,7 +3,7 @@ workspace = { members = ["mig_egg"] }
 [package]
 name = "MIGBalance"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,3 +11,4 @@ edition = "2021"
 mignite = { path = "mignite" }
 # mig_egg = { path = "mig_egg"}
 egg = { version = "0.10.0"}# , features = ["lp"] }
+rand = "0.9.2"

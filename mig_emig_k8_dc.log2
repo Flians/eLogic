@@ -1,0 +1,123 @@
+nohup: ignoring input
+[i] processing adder
+size_before = 1020, depth_before = 255
+size_after = 516, depth_after = 130
+size_after_post_rw = 514, depth_after_post_rw = 130
+size_after_post_resub = 515, depth_after_post_resub = 130
+[i] processing bar
+size_before = 3336, depth_before = 12
+size_after = 3141, depth_after = 12
+size_after_post_rw = 2981, depth_after_post_rw = 13
+size_after_post_resub = 3007, depth_after_post_resub = 13
+[i] processing div
+size_before = 57247, depth_before = 4372
+size_after = 26225, depth_after = 2194
+size_after_post_rw = 24575, depth_after_post_rw = 2185
+size_after_post_resub = 25955, depth_after_post_resub = 2182
+[i] processing hyp
+size_before = 214335, depth_before = 24801
+size_after = 140037, depth_after = 8923
+size_after_post_rw = 129116, depth_after_post_rw = 8950
+size_after_post_resub = 133608, depth_after_post_resub = 13891
+[i] processing log2
+size_before = 32060, depth_before = 444
+size_after = 27659, depth_after = 243
+size_after_post_rw = 25264, depth_after_post_rw = 226
+size_after_post_resub = 26447, depth_after_post_resub = 265
+[i] processing max
+size_before = 2865, depth_before = 287
+size_after = 2444, depth_after = 133
+size_after_post_rw = 2342, depth_after_post_rw = 138
+size_after_post_resub = 2408, depth_after_post_resub = 134
+[i] processing multiplier
+size_before = 27062, depth_before = 274
+size_after = 25082, depth_after = 174
+size_after_post_rw = 20383, depth_after_post_rw = 167
+size_after_post_resub = 24708, depth_after_post_resub = 179
+[i] processing sin
+size_before = 5416, depth_before = 225
+size_after = 4864, depth_after = 130
+size_after_post_rw = 4412, depth_after_post_rw = 130
+size_after_post_resub = 4635, depth_after_post_resub = 142
+[i] processing sqrt
+size_before = 24618, depth_before = 5058
+size_after = 22573, depth_after = 4086
+size_after_post_rw = 17383, depth_after_post_rw = 3995
+size_after_post_resub = 18934, depth_after_post_resub = 4015
+[i] processing square
+size_before = 18484, depth_before = 250
+size_after = 16824, depth_after = 128
+size_after_post_rw = 12913, depth_after_post_rw = 130
+size_after_post_resub = 15149, depth_after_post_resub = 130
+[i] processing arbiter
+size_before = 11839, depth_before = 87
+size_after = 5511, depth_after = 35
+size_after_post_rw = 5291, depth_after_post_rw = 36
+size_after_post_resub = 4301, depth_after_post_resub = 23
+[i] processing cavlc
+size_before = 693, depth_before = 16
+size_after = 663, depth_after = 11
+size_after_post_rw = 619, depth_after_post_rw = 11
+size_after_post_resub = 611, depth_after_post_resub = 11
+[i] processing ctrl
+size_before = 174, depth_before = 10
+size_after = 127, depth_after = 6
+size_after_post_rw = 112, depth_after_post_rw = 5
+size_after_post_resub = 102, depth_after_post_resub = 7
+[i] processing dec
+size_before = 304, depth_before = 3
+size_after = 304, depth_after = 3
+size_after_post_rw = 304, depth_after_post_rw = 3
+size_after_post_resub = 304, depth_after_post_resub = 3
+[i] processing i2c
+size_before = 1342, depth_before = 20
+size_after = 1259, depth_after = 11
+size_after_post_rw = 1204, depth_after_post_rw = 11
+size_after_post_resub = 1187, depth_after_post_resub = 11
+[i] processing int2float
+size_before = 260, depth_before = 16
+size_after = 239, depth_after = 10
+size_after_post_rw = 222, depth_after_post_rw = 10
+size_after_post_resub = 226, depth_after_post_resub = 11
+[i] processing mem_ctrl
+size_before = 46836, depth_before = 114
+size_after = 44265, depth_after = 94
+size_after_post_rw = 41876, depth_after_post_rw = 94
+size_after_post_resub = 42427, depth_after_post_resub = 93
+[i] processing priority
+size_before = 978, depth_before = 250
+size_after = 898, depth_after = 155
+size_after_post_rw = 835, depth_after_post_rw = 156
+size_after_post_resub = 816, depth_after_post_resub = 155
+[i] processing router
+size_before = 257, depth_before = 54
+size_after = 250, depth_after = 32
+size_after_post_rw = 239, depth_after_post_rw = 32
+size_after_post_resub = 246, depth_after_post_resub = 32
+[i] processing voter
+size_before = 13758, depth_before = 70
+size_after = 7884, depth_after = 57
+size_after_post_rw = 6326, depth_after_post_rw = 54
+size_after_post_resub = 6926, depth_after_post_resub = 62
+[i] dataset [34m##GITHUB##
+[0m|  benchmark | size_before | depth_before | size_after | depth_after | runtime | size_post_rw | depth_post_rw | runtime_post_rw | size_post_resub | depth_post_resub | runtime_post_resub | equivalent |
+|      adder |        1020 |          255 |        516 |         130 |    0.06 |          514 |           130 |            0.01 |             515 |              130 |               0.07 |       true |
+|        bar |        3336 |           12 |       3141 |          12 |    0.79 |         2981 |            13 |            0.11 |            3007 |               13 |               0.33 |       true |
+|        div |       57247 |         4372 |      26225 |        2194 |  217.18 |        24575 |          2185 |            1.03 |           25955 |             2182 |               6.28 |       true |
+|        hyp |      214335 |        24801 |     140037 |        8923 | 1185.83 |       129116 |          8950 |            6.26 |          133608 |            13891 |              48.95 |       true |
+|       log2 |       32060 |          444 |      27659 |         243 | 1414.57 |        25264 |           226 |            1.86 |           26447 |              265 |               7.21 |       true |
+|        max |        2865 |          287 |       2444 |         133 |    4.32 |         2342 |           138 |            0.09 |            2408 |              134 |               0.39 |       true |
+| multiplier |       27062 |          274 |      25082 |         174 |  211.36 |        20383 |           167 |            1.55 |           24708 |              179 |               5.05 |       true |
+|        sin |        5416 |          225 |       4864 |         130 |    4.42 |         4412 |           130 |            0.29 |            4635 |              142 |               1.13 |       true |
+|       sqrt |       24618 |         5058 |      22573 |        4086 |   65.31 |        17383 |          3995 |            1.71 |           18934 |             4015 |               4.90 |       true |
+|     square |       18484 |          250 |      16824 |         128 |   16.34 |        12913 |           130 |            0.66 |           15149 |              130 |               2.09 |       true |
+|    arbiter |       11839 |           87 |       5511 |          35 |    4.03 |         5291 |            36 |            0.18 |            4301 |               23 |               0.86 |       true |
+|      cavlc |         693 |           16 |        663 |          11 |    0.13 |          619 |            11 |            0.02 |             611 |               11 |               0.05 |       true |
+|       ctrl |         174 |           10 |        127 |           6 |    0.02 |          112 |             5 |            0.01 |             102 |                7 |               0.01 |       true |
+|        dec |         304 |            3 |        304 |           3 |    0.03 |          304 |             3 |            0.02 |             304 |                3 |               0.03 |       true |
+|        i2c |        1342 |           20 |       1259 |          11 |    0.22 |         1204 |            11 |            0.03 |            1187 |               11 |               0.06 |       true |
+|  int2float |         260 |           16 |        239 |          10 |    5.04 |          222 |            10 |            0.01 |             226 |               11 |               0.01 |       true |
+|   mem_ctrl |       46836 |          114 |      44265 |          94 |  418.21 |        41876 |            94 |            1.66 |           42427 |               93 |              10.48 |       true |
+|   priority |         978 |          250 |        898 |         155 |    0.21 |          835 |           156 |            0.03 |             816 |              155 |               0.15 |       true |
+|     router |         257 |           54 |        250 |          32 |    0.05 |          239 |            32 |            0.01 |             246 |               32 |               0.03 |       true |
+|      voter |       13758 |           70 |       7884 |          57 |    9.87 |         6326 |            54 |            0.52 |            6926 |               62 |               1.40 |       true |

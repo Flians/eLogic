@@ -92,7 +92,7 @@ void main_mig(const bool use_dc) {
   using namespace experiments;
   using namespace mockturtle;
 
-  experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool> exp(fmt::format("rewrite_mig_{}", use_dc ? "dc" : "nodc"), "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
+  experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, uint32_t, uint32_t, float, bool> exp(fmt::format("rewrite_mig_{}", use_dc ? "dc" : "nodc"), "benchmark", "size_before", "depth_before", "size_after", "depth_after", "runtime", "size_after2", "depth_after2", "runtime2", "equivalent");
 
   mig_npn_resynthesis resyn;
   exact_library_params ps_exact;
@@ -119,8 +119,14 @@ void main_mig(const bool use_dc) {
     ps.cut_enumeration_ps.cut_limit = 15u;
     baseline::rewrite(mig, exact_lib, ps, &st);
 
+    uint32_t const size_after = mig.num_gates();
+    uint32_t const depth_after = depth_view(mig).depth();
+    double const time_after = to_seconds(st.time_total);
+
+    baseline::rewrite(mig, exact_lib, ps, &st);
+
     bool const cec = abc_cec_impl(mig, benchmark_path);
-    exp(benchmark, size_before, mig.num_gates(), depth_before, depth_view(mig).depth(), to_seconds(st.time_total), cec);
+    exp(benchmark, size_before, depth_before, size_after, depth_after, time_after, mig.num_gates(), depth_view(mig).depth(), to_seconds(st.time_total), cec);
   }
 
   exp.save();
@@ -167,7 +173,7 @@ void main_xag(const bool use_dc) {
 }
 
 int mig_resubstitution(const bool use_dc) {
-  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, bool> exp("mig_resubstitution", "benchmark", "size_before", "size_after", "depth_before", "depth_after", "runtime", "equivalent");
+  experiments::experiment<std::string, uint32_t, uint32_t, uint32_t, uint32_t, float, uint32_t, uint32_t, float, bool> exp("mig_resubstitution", "benchmark", "size_before", "depth_before", "size_after", "depth_after", "runtime", "size_after2", "depth_after2", "runtime2", "equivalent");
 
   for (auto const &benchmark : experiments::epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
@@ -187,7 +193,6 @@ int mig_resubstitution(const bool use_dc) {
     ps.use_dont_cares = use_dc;
 
     mockturtle::depth_view depth_mig{mig};
-
     uint32_t const size_before = mig.num_gates();
     uint32_t const depth_before = depth_mig.depth();
 
@@ -195,8 +200,17 @@ int mig_resubstitution(const bool use_dc) {
     mig_resubstitution2(fanout_mig, ps, &st);
     mig = cleanup_dangling(mig);
 
+    mockturtle::depth_view depth_mig2{mig};
+    uint32_t const size_after = mig.num_gates();
+    uint32_t const depth_after = depth_mig2.depth();
+    double const time_after = mockturtle::to_seconds(st.time_total);
+
+    mockturtle::fanout_view fanout_mig2{depth_mig2};
+    mig_resubstitution2(fanout_mig2, ps, &st);
+    mig = cleanup_dangling(mig);
+
     bool const cec = experiments::abc_cec_impl(mig, benchmark_path);
-    exp(benchmark, size_before, mig.num_gates(), depth_before, mockturtle::depth_view(mig).depth(), mockturtle::to_seconds(st.time_total), cec);
+    exp(benchmark, size_before, depth_before, size_after, depth_after, time_after, mig.num_gates(), mockturtle::depth_view(mig).depth(), mockturtle::to_seconds(st.time_total), cec);
   }
 
   exp.save();
