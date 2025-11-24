@@ -127,6 +127,18 @@ The project includes various benchmark circuits from the EPFL benchmark suite:
 - E-graph transformation and optimization
 - Result extraction and reconstruction
 
-## References
+## Cite
+``` bib
+@inproceedings{fu2026elogic,
+  author    = {Fu, Rongliang and Xuan, Wei and Yin, Shuo and Hu, Guangyu and Chen, Chen and Zhang, Hongce and Yu, Bei and Ho, Tsung-Yi},
+  booktitle = {Design, Automation \& Test in Europe Conference \& Exhibition (DATE)},
+  title     = {{eLogic}: An E-Graph-based Logic Rewriting Framework for Majority-Inverter Graphs},
+  year      = {2026},
+  volume    = {},
+  number    = {},
+  pages     = {1-6},
+  keywords  = {Logic synthesis; logic rewriting; majority-inverter graph; e-graph},
+  doi       = {}
+}
+```
 
-- [egg: Fast and Extensible E-graphs](https://arxiv.org/abs/2004.03082)

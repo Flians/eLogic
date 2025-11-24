@@ -59,7 +59,9 @@ namespace mockturtle {
 
     std::vector<std::unique_ptr<CCost>> merged_costs;
 
-    bool is_bad(const std::string &key) const { return bad_exprs.find(key) != bad_exprs.end(); }
+    bool is_bad(const std::string &key) const {
+      return bad_exprs.find(key) != bad_exprs.end();
+    }
 
     void serialize_to_file(const std::string &filename, const std::unordered_map<std::string, std::unique_ptr<CCost>> &table_size, const std::unordered_map<std::string, std::unique_ptr<CCost>> &table, const std::unordered_set<std::string> &bad_exprs) {
       nlohmann::json j;
@@ -188,13 +190,21 @@ namespace mockturtle {
     }
 
   public:
-    StrCostTable(const std::string &filename = "lib_expr2cost.json") : bak_filepath(filename) { deserialize_from_file(bak_filepath, table_size, table, bad_exprs); }
+    StrCostTable(const std::string &filename = "lib_expr2cost.json") : bak_filepath(filename) {
+      deserialize_from_file(bak_filepath, table_size, table, bad_exprs);
+    }
 
-    ~StrCostTable() { serialize_to_file(bak_filepath, table_size, table, bad_exprs); }
+    ~StrCostTable() {
+      serialize_to_file(bak_filepath, table_size, table, bad_exprs);
+    }
 
-    void flush_cost_table() { serialize_to_file(bak_filepath, table_size, table, bad_exprs); }
+    void flush_cost_table() {
+      serialize_to_file(bak_filepath, table_size, table, bad_exprs);
+    }
 
-    void merge_cost_table(const std::string &filename) { deserialize_from_file(filename, table_size, table, bad_exprs); }
+    void merge_cost_table(const std::string &filename) {
+      deserialize_from_file(filename, table_size, table, bad_exprs);
+    }
 
     const CCost *insert(const std::string &key, const std::vector<uint32_t> &leaf_levels = {}, bool first_depth = true) {
       uint32_t min_level = 0, max_level = 0;
@@ -282,7 +292,9 @@ namespace mockturtle {
     static constexpr bool is_topologically_sorted = true;
 
   public:
-    explicit egg_view(Ntk const &ntk, std::vector<node> const &leaves, signal const &root) : immutable_view<Ntk>(ntk), _root(root) { construct(leaves); }
+    explicit egg_view(Ntk const &ntk, std::vector<node> const &leaves, signal const &root) : immutable_view<Ntk>(ntk), _root(root) {
+      construct(leaves);
+    }
 
     template <typename _Ntk = Ntk, typename = std::enable_if_t<!std::is_same_v<typename _Ntk::signal, typename _Ntk::node>>>
     explicit egg_view(Ntk const &ntk, std::vector<signal> const &leaves, signal const &root) : immutable_view<Ntk>(ntk), _root(root) {
@@ -341,36 +353,52 @@ namespace mockturtle {
     }
 
     std::vector<uint32_t> depth_ranking(const std::vector<uint32_t> &leaf_levels) const {
-      std::size_t leaf_size = leaf_levels.size();
+      const std::size_t leaf_size = leaf_levels.size();
       assert(leaf_size == _num_leaves);
 
-      std::vector<std::pair<uint32_t, uint32_t>> value_index_pairs;
-      value_index_pairs.reserve(leaf_size);
-      for (size_t i = 0; i < leaf_size; ++i) {
-        value_index_pairs.emplace_back(leaf_levels[i], i);
+      // Use direct indexing instead of pairs
+      std::vector<uint32_t> indices(leaf_size);
+      for (uint32_t i = 0; i < leaf_size; ++i) {
+        indices[i] = i;
       }
 
-      std::sort(value_index_pairs.begin(), value_index_pairs.end(), [](const std::pair<uint32_t, uint32_t> &a, const std::pair<uint32_t, uint32_t> &b) { return a.first < b.first; });
+      // Sort indices based on leaf levels
+      std::sort(indices.begin(), indices.end(), [&leaf_levels](uint32_t a, uint32_t b) {
+        return leaf_levels[a] < leaf_levels[b];
+      });
 
+      uint32_t cur_rank = -1;
+      uint32_t prev_level = 0;
       std::vector<uint32_t> sorted_indices(leaf_size);
-      for (size_t i = 0; i < leaf_size; ++i) {
-        if (i > 0 && value_index_pairs[i].first == value_index_pairs[i - 1].first) {
-          sorted_indices[value_index_pairs[i].second] = sorted_indices[value_index_pairs[i - 1].second];
-        } else {
-          sorted_indices[value_index_pairs[i].second] = i;
+      for (uint32_t i = 0; i < leaf_size; ++i) {
+        const uint32_t idx = indices[i];
+        if (i == 0 || leaf_levels[idx] != prev_level) {
+          cur_rank = i;
+          prev_level = leaf_levels[idx];
         }
+        sorted_indices[idx] = cur_rank;
       }
 
       return sorted_indices;
     }
 
   public:
-    inline auto num_pis() const { return _num_leaves; }
-    inline auto num_pos() const { return 1; }
-    inline auto num_gates() const { return _nodes.size() - _num_leaves - _num_constants; }
+    inline auto num_pis() const {
+      return _num_leaves;
+    }
+    inline auto num_pos() const {
+      return 1;
+    }
+    inline auto num_gates() const {
+      return _nodes.size() - _num_leaves - _num_constants;
+    }
 
-    inline auto node_to_index(const node &n) const { return _node_to_index.at(n); }
-    inline auto index_to_node(uint32_t index) const { return _nodes[index]; }
+    inline auto node_to_index(const node &n) const {
+      return _node_to_index.at(n);
+    }
+    inline auto index_to_node(uint32_t index) const {
+      return _nodes[index];
+    }
 
     template <typename Fn>
     void foreach_po(Fn &&fn) const {
@@ -393,7 +421,9 @@ namespace mockturtle {
       return _prefix_exprs[index];
     }
 
-    const CCost *optimize_by_egg_lib(const std::vector<uint32_t> &leaf_levels, bool first_depth = true) const { return exp_map.insert(_original_expr, this->depth_ranking(leaf_levels), first_depth); }
+    const CCost *optimize_by_egg_lib(const std::vector<uint32_t> &leaf_levels, bool first_depth = true) const {
+      return exp_map.insert(_original_expr, this->depth_ranking(leaf_levels), first_depth);
+    }
 
     CCost optimize_by_egg(const std::vector<uint32_t> &leaf_levels) const {
       std::vector<uint32_t> const depth_ranking = this->depth_ranking(leaf_levels);
@@ -406,57 +436,73 @@ namespace mockturtle {
 
     static signal rebuild(Ntk &ntk, const char *aft_expr, const std::uint32_t aft_expr_len, const std::vector<node> &leaves) {
       const signal &const_false = ntk.get_constant(false);
-
+      const signal &const_true = ntk.get_constant(true);
       const signal gap(-1);
-      std::stack<signal> signal_stack;
-      for (auto start = aft_expr, end = aft_expr + aft_expr_len; start < end; ++start) {
-        // skip space
-        while (start < end && std::isspace(*start)) {
-          ++start;
-        }
+      std::vector<signal> signal_stack;
+      // Preallocate stack to avoid reallocations
+      signal_stack.reserve(aft_expr_len / 2);
+      // Preallocate children vector
+      std::vector<signal> children;
+      children.reserve(3);
+      for (const char *start = aft_expr, *end = aft_expr + aft_expr_len; start < end; ++start) {
+        // Skip space using single comparison
+        if (std::isspace(*start)) continue;
 
-        if (*start == '(') {
-          signal_stack.push(gap);
-        } else if (*start == ')') {
-          // 1. collect children
-          std::vector<signal> children;
+        switch (*start) {
+        case '(':
+          signal_stack.push_back(gap);
+          break;
+
+        case ')': {
+          // Collect children
+          children.clear();
           signal cid;
           while (!signal_stack.empty()) {
-            cid = signal_stack.top();
-            signal_stack.pop();
+            cid = signal_stack.back();
+            signal_stack.pop_back();
             if (cid == gap) break;
             children.push_back(cid);
           }
-          // 2. build node
-          std::size_t num_ins = children.size();
+
+          // Build node based on number of inputs
           signal new_node;
-          if (num_ins == 1) { // NOT
+          switch (children.size()) {
+          case 1: // NOT
             new_node = ntk.create_not(children[0]);
-          } else if (num_ins == 2) { // AND
+            break;
+          case 2: // AND
             new_node = ntk.create_and(children[0], children[1]);
-          } else if (num_ins == 3) { // MAJ
+            break;
+          case 3: // MAJ
             new_node = ntk.create_maj(children[0], children[1], children[2]);
-          } else {
-            assert(false);
+            break;
+          default:
+            __builtin_unreachable();
           }
-          signal_stack.push(new_node);
-        } else {
-          if (*start == '~' || *start == 'M' || *start == '&') {
-            // pass
-          } else {
-            if (*start == '0') {
-              signal_stack.push(const_false);
-            } else if (*start == '1') {
-              signal_stack.push(ntk.create_not(const_false));
-            } else {
-              signal_stack.push(ntk.make_signal(leaves[*start - 'a']));
-            }
-          }
+          signal_stack.push_back(new_node);
+          break;
+        }
+
+        case '~':
+        case 'M':
+        case '&':
+          break;
+
+        case '0':
+          signal_stack.push_back(const_false);
+          break;
+
+        case '1':
+          signal_stack.push_back(const_true);
+          break;
+
+        default: // Must be a leaf node
+          signal_stack.push_back(ntk.make_signal(leaves[*start - 'a']));
+          break;
         }
       }
-      signal new_root = signal_stack.top();
       assert(signal_stack.size() == 1);
-      return new_root;
+      return signal_stack.back();
     }
 
   private:
@@ -492,15 +538,17 @@ namespace mockturtle {
 
       // record current node's expression
       std::string cur_node_expr;
+      // Preallocate string capacity to reduce reallocations
+      cur_node_expr.reserve(64);
 
       /* AIG */
       if constexpr (has_has_and_v<Ntk>) {
-        cur_node_expr += "(&";
+        cur_node_expr = "(&";
       }
 
       /* MAJ */
       if constexpr (has_has_maj_v<Ntk>) {
-        cur_node_expr += "(M";
+        cur_node_expr = "(M";
       }
 
       size_t depth = 0;
@@ -527,7 +575,7 @@ namespace mockturtle {
         has_bug = 1;
       }
 
-      add_node(n, cur_node_expr);
+      add_node(n, std::move(cur_node_expr));
       this->set_visited(n, this->trav_id());
       return depth + 1;
     }
