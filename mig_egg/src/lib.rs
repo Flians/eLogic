@@ -13,9 +13,9 @@ use std::os::raw::c_char;
 // -----------------------------------------------------------------------------------
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct CCost {
-    dep: u32,
-    aom: u32,
-    inv: u32,
+    pub dep: u32,
+    pub aom: u32,
+    pub inv: u32,
 }
 
 impl Default for CCost {
@@ -529,10 +529,29 @@ impl<'a> egg::CostFunction<MIG> for MIGCostFn_dsi<'a> {
         C: FnMut(egg::Id) -> Self::Cost,
     {
         let cur_cost = self.cal_cur_cost(enode);
+        let children: Vec<Id> = enode.children().to_vec();
+        let unique_children: Vec<Id> = {
+            let mut set = std::collections::HashSet::new();
+            let mut unique = Vec::new();
+            for &id in &children {
+                if set.insert(id) {
+                    unique.push(id);
+                }
+            }
+            unique
+        };
+        cur_cost
+            + unique_children
+                .into_iter()
+                .fold(CCost::default(), |acc, id| {
+                    Self::Cost::merge(&acc, &costs(id), Some(self.first_depth))
+                })
+        /*
         cur_cost
             + enode.fold(Default::default(), |sum, id| {
                 Self::Cost::merge(&sum, &costs(id), Some(self.first_depth))
             })
+        */
         /*
         Self::Cost {
             dep: enode.fold(cur_cost.aom, |sum, id| sum + costs(id).dep),
@@ -906,93 +925,6 @@ pub fn egg_to_serialized_egraph(
     out
 }
 
-/// A new function to clone the e-graph into a serialized JSON structure for ILP,
-/// but using a different cost function that only counts Maj operators, etc.
-pub fn egg_to_serialized_egraph_for_ilp(
-    egraph: &CEGraph,
-    root_id: egg::Id,
-    original_dep: &[u32],
-) -> egraph_serialize::EGraph {
-    // Define a local function to assign ILP cost
-    fn cal_ilp_cost(node: &MIG, original_dep: &[u32]) -> CCost {
-        match node {
-            MIG::Maj(..) => CCost {
-                dep: 1,
-                aom: 2,
-                inv: 0,
-            },
-            MIG::And(..) => CCost {
-                dep: 1,
-                aom: 1,
-                inv: 0,
-            },
-            MIG::Not(..) => CCost {
-                dep: 0,
-                aom: 1,
-                inv: 1,
-            },
-            MIG::Symbol(v) => {
-                let chr_v = v.as_str().as_bytes();
-                let index = (chr_v[0] as u8) - b'a';
-                CCost {
-                    dep: original_dep[index as usize],
-                    aom: 0,
-                    inv: 0,
-                }
-            }
-            _ => CCost::default(),
-        }
-    }
-
-    let mut out = egraph_serialize::EGraph::default();
-    let final_root = egraph.find(root_id);
-
-    // Create all classes first
-    for class in egraph.classes() {
-        out.class_data.insert(
-            egraph_serialize::ClassId::from(format!("{}", class.id)),
-            egraph_serialize::ClassData { typ: None },
-        );
-    }
-
-    // Then add each node with the "new ILP cost"
-    for class in egraph.classes() {
-        for (i, node) in class.nodes.iter().enumerate() {
-            // Use our custom ILP cost function
-            let cost_val = cal_ilp_cost(node, original_dep).encode();
-
-            // Make sure child classes exist
-            for child in node.children() {
-                let cid = egraph_serialize::ClassId::from(format!("{}", child));
-                if !out.class_data.contains_key(&cid) {
-                    out.class_data
-                        .insert(cid, egraph_serialize::ClassData { typ: None });
-                }
-            }
-
-            // Add the node
-            out.add_node(
-                format!("{}.{}", class.id, i),
-                egraph_serialize::Node {
-                    op: node.to_string(),
-                    children: node
-                        .children()
-                        .iter()
-                        .map(|id| egraph_serialize::NodeId::from(format!("{}.0", id)))
-                        .collect(),
-                    eclass: egraph_serialize::ClassId::from(format!("{}", class.id)),
-                    cost: egraph_serialize::Cost::new(cost_val).unwrap(),
-                    subsumed: false,
-                },
-            )
-        }
-    }
-
-    // Set the root
-    out.root_eclasses = vec![egraph_serialize::ClassId::from(format!("{}", final_root))];
-    out
-}
-
 /// Find root nodes in the e-graph. Typically, we look for classes that
 /// are not children of any node or contain a Maj as a root operation.
 pub fn find_root_nodes(egraph: &CEGraph) -> Vec<Id> {
@@ -1088,8 +1020,11 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize, first_depth: bool) 
     // let extractor = extract::faster_greedy_dag::FasterGreedyDagExtractor::new(Some(first_depth));
 
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_size = extraction_result
-        .dag_cost_size_enhanced(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_size = extraction_result.dag_cost_size(
+        &serialized_egraph,
+        &serialized_egraph.root_eclasses,
+        Some(first_depth),
+    );
     let dag_cost_depth = extraction_result.dag_cost_depth(
         &serialized_egraph,
         &serialized_egraph.root_eclasses,
@@ -1147,13 +1082,6 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize, first_depth: boo
         root_id,
     );
 
-    /*
-    let serialized_egraph_ilp =
-        egg_to_serialized_egraph_for_ilp(&saturated_egraph, root_id, unsafe {
-            std::slice::from_raw_parts(vars, var_len)
-        });
-    */
-
     // 4. Track best results across all methods
     #[derive(Clone)]
     struct MethodResult {
@@ -1167,7 +1095,11 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize, first_depth: boo
 
     // Helper function to print results and collect them
     let mut print_result = |method: &str, expr: &str, depth: u32, size: u32| {
-        let is_worse = depth > baseline_depth || (depth == baseline_depth && size > baseline_size);
+        let is_worse = if first_depth {
+            depth > baseline_depth || (depth == baseline_depth && size > baseline_size)
+        } else {
+            size > baseline_size || (size == baseline_size && depth > baseline_depth)
+        };
 
         if is_worse {
             warn!(
@@ -1204,34 +1136,37 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize, first_depth: boo
     );
 
     // 5. Compare different extractors
-    /*
     #[cfg(feature = "ilp-cbc")]
     let extractor = extract::faster_ilp_cbc::FasterCbcExtractor::new(Some(first_depth));
 
-    let extraction_result =
-        extractor.extract(&serialized_egraph_ilp, &serialized_egraph_ilp.root_eclasses);
-    let dag_cost_size = extraction_result
-        .dag_cost_size_enhanced(&serialized_egraph_ilp, &serialized_egraph_ilp.root_eclasses);
-    let dag_cost_depth = extraction_result.dag_cost_depth(
-        &serialized_egraph_ilp,
-        &serialized_egraph_ilp.root_eclasses,
+    let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_size = extraction_result.dag_cost_size(
+        &serialized_egraph,
+        &serialized_egraph.root_eclasses,
         Some(first_depth),
     );
-    let aft_expr = extraction_result.print_aft_expr(&serialized_egraph_ilp);
+    let dag_cost_depth = extraction_result.dag_cost_depth(
+        &serialized_egraph,
+        &serialized_egraph.root_eclasses,
+        Some(first_depth),
+    );
+    let aft_expr = extraction_result.print_aft_expr(&serialized_egraph);
     print_result(
         "DAG-based (faster ILP)",
         &aft_expr,
         dag_cost_depth,
         dag_cost_size,
     );
-    */
 
     // Test faster greedy extractor
     let extractor1 = extract::faster_greedy_dag::FasterGreedyDagExtractor::new(Some(first_depth));
     let extraction_result1 =
         extractor1.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_size1 = extraction_result1
-        .dag_cost_size_enhanced(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_size1 = extraction_result1.dag_cost_size(
+        &serialized_egraph,
+        &serialized_egraph.root_eclasses,
+        Some(first_depth),
+    );
     let dag_cost_depth1 = extraction_result1.dag_cost_depth(
         &serialized_egraph,
         &serialized_egraph.root_eclasses,
@@ -1249,8 +1184,11 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize, first_depth: boo
     let extractor2 = extract::global_greedy_dag::GlobalGreedyDagExtractor::new(Some(first_depth));
     let extraction_result2 =
         extractor2.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
-    let dag_cost_size2 = extraction_result2
-        .dag_cost_size_enhanced(&serialized_egraph, &serialized_egraph.root_eclasses);
+    let dag_cost_size2 = extraction_result2.dag_cost_size(
+        &serialized_egraph,
+        &serialized_egraph.root_eclasses,
+        Some(first_depth),
+    );
     let dag_cost_depth2 = extraction_result2.dag_cost_depth(
         &serialized_egraph,
         &serialized_egraph.root_eclasses,
@@ -1264,8 +1202,35 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize, first_depth: boo
         dag_cost_size2,
     );
 
+    // Test unique node extractor
+    let extractor3 = extract::unique_node_extractor::UniqueNodeExtractor::new(first_depth);
+    let extraction_result3 =
+        extractor3.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
+
+    let dag_cost_size3 = extraction_result3.dag_cost_size(
+        &serialized_egraph,
+        &serialized_egraph.root_eclasses,
+        Some(first_depth),
+    );
+    let dag_cost_depth3 = extraction_result3.dag_cost_depth(
+        &serialized_egraph,
+        &serialized_egraph.root_eclasses,
+        Some(first_depth),
+    );
+    let aft_expr3 = extraction_result3.print_aft_expr(&serialized_egraph);
+    print_result(
+        "DAG-based (unique node)",
+        &aft_expr3,
+        dag_cost_depth3,
+        dag_cost_size3,
+    );
+
     // Find the best result
-    let best_result = results.iter().min_by_key(|r| (r.depth, r.size)).unwrap();
+    let best_result = if first_depth {
+        results.iter().min_by_key(|r| (r.depth, r.size)).unwrap()
+    } else {
+        results.iter().min_by_key(|r| (r.size, r.depth)).unwrap()
+    };
     let best_exprs: std::collections::HashSet<String> = results
         .iter()
         .filter(|r| (r.depth, r.size) == (best_result.depth, best_result.size))
@@ -1283,10 +1248,13 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize, first_depth: boo
     );
 
     // Check if ALL methods are worse than baseline
-    let all_worse = results
-        .iter()
-        .skip(1)
-        .all(|r| r.depth > baseline_depth || (r.depth == baseline_depth && r.size > baseline_size));
+    let all_worse = results.iter().skip(1).all(|r| {
+        if first_depth {
+            r.depth > baseline_depth || (r.depth == baseline_depth && r.size > baseline_size)
+        } else {
+            r.size > baseline_size || (r.size == baseline_size && r.depth > baseline_depth)
+        }
+    });
 
     if all_worse {
         warn!(
