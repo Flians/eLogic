@@ -15,6 +15,7 @@ pub mod global_greedy_dag;
 pub mod greedy_dag;
 #[cfg(feature = "ilp-cbc")]
 pub mod ilp_cbc;
+pub mod unique_node_extractor;
 
 // Allowance for floating point values to be considered equal
 pub const EPSILON_ALLOWANCE: f64 = 0.00001;
@@ -223,30 +224,6 @@ impl ExtractionResult {
         roots: &[ClassId],
         first_depth: Option<bool>,
     ) -> u32 {
-        let mut costs: IndexMap<ClassId, Cost> = IndexMap::new();
-        let mut todo: Vec<ClassId> = roots.to_vec();
-
-        while let Some(cid) = todo.pop() {
-            let node_id = &self.choices[&cid];
-            let node = &egraph[node_id];
-            if costs.insert(cid.clone(), node.cost).is_some() {
-                continue;
-            }
-            for child in &node.children {
-                todo.push(egraph.nid_to_cid(child).clone());
-            }
-        }
-        costs.into_iter().fold(0, |sum, (_, cost)| {
-            let cur_cost = CCost::decode(cost.into());
-            sum + if first_depth.unwrap_or(true) {
-                cur_cost.aom
-            } else {
-                cur_cost.dep
-            }
-        })
-    }
-
-    pub fn dag_cost_size_enhanced(&self, egraph: &EGraph, roots: &[ClassId]) -> u32 {
         let mut visited = FxHashSet::default();
         let mut stack = roots.to_vec();
         let mut total_ops = 0;
@@ -258,10 +235,13 @@ impl ExtractionResult {
             let node_id = &self.choices[&cid];
             let node = &egraph[node_id];
 
-            match node.op.as_str() {
-                "M" => total_ops += 1,
-                _ => {}
-            }
+            let cost_val = node.cost.into_inner();
+            let ccost = CCost::decode(cost_val);
+            total_ops += if first_depth.unwrap_or(true) {
+                ccost.aom
+            } else {
+                ccost.dep
+            };
 
             for child_nid in &node.children {
                 let child_cid = egraph.nid_to_cid(child_nid).clone();
