@@ -613,9 +613,8 @@ fn remove_high_cost(
                 } else {
                     Cost::default()
                 };
-                if cost
-                    > &(initial_result_cost - lowest_root_cost_sum + this_root + EPSILON_ALLOWANCE)
-                {
+                let epsilon = Cost::new(EPSILON_ALLOWANCE).unwrap();
+                if cost > &(initial_result_cost - lowest_root_cost_sum + this_root + epsilon) {
                     class_details.remove(i);
                     removed += 1;
                 }
@@ -710,15 +709,16 @@ fn pull_up_costs(vars: &mut IndexMap<ClassId, ClassILP>, roots: &[ClassId], conf
                 if child == parent || roots.contains(child) || vars[child].members() == 0 {
                     continue;
                 }
-                let min_cost = vars[child]
+                let min_cost_val = vars[child]
                     .costs
                     .iter()
                     .min()
                     .unwrap_or(&Cost::default())
                     .into_inner();
-                if min_cost == 0.0 {
+                if min_cost_val == 0.0 {
                     continue;
                 }
+                let min_cost = Cost::new(min_cost_val).unwrap();
                 changed = true;
                 for c in &mut vars[child].costs {
                     *c -= min_cost;
@@ -800,7 +800,7 @@ fn remove_single_zero_cost(
         for (class_id, details) in vars.iter() {
             if details.childrens_classes.len() == 1
                 && details.childrens_classes[0].is_empty()
-                && details.costs[0] == 0.0
+                && details.costs[0].into_inner() == 0.0
                 && !roots.contains(class_id)
             {
                 zero.insert(class_id.clone());

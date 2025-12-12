@@ -52,54 +52,42 @@ namespace mockturtle {
 
   class StrCostTable {
   private:
-    std::unordered_map<std::string, std::unique_ptr<CCost>> table_size;
-    std::unordered_map<std::string, std::unique_ptr<CCost>> table;
-    std::unordered_set<std::string> bad_exprs;
+    phmap::flat_hash_map<std::string, std::unique_ptr<CCost>> table_size;
+    phmap::flat_hash_map<std::string, std::unique_ptr<CCost>> table;
+    phmap::flat_hash_map<std::string, std::unique_ptr<CCost>> table_merged;
+    phmap::flat_hash_set<std::string> bad_exprs;
     std::string bak_filepath;
-
-    std::vector<std::unique_ptr<CCost>> merged_costs;
 
     bool is_bad(const std::string &key) const {
       return bad_exprs.find(key) != bad_exprs.end();
     }
 
-    void serialize_to_file(const std::string &filename, const std::unordered_map<std::string, std::unique_ptr<CCost>> &table_size, const std::unordered_map<std::string, std::unique_ptr<CCost>> &table, const std::unordered_set<std::string> &bad_exprs) {
+    void serialize_to_file(const std::string &filename, const phmap::flat_hash_map<std::string, std::unique_ptr<CCost>> &table_size, const phmap::flat_hash_map<std::string, std::unique_ptr<CCost>> &table, const phmap::flat_hash_set<std::string> &bad_exprs) {
       nlohmann::json j;
-      for (const auto &[key, cost] : table_size) {
-        std::unordered_set<std::string> unique_exprs;
-        for (const auto &expr : cost->aft_expr)
-          unique_exprs.emplace(expr);
-
-        j["table_size"][key] = {
-            {"aft_expr", unique_exprs},
-            {"aft_dep", cost->aft_dep},
-            {"aft_size", cost->aft_size},
-            {"aft_invs", cost->aft_invs},
+      {
+        auto serialize_map = [&](const auto &map, const std::string &name) {
+          for (const auto &[key, cost] : map) {
+            std::unordered_set<std::string> unique_exprs;
+            for (const auto &s : cost->aft_expr) unique_exprs.insert(std::string(s));
+            j[name][key] = {
+                {"aft_expr", unique_exprs},
+                {"aft_dep", cost->aft_dep},
+                {"aft_size", cost->aft_size},
+                {"aft_invs", cost->aft_invs},
+            };
+          }
         };
+        serialize_map(table_size, "table_size");
+        serialize_map(table, "table");
+        j["bad_exprs"] = bad_exprs;
       }
-      for (const auto &[key, cost] : table) {
-        std::unordered_set<std::string> unique_exprs;
-        for (const auto &expr : cost->aft_expr)
-          unique_exprs.emplace(expr);
-
-        j["table"][key] = {
-            {"aft_expr", unique_exprs},
-            {"aft_dep", cost->aft_dep},
-            {"aft_size", cost->aft_size},
-            {"aft_invs", cost->aft_invs},
-        };
-      }
-      j["bad_exprs"] = bad_exprs;
 
       std::ofstream out(filename);
       out << j.dump(4);
       out.close();
     }
 
-    void deserialize_from_file(const std::string &filename, std::unordered_map<std::string, std::unique_ptr<CCost>> &table_size, std::unordered_map<std::string, std::unique_ptr<CCost>> &table, std::unordered_set<std::string> &bad_exprs) {
-      // table.clear();
-      // bad_exprs.clear();
-
+    void deserialize_from_file(const std::string &filename, phmap::flat_hash_map<std::string, std::unique_ptr<CCost>> &table_size, phmap::flat_hash_map<std::string, std::unique_ptr<CCost>> &table, phmap::flat_hash_set<std::string> &bad_exprs) {
       std::ifstream in(filename);
       if (!in) {
         std::cerr << "Failed to open file: " << filename << std::endl;
@@ -116,14 +104,15 @@ namespace mockturtle {
       in.close();
 
       try {
-        if (j.contains("table_size")) {
-          for (const auto &[key, value] : j["table_size"].items()) {
-            if (int _num = count_char(key); _num > 0 && _num <= 4) continue;
+        auto load_map = [&](const std::string &name, auto &map, bool first_depth) {
+          if (!j.contains(name)) return;
+          for (const auto &[key, value] : j[name].items()) {
+            // if (int _num = count_char(key); _num > 0 && _num <= 4) continue;
             auto cost = std::make_unique<CCost>();
             if (value["aft_expr"].is_string()) {
-              cost->aft_expr.emplace_back(value["aft_expr"].get<std::string>());
+              cost->aft_expr.emplace_back(value["aft_expr"].template get<std::string>());
             } else if (value["aft_expr"].is_array()) {
-              for (const auto &expr : value["aft_expr"].get<std::unordered_set<std::string>>())
+              for (const auto &expr : value["aft_expr"].template get<std::unordered_set<std::string>>())
                 cost->aft_expr.emplace_back(expr);
             } else {
               throw std::runtime_error("Invalid type for aft_expr");
@@ -132,50 +121,34 @@ namespace mockturtle {
             cost->aft_size = value["aft_size"];
             cost->aft_invs = value["aft_invs"];
 
-            auto [it, inserted] = table_size.try_emplace(key, nullptr);
+            auto [it, inserted] = map.try_emplace(key, nullptr);
             if (!inserted) {
               auto &existing_cost = *it->second;
-              if (cost->aft_dep == existing_cost.aft_dep && cost->aft_size == existing_cost.aft_size) {
-                for (const auto &expr : cost->aft_expr)
-                  it->second->aft_expr.emplace_back(expr);
-              } else if (cost->aft_dep < existing_cost.aft_dep || (cost->aft_dep == existing_cost.aft_dep && cost->aft_size < existing_cost.aft_size)) {
-                it->second = std::move(cost);
+              bool is_better = false;
+              if (first_depth) {
+                if (cost->aft_dep < existing_cost.aft_dep || (cost->aft_dep == existing_cost.aft_dep && cost->aft_size < existing_cost.aft_size)) {
+                  is_better = true;
+                }
+              } else {
+                if (cost->aft_size < existing_cost.aft_size || (cost->aft_size == existing_cost.aft_size && cost->aft_dep < existing_cost.aft_dep)) {
+                  is_better = true;
+                }
               }
-            } else {
-              it->second = std::move(cost);
-            }
-          }
-        }
-        if (j.contains("table")) {
-          for (const auto &[key, value] : j["table"].items()) {
-            if (int _num = count_char(key); _num > 0 && _num <= 4) continue;
-            auto cost = std::make_unique<CCost>();
-            if (value["aft_expr"].is_string()) {
-              cost->aft_expr.emplace_back(value["aft_expr"].get<std::string>());
-            } else if (value["aft_expr"].is_array()) {
-              for (const auto &expr : value["aft_expr"].get<std::unordered_set<std::string>>())
-                cost->aft_expr.emplace_back(expr);
-            } else {
-              throw std::runtime_error("Invalid type for aft_expr");
-            }
-            cost->aft_dep = value["aft_dep"];
-            cost->aft_size = value["aft_size"];
-            cost->aft_invs = value["aft_invs"];
 
-            auto [it, inserted] = table.try_emplace(key, nullptr);
-            if (!inserted) {
-              auto &existing_cost = *it->second;
               if (cost->aft_dep == existing_cost.aft_dep && cost->aft_size == existing_cost.aft_size) {
                 for (const auto &expr : cost->aft_expr)
                   it->second->aft_expr.emplace_back(expr);
-              } else if (cost->aft_dep < existing_cost.aft_dep || (cost->aft_dep == existing_cost.aft_dep && cost->aft_size < existing_cost.aft_size)) {
+              } else if (is_better) {
                 it->second = std::move(cost);
               }
             } else {
               it->second = std::move(cost);
             }
           }
-        }
+        };
+
+        load_map("table_size", table_size, false);
+        load_map("table", table, true);
 
         if (j.contains("bad_exprs")) {
           auto cur_bad_exprs = j["bad_exprs"].get<std::unordered_set<std::string>>();
@@ -206,58 +179,70 @@ namespace mockturtle {
       deserialize_from_file(filename, table_size, table, bad_exprs);
     }
 
-    const CCost *insert(const std::string &key, const std::vector<uint32_t> &leaf_levels = {}, bool first_depth = true) {
+    const CCost *insert(const std::string &key, const std::vector<uint32_t> &leaf_levels = {}, const bool first_depth = true, const unsigned egg_method = 0) {
       uint32_t min_level = 0, max_level = 0;
       if (!leaf_levels.empty()) {
         min_level = *std::min_element(leaf_levels.begin(), leaf_levels.end());
         max_level = *std::max_element(leaf_levels.begin(), leaf_levels.end());
       }
-      std::string key_deps = key;
+      std::string key_deps;
+      key_deps.reserve(key.size() + leaf_levels.size() * 2);
+      key_deps = key;
       if (max_level > min_level) {
         for (auto ll : leaf_levels) {
-          key_deps += "_" + std::to_string(ll - min_level);
+          key_deps += '_';
+          key_deps += std::to_string(ll - min_level);
         }
       }
 
       if (is_bad(key_deps)) return nullptr;
 
-      auto [it, inserted] = table.try_emplace(key_deps, nullptr);
-
-      if (inserted) {
-        it->second = std::make_unique<CCost>(simplify_depth(key, leaf_levels.data(), leaf_levels.size(), true));
+      if (first_depth) {
+        if (auto it = table.find(key_deps); it != table.end()) return it->second.get();
+      } else {
+        if (auto it = table_merged.find(key_deps); it != table_merged.end()) return it->second.get();
       }
 
-      if (it->second->aft_expr.size() == 1 && std::string(it->second->aft_expr[0]) == key) { // no improvement
-        bad_exprs.insert(key_deps);
-        table.erase(key_deps);
-        return nullptr;
+      auto it = table.find(key_deps);
+      if (it == table.end()) {
+        std::unique_ptr<CCost> new_cost;
+        if (egg_method == 0) {
+          new_cost = std::make_unique<CCost>(simplify_graph(key, leaf_levels.data(), leaf_levels.size(), true));
+        } else {
+          new_cost = std::make_unique<CCost>(simplify_tree(key, leaf_levels.data(), leaf_levels.size(), true));
+        }
+        if (new_cost->aft_expr.size() == 1 && std::string(new_cost->aft_expr[0]) == key) {
+          bad_exprs.insert(key_deps);
+          return nullptr;
+        }
+        it = table.emplace(key_deps, std::move(new_cost)).first;
       }
 
-      if (!first_depth) {
-        auto [it_size, inserted_size] = table_size.try_emplace(key_deps, nullptr);
-        if (inserted_size) {
-          it_size->second = std::make_unique<CCost>(simplify_depth(key, leaf_levels.data(), leaf_levels.size(), false));
+      if (first_depth) return it->second.get();
+
+      auto it_size = table_size.find(key_deps);
+      if (it_size == table_size.end()) {
+        std::unique_ptr<CCost> size_cost;
+        if (egg_method == 0) {
+          size_cost = std::make_unique<CCost>(simplify_graph(key, leaf_levels.data(), leaf_levels.size(), false));
+        } else {
+          size_cost = std::make_unique<CCost>(simplify_tree(key, leaf_levels.data(), leaf_levels.size(), false));
         }
 
-        merged_costs.push_back(std::make_unique<CCost>(merge_ccost(*it->second, *it_size->second)));
-        return merged_costs.back().get();
-      } else {
-        return it->second.get();
+        it_size = table_size.emplace(key_deps, std::move(size_cost)).first;
       }
-    }
 
-    void set_bad(const std::string &key) {
-      if (bad_exprs.insert(key).second) table.erase(key);
+      auto merged = std::make_unique<CCost>(merge_ccost(*it->second, *it_size->second));
+      return table_merged.emplace(key_deps, std::move(merged)).first->second.get();
     }
 
     void reset(bool all = false) {
       bad_exprs.clear();
-      if (all) table.clear();
-    }
-
-    const CCost *find(const std::string &key) const {
-      auto it = table.find(key);
-      return it != table.end() ? it->second.get() : nullptr;
+      if (all) {
+        table.clear();
+        table_size.clear();
+        table_merged.clear();
+      }
     }
   };
 
@@ -292,12 +277,12 @@ namespace mockturtle {
     static constexpr bool is_topologically_sorted = true;
 
   public:
-    explicit egg_view(Ntk const &ntk, std::vector<node> const &leaves, signal const &root) : immutable_view<Ntk>(ntk), _root(root) {
+    explicit egg_view(Ntk const &ntk, std::vector<node> const &leaves, signal const &root, unsigned egg_method = 0) : immutable_view<Ntk>(ntk), _root(root), _egg_method(egg_method) {
       construct(leaves);
     }
 
     template <typename _Ntk = Ntk, typename = std::enable_if_t<!std::is_same_v<typename _Ntk::signal, typename _Ntk::node>>>
-    explicit egg_view(Ntk const &ntk, std::vector<signal> const &leaves, signal const &root) : immutable_view<Ntk>(ntk), _root(root) {
+    explicit egg_view(Ntk const &ntk, std::vector<signal> const &leaves, signal const &root, unsigned egg_method = 0) : immutable_view<Ntk>(ntk), _root(root), _egg_method(egg_method) {
       construct(leaves);
     }
 
@@ -335,8 +320,9 @@ namespace mockturtle {
       if (this->is_complemented(_root)) {
         _original_expr += "(~ ";
       }
-      _original_depth = traverse(this->get_node(_root));
-      _original_expr += get_egg_expr(this->get_node(_root));
+      auto [root_depth, root_idx] = traverse(this->get_node(_root));
+      _original_depth = root_depth;
+      _original_expr += _prefix_exprs[root_idx];
       if (this->is_complemented(_root)) {
         _original_expr += ")";
       }
@@ -422,16 +408,16 @@ namespace mockturtle {
     }
 
     const CCost *optimize_by_egg_lib(const std::vector<uint32_t> &leaf_levels, bool first_depth = true) const {
-      return exp_map.insert(_original_expr, this->depth_ranking(leaf_levels), first_depth);
+      return exp_map.insert(_original_expr, this->depth_ranking(leaf_levels), first_depth, _egg_method);
     }
 
-    CCost optimize_by_egg(const std::vector<uint32_t> &leaf_levels) const {
+    CCost optimize_by_egg(const std::vector<uint32_t> &leaf_levels, bool first_depth = true) const {
       std::vector<uint32_t> const depth_ranking = this->depth_ranking(leaf_levels);
-      return simplify_depth(_original_expr, depth_ranking.data(), depth_ranking.size(), true);
-    }
-
-    void feedback(bool is_bad) const {
-      if (is_bad) exp_map.set_bad(_original_expr);
+      if (_egg_method == 0) {
+        return simplify_graph(_original_expr, depth_ranking.data(), depth_ranking.size(), first_depth);
+      } else {
+        return simplify_tree(_original_expr, depth_ranking.data(), depth_ranking.size(), first_depth);
+      }
     }
 
     static signal rebuild(Ntk &ntk, const char *aft_expr, const std::uint32_t aft_expr_len, const std::vector<node> &leaves) {
@@ -507,10 +493,10 @@ namespace mockturtle {
 
   private:
     inline void add_constants() {
-      add_node(this->get_node(this->get_constant(false)), "0");
+      add_node(this->get_node(this->get_constant(false)), "0", 0);
       this->set_visited(this->get_node(this->get_constant(false)), this->trav_id());
       if (this->get_node(this->get_constant(true)) != this->get_node(this->get_constant(false))) {
-        add_node(this->get_node(this->get_constant(true)), "1");
+        add_node(this->get_node(this->get_constant(true)), "1", 0);
         this->set_visited(this->get_node(this->get_constant(true)), this->trav_id());
         ++_num_constants;
       }
@@ -519,65 +505,83 @@ namespace mockturtle {
     inline void add_leaf(node const &leaf) {
       if (this->visited(leaf) == this->trav_id()) return;
 
-      add_node(leaf, std::string(1, 'a' + _num_leaves));
+      add_node(leaf, std::string(1, 'a' + _num_leaves), 0);
       this->set_visited(leaf, this->trav_id());
       ++_num_leaves;
     }
 
-    inline void add_node(node const &n, const std::string &expr = "") {
+    inline void add_node(node const &n, std::string expr = "", uint32_t depth = 0) {
       _node_to_index[n] = static_cast<uint32_t>(_nodes.size());
       _nodes.push_back(n);
-      _prefix_exprs.push_back(expr);
+      _prefix_exprs.push_back(std::move(expr));
       _out_degs.push_back(0);
+      _depths.push_back(depth);
     }
 
-    size_t traverse(node const &n) {
+    std::pair<uint32_t, uint32_t> traverse(node const &n) {
       if (this->visited(n) == this->trav_id()) {
-        return 0;
+        uint32_t index = node_to_index(n);
+        return {_depths[index], index};
       }
 
-      // record current node's expression
-      std::string cur_node_expr;
-      // Preallocate string capacity to reduce reallocations
-      cur_node_expr.reserve(64);
+      // Collect fanins and their traversal results first
+      std::vector<std::pair<signal, std::pair<uint32_t, uint32_t>>> fanins;
+      fanins.reserve(3);
 
+      size_t max_depth = 0;
+
+      this->foreach_fanin(n, [&](const auto &f) {
+        auto res = traverse(this->get_node(f));
+        fanins.push_back({f, res});
+        max_depth = std::max<size_t>(max_depth, res.first);
+      });
+
+      // Calculate exact string length to reserve memory
+      size_t total_len = 3; // "(&)" or "(M)"
+
+      for (const auto &[f, res] : fanins) {
+        total_len += 1 + _prefix_exprs[res.second].size(); // space + expr
+        if (this->is_complemented(f)) {
+          total_len += 4; // "(~ )"
+        }
+      }
+
+      std::string cur_node_expr;
+      cur_node_expr.reserve(total_len);
       /* AIG */
       if constexpr (has_has_and_v<Ntk>) {
-        cur_node_expr = "(&";
+        cur_node_expr.append("(&");
       }
 
       /* MAJ */
       if constexpr (has_has_maj_v<Ntk>) {
-        cur_node_expr = "(M";
+        cur_node_expr.append("(M");
       }
 
-      size_t depth = 0;
-      this->foreach_fanin(n, [&](const auto &f) {
+      for (const auto &[f, res] : fanins) {
         cur_node_expr += ' ';
         if (this->is_complemented(f)) {
-          cur_node_expr += "(~ ";
+          cur_node_expr.append("(~ ");
         }
-        node fanin_node = this->get_node(f);
-        size_t td = traverse(fanin_node);
-        cur_node_expr += get_egg_expr(fanin_node);
+        cur_node_expr.append(_prefix_exprs[res.second]);
         if (this->is_complemented(f)) {
-          cur_node_expr += ")";
+          cur_node_expr += ')';
         }
-        depth = std::max(depth, td);
-        // Update out-degree of the fanin node
-        ++_out_degs[node_to_index(fanin_node)];
-      });
+        // Update out-degree using index directly
+        ++_out_degs[res.second];
+      }
 
-      cur_node_expr += ")";
+      cur_node_expr += ')';
 
       if (cur_node_expr.size() <= 3) {
         printf("egg_view.traverse meet dead nodes!\n");
         has_bug = 1;
       }
 
-      add_node(n, std::move(cur_node_expr));
+      add_node(n, std::move(cur_node_expr), static_cast<uint32_t>(max_depth + 1));
       this->set_visited(n, this->trav_id());
-      return depth + 1;
+
+      return {static_cast<uint32_t>(max_depth + 1), static_cast<uint32_t>(_nodes.size() - 1)};
     }
 
   public:
@@ -587,6 +591,7 @@ namespace mockturtle {
     phmap::flat_hash_map<node, uint32_t> _node_to_index;
     std::vector<std::string> _prefix_exprs;
     std::vector<uint32_t> _out_degs;
+    std::vector<uint32_t> _depths;
     unsigned _original_depth{0};
     unsigned _original_size{0};
     std::string _original_expr;
@@ -594,6 +599,7 @@ namespace mockturtle {
     signal _root;
 
     bool has_bug{0};
+    unsigned _egg_method{0};
   };
 
   template <class T>

@@ -13,13 +13,13 @@ crate-type = ["staticlib"]
 [dependencies]
 
 cxx = "1.0"
-egg = { version = "0.10.0", features = ["lp"] }
+egg = { version = "0.11.0", features = ["lp"] }
 pyo3 = { version = "0.27.1", features = ["extension-module"] }
 coin_cbc = { version = "0.1.8", optional = true }
 rustc-hash = "2.0.0"
 indexmap = "2.0.0"
 rpds = "1.1.0"
-egraph-serialize = { version = "0.2.0"}
+egraph-serialize = { version = "0.3.0"}
 ordered-float = "5.0.0"
 fxhash = "0.2.1"
 hashbrown = "0.16.0"
