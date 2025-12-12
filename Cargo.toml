@@ -10,5 +10,5 @@ edition = "2024"
 [dependencies]
 mignite = { path = "mignite" }
 # mig_egg = { path = "mig_egg"}
-egg = { version = "0.10.0"}# , features = ["lp"] }
+egg = { version = "0.11.0"}# , features = ["lp"] }
 rand = "0.9.2"

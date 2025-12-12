@@ -8,8 +8,8 @@ use std::ops::{Add, AddAssign};
 use std::os::raw::c_char;
 
 // -----------------------------------------------------------------------------------
-// 1. Define a cost struct (CCost) to keep track of depth (dep), area (aom), and inversions (inv).
-//    It also includes methods for merging and for a custom f64 bit-encoding/decoding.
+// 1. Cost Struct (CCost)
+//    Tracks depth (dep), area (aom), and inversions (inv).
 // -----------------------------------------------------------------------------------
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct CCost {
@@ -143,7 +143,7 @@ impl Ord for CCost {
 }
 
 // -----------------------------------------------------------------------------------
-// 2. Define the MIG language used by egg::RecExpr
+// 2. MIG Language Definition
 // -----------------------------------------------------------------------------------
 egg::define_language! {
     /// MIG language definitions:
@@ -162,193 +162,119 @@ egg::define_language! {
 }
 
 // -----------------------------------------------------------------------------------
-// 3. Convert a MIG expression to a prefix string and calculate depth, operator count,
-//    and inversion count.
+// 3. Expression to Prefix String & Metrics
 // -----------------------------------------------------------------------------------
 fn to_prefix(expr: &egg::RecExpr<MIG>, var_dep: &[u32]) -> (String, u32, u32, u32) {
-    fn helper(
-        expr: &egg::RecExpr<MIG>,
-        id: Id,
-        inv_count: &mut u32,
-        ops_count: &mut u32,
-        visited: &mut std::collections::HashMap<Id, (String, u32)>,
-        current_depth: u32,
-        max_depth: &mut u32,
-        var_dep: &[u32],
-    ) -> String {
-        let node = &expr[id];
-        let mut existed = false;
-        let mut reupdate = false;
-        let mut cur_dep = current_depth;
-        let mut cur_exp = String::default();
+    let len = expr.as_ref().len();
+    if len == 0 {
+        return (String::new(), 0, 0, 0);
+    }
 
-        // If we have a cache hit in visited, update if new depth is deeper.
-        if let Some((expr_str, cached_depth)) = visited.get_mut(&id) {
+    let root = Id::from(len - 1);
+
+    // 1. Calculate Depths and Counts (Iterative, Reverse Topological)
+    // depths[i] stores the distance from root to node i. None means unreachable.
+    let mut depths = vec![None; len];
+    depths[usize::from(root)] = Some(0u32);
+
+    let mut ops_count = 0;
+    let mut inv_count = 0;
+    let mut max_depth = 0;
+
+    // Iterate from root down to 0 (Reverse Topological Order for RecExpr)
+    // This ensures that when we process a node, we have already processed its parents
+    // and updated its depth to the maximum possible value from the root.
+    for i in (0..len).rev() {
+        let id = Id::from(i);
+        if let Some(d) = depths[i] {
+            let node = &expr[id];
             match node {
+                MIG::Bool(_) => {
+                    max_depth = max_depth.max(d);
+                }
                 MIG::Symbol(sym) => {
                     let chr_v = sym.as_str().as_bytes();
-                    let index = (chr_v[0] as u8) - ('a' as u8);
-                    cur_dep = current_depth + var_dep.get(index as usize).copied().unwrap_or(0);
+                    let index = (chr_v[0] as u8).saturating_sub(b'a');
+                    let leaf_depth = var_dep.get(index as usize).copied().unwrap_or(0);
+                    max_depth = max_depth.max(d + leaf_depth);
                 }
-                _ => {
-                    cur_dep = current_depth;
+                MIG::And(children) => {
+                    ops_count += 1;
+                    let child_depth = d + 1;
+                    for &child in children {
+                        let c_idx = usize::from(child);
+                        depths[c_idx] =
+                            Some(depths[c_idx].map_or(child_depth, |old| old.max(child_depth)));
+                    }
+                }
+                MIG::Maj(children) => {
+                    ops_count += 1;
+                    let child_depth = d + 1;
+                    for &child in children {
+                        let c_idx = usize::from(child);
+                        depths[c_idx] =
+                            Some(depths[c_idx].map_or(child_depth, |old| old.max(child_depth)));
+                    }
+                }
+                MIG::Not(child) => {
+                    inv_count += 1;
+                    let child_depth = d; // Not does not increase depth
+                    let c_idx = usize::from(*child);
+                    depths[c_idx] =
+                        Some(depths[c_idx].map_or(child_depth, |old| old.max(child_depth)));
                 }
             }
+        }
+    }
 
-            if *cached_depth < cur_dep {
-                reupdate = true;
-                *cached_depth = cur_dep;
-                *max_depth = (*max_depth).max(cur_dep);
-            }
-            existed = true;
-            cur_exp = expr_str.clone();
+    // 2. Generate String (Recursive with Memoization)
+    let mut string_cache = std::collections::HashMap::new();
+
+    fn build_string(
+        expr: &egg::RecExpr<MIG>,
+        id: Id,
+        cache: &mut std::collections::HashMap<Id, String>,
+    ) -> String {
+        if let Some(s) = cache.get(&id) {
+            return s.clone();
         }
 
-        if existed {
-            if reupdate {
-                // continue to update children's depth
-                match node {
-                    MIG::And(children) => {
-                        for &child_id in children.iter() {
-                            helper(
-                                expr,
-                                child_id,
-                                inv_count,
-                                ops_count,
-                                visited,
-                                cur_dep + 1,
-                                max_depth,
-                                var_dep,
-                            );
-                        }
-                    }
-                    MIG::Maj(children) => {
-                        for &child_id in children.iter() {
-                            helper(
-                                expr,
-                                child_id,
-                                inv_count,
-                                ops_count,
-                                visited,
-                                cur_dep + 1,
-                                max_depth,
-                                var_dep,
-                            );
-                        }
-                    }
-                    MIG::Not(child_id) => {
-                        helper(
-                            expr, *child_id, inv_count, ops_count, visited, cur_dep, max_depth,
-                            var_dep,
-                        );
-                    }
-                    _ => {}
-                }
-            }
-
-            return cur_exp;
-        }
-
-        // We need to compute for a new or re-updated node:
-        let result = match node {
-            MIG::Bool(value) => (format!("{}", value), current_depth),
+        let node = &expr[id];
+        let res = match node {
+            MIG::Bool(val) => format!("{}", val),
+            MIG::Symbol(sym) => format!("{}", sym),
+            MIG::Not(child) => format!(
+                "({} {})",
+                node.to_string(),
+                build_string(expr, *child, cache)
+            ),
             MIG::And(children) => {
-                *ops_count += 1;
-                let children_expr: Vec<String> = children
+                let child_strs: Vec<String> = children
                     .iter()
-                    .map(|&child_id| {
-                        helper(
-                            expr,
-                            child_id,
-                            inv_count,
-                            ops_count,
-                            visited,
-                            current_depth + 1,
-                            max_depth,
-                            var_dep,
-                        )
-                    })
+                    .map(|&c| build_string(expr, c, cache))
                     .collect();
-                (
-                    format!("({} {})", node.to_string(), children_expr.join(" ")),
-                    current_depth,
-                )
+                format!("({} {})", node.to_string(), child_strs.join(" "))
             }
             MIG::Maj(children) => {
-                *ops_count += 1;
-                let children_expr: Vec<String> = children
+                let child_strs: Vec<String> = children
                     .iter()
-                    .map(|&child_id| {
-                        helper(
-                            expr,
-                            child_id,
-                            inv_count,
-                            ops_count,
-                            visited,
-                            current_depth + 1,
-                            max_depth,
-                            var_dep,
-                        )
-                    })
+                    .map(|&c| build_string(expr, c, cache))
                     .collect();
-                (
-                    format!("({} {})", node.to_string(), children_expr.join(" ")),
-                    current_depth,
-                )
-            }
-            MIG::Not(child_id) => {
-                *inv_count += 1;
-                let child_expr = helper(
-                    expr,
-                    *child_id,
-                    inv_count,
-                    ops_count,
-                    visited,
-                    current_depth,
-                    max_depth,
-                    var_dep,
-                );
-                (
-                    format!("({} {})", node.to_string(), child_expr),
-                    current_depth,
-                )
-            }
-            MIG::Symbol(sym) => {
-                let chr_v = sym.as_str().as_bytes();
-                let index = (chr_v[0] as u8) - ('a' as u8);
-                let symbol_depth = var_dep.get(index as usize).copied().unwrap_or(0);
-                (format!("{}", sym), current_depth + symbol_depth)
+                format!("({} {})", node.to_string(), child_strs.join(" "))
             }
         };
 
-        // Update global maximum depth, store in the visited map, then return.
-        *max_depth = (*max_depth).max(result.1);
-        visited.insert(id, result.clone());
-        result.0
+        cache.insert(id, res.clone());
+        res
     }
 
-    let root_id = Id::from(expr.as_ref().len() - 1);
-    let mut max_depth = 0;
-    let mut ops_count = 0;
-    let mut inv_count = 0;
-    let mut visited = std::collections::HashMap::new();
-
-    let prefix_expr = helper(
-        expr,
-        root_id,
-        &mut inv_count,
-        &mut ops_count,
-        &mut visited,
-        0,
-        &mut max_depth,
-        var_dep,
-    );
+    let prefix_expr = build_string(expr, root, &mut string_cache);
 
     (prefix_expr, max_depth, ops_count, inv_count)
 }
 
 // -----------------------------------------------------------------------------------
-// 4. A helper trait to check if a MIG node is a variable (Symbol).
+// 4. Helper Trait: AsVariable
 // -----------------------------------------------------------------------------------
 trait AsVariable {
     fn as_variable(&self) -> Option<&str>;
@@ -364,13 +290,13 @@ impl AsVariable for MIG {
 }
 
 // -----------------------------------------------------------------------------------
-// 5. Create type aliases for convenience
+// 5. Type Aliases
 // -----------------------------------------------------------------------------------
 type CEGraph = egg::EGraph<MIG, ConstantFold>;
 type CRewrite = egg::Rewrite<MIG, ConstantFold>;
 
 // -----------------------------------------------------------------------------------
-// 6. The ConstantFold analysis: attempts to do constant folding for MIG expressions
+// 6. Constant Folding Analysis
 // -----------------------------------------------------------------------------------
 #[derive(Default, Clone)]
 pub struct ConstantFold;
@@ -387,7 +313,7 @@ impl egg::Analysis<MIG> for ConstantFold {
         })
     }
 
-    fn make(egraph: &mut CEGraph, enode: &MIG) -> Self::Data {
+    fn make(egraph: &mut CEGraph, enode: &MIG, _id: egg::Id) -> Self::Data {
         let x = |i: &egg::Id| egraph[*i].data.as_ref().map(|c| c.0);
         let result = match enode {
             MIG::Bool(c) => Some((*c, c.to_string().parse().unwrap())),
@@ -421,7 +347,7 @@ impl egg::Analysis<MIG> for ConstantFold {
 }
 
 // -----------------------------------------------------------------------------------
-// 7. Define a cost function for MIG nodes that considers depth, area, and inversion count.
+// 7. Cost Function (Depth, Area, Inversions)
 // -----------------------------------------------------------------------------------
 #[derive(Clone)]
 pub struct MIGCostFn_dsi<'a> {
@@ -529,6 +455,11 @@ impl<'a> egg::CostFunction<MIG> for MIGCostFn_dsi<'a> {
         C: FnMut(egg::Id) -> Self::Cost,
     {
         let cur_cost = self.cal_cur_cost(enode);
+        cur_cost
+            + enode.fold(Default::default(), |sum, id| {
+                Self::Cost::merge(&sum, &costs(id), Some(self.first_depth))
+            })
+        /*
         let children: Vec<Id> = enode.children().to_vec();
         let unique_children: Vec<Id> = {
             let mut set = std::collections::HashSet::new();
@@ -546,11 +477,6 @@ impl<'a> egg::CostFunction<MIG> for MIGCostFn_dsi<'a> {
                 .fold(CCost::default(), |acc, id| {
                     Self::Cost::merge(&acc, &costs(id), Some(self.first_depth))
                 })
-        /*
-        cur_cost
-            + enode.fold(Default::default(), |sum, id| {
-                Self::Cost::merge(&sum, &costs(id), Some(self.first_depth))
-            })
         */
         /*
         Self::Cost {
@@ -573,7 +499,7 @@ impl<'a> egg::LpCostFunction<MIG, ConstantFold> for MIGCostFn_dsi<'a> {
 }
 
 // -----------------------------------------------------------------------------------
-// 8. Define rewrite rules (MIG rewrites). Some are forward and backward (like double_neg, etc.).
+// 8. Rewrite Rules
 // -----------------------------------------------------------------------------------
 macro_rules! rule {
     ($name:ident, $left:literal, $right:literal) => {
@@ -653,39 +579,7 @@ fn rules() -> Vec<CRewrite> {
 }
 
 // -----------------------------------------------------------------------------------
-// 9. Simple function for demonstration of equivalence proofs (not strictly needed here).
-// -----------------------------------------------------------------------------------
-fn prove_something(name: &str, start: &str, rewrites: &[CRewrite], goals: &[&str]) {
-    println!("Proving {}", name);
-
-    let start_expr: egg::RecExpr<_> = start.parse().unwrap();
-    let goal_exprs: Vec<egg::RecExpr<_>> = goals.iter().map(|g| g.parse().unwrap()).collect();
-
-    let mut runner = egg::Runner::default()
-        .with_iter_limit(20)
-        .with_node_limit(5_000)
-        .with_expr(&start_expr);
-
-    // We assume the input expression is `true` for soundness.
-    let true_id = runner.egraph.add(MIG::Bool(1u8));
-    let root = runner.roots[0];
-    runner.egraph.union(root, true_id);
-    runner.egraph.rebuild();
-
-    let egraph = runner.run(rewrites).egraph;
-
-    for (i, (goal_expr, goal_str)) in goal_exprs.iter().zip(goals).enumerate() {
-        println!("Trying to prove goal {}: {}", i, goal_str);
-        let equivs = egraph.equivs(&start_expr, goal_expr);
-        if equivs.is_empty() {
-            panic!("Couldn't prove goal {}: {}", i, goal_str);
-        }
-    }
-}
-
-// -----------------------------------------------------------------------------------
-// 10. FFI interfaces via cxx::bridge for cross-language calls.
-//     We expose 'simplify_depth' and 'simplify_size' plus a deallocation function.
+// 9. FFI Interface (cxx::bridge)
 // -----------------------------------------------------------------------------------
 #[cxx::bridge]
 mod ffi {
@@ -702,14 +596,14 @@ mod ffi {
     }
 
     extern "Rust" {
-        unsafe fn simplify_depth(
+        unsafe fn simplify_tree(s: &str, vars: *const u32, size: usize, first_depth: bool)
+        -> CCost;
+        unsafe fn simplify_graph(
             s: &str,
             vars: *const u32,
             size: usize,
             first_depth: bool,
         ) -> CCost;
-        unsafe fn simplify_size(s: &str, vars: *const u32, size: usize, first_depth: bool)
-        -> CCost;
         unsafe fn simplify_best(s: &str, vars: *const u32, size: usize, first_depth: bool)
         -> CCost;
         fn merge_ccost(depth: &CCost, size: &CCost) -> CCost;
@@ -776,7 +670,7 @@ impl Ord for ffi::CCost {
 }
 
 // -----------------------------------------------------------------------------------
-// 11. Memory deallocation for C-string
+// 10. Memory Deallocation
 // -----------------------------------------------------------------------------------
 pub fn free_string(s: *mut c_char) {
     if !s.is_null() {
@@ -787,9 +681,9 @@ pub fn free_string(s: *mut c_char) {
 }
 
 // -----------------------------------------------------------------------------------
-// 12. The main function we compare: simplify_depth, which extracts a tree (not DAG).
+// 11. Tree-based Extraction
 // -----------------------------------------------------------------------------------
-pub fn simplify_depth(s: &str, vars: *const u32, size: usize, first_depth: bool) -> ffi::CCost {
+pub fn simplify_tree(s: &str, vars: *const u32, size: usize, first_depth: bool) -> ffi::CCost {
     // Collect rewrite rules that might help reduce or restructure the expression
     let all_rules = rules();
 
@@ -858,8 +752,7 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize, first_depth: bool)
 }
 
 // -----------------------------------------------------------------------------------
-// 13. Helper code for ILP extraction, to store e-graph as a JSON, etc.
-//     These are used by 'simplify_size' (which uses ILP or other DAG-based extraction).
+// 12. Graph-based Extraction Helpers (JSON Serialization)
 // -----------------------------------------------------------------------------------
 mod extract;
 pub use extract::Extractor;
@@ -869,7 +762,7 @@ use std::io::BufWriter;
 use std::path::PathBuf;
 
 /// Convert an egg egraph into a JSON-serializable structure (egraph_serialize::EGraph).
-/// This structure is then used by ILP-based or other custom extractors.
+/// This structure is then used by graph-based or other custom extractors.
 pub fn egg_to_serialized_egraph(
     egraph: &CEGraph,
     cost_function: &MIGCostFn_dsi,
@@ -882,7 +775,10 @@ pub fn egg_to_serialized_egraph(
     for class in egraph.classes() {
         out.class_data.insert(
             egraph_serialize::ClassId::from(format!("{}", class.id)),
-            egraph_serialize::ClassData { typ: None },
+            egraph_serialize::ClassData {
+                typ: None,
+                extra: Default::default(),
+            },
         );
     }
 
@@ -899,7 +795,10 @@ pub fn egg_to_serialized_egraph(
                 {
                     out.class_data.insert(
                         egraph_serialize::ClassId::from(format!("{}", child)),
-                        egraph_serialize::ClassData { typ: None },
+                        egraph_serialize::ClassData {
+                            typ: None,
+                            extra: Default::default(),
+                        },
                     );
                 }
             }
@@ -981,10 +880,9 @@ pub fn save_serialized_egraph_to_json(
 }
 
 // -----------------------------------------------------------------------------------
-// 14. The second major function: "simplify_size", which uses a DAG-based ILP extractor
-//     (e.g., "faster_ilp_cbc") to find a minimal node count. We still track depth afterwards.
+// 13. DAG-based Extraction
 // -----------------------------------------------------------------------------------
-pub fn simplify_size(s: &str, vars: *const u32, size: usize, first_depth: bool) -> ffi::CCost {
+pub fn simplify_graph(s: &str, vars: *const u32, size: usize, first_depth: bool) -> ffi::CCost {
     let all_rules = rules();
     // parse the expression, the type annotation tells it which Language to use
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
@@ -998,9 +896,9 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize, first_depth: bool) 
     // create an e-graph with the given expression
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(1000)
-        .with_node_limit(5000)
-        .with_time_limit(std::time::Duration::from_secs(10));
+        .with_iter_limit(30)
+        .with_node_limit(10000)
+        .with_time_limit(std::time::Duration::from_secs(5));
     // the Runner knows which e-class the expression given with `with_expr` is in
     let root_id = runner.roots[0];
 
@@ -1016,7 +914,7 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize, first_depth: bool) 
     );
 
     // Use custom extraction code
-    let extractor = extract::global_greedy_dag::GlobalGreedyDagExtractor::new(Some(first_depth));
+    let extractor = extract::unique_node_extractor::UniqueNodeExtractor::new(Some(first_depth));
     // let extractor = extract::faster_greedy_dag::FasterGreedyDagExtractor::new(Some(first_depth));
 
     let extraction_result = extractor.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
@@ -1041,8 +939,7 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize, first_depth: bool) 
 }
 
 // -----------------------------------------------------------------------------------
-// 15. Function to show usage examples and comparisons
-//     (simplify() calls both a tree-based approach and a DAG-based approach).
+// 14. Comparison & Best Result Selection
 // -----------------------------------------------------------------------------------
 pub fn simplify_best(s: &str, vars: *const u32, var_len: usize, first_depth: bool) -> ffi::CCost {
     // Initialize logger if not already initialized
@@ -1054,7 +951,7 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize, first_depth: boo
     let all_rules = rules();
 
     // 1. Get baseline results
-    let cost_depth = simplify_depth(s, vars, var_len, first_depth);
+    let cost_depth = simplify_tree(s, vars, var_len, first_depth);
 
     let baseline_size = cost_depth.aft_size;
     let baseline_depth = cost_depth.aft_dep;
@@ -1129,7 +1026,7 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize, first_depth: boo
     };
 
     print_result(
-        "Baseline (simplify_depth)",
+        "Baseline (simplify_tree)",
         &cost_depth.aft_expr[0],
         baseline_depth,
         baseline_size,
@@ -1203,7 +1100,7 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize, first_depth: boo
     );
 
     // Test unique node extractor
-    let extractor3 = extract::unique_node_extractor::UniqueNodeExtractor::new(first_depth);
+    let extractor3 = extract::unique_node_extractor::UniqueNodeExtractor::new(Some(first_depth));
     let extraction_result3 =
         extractor3.extract(&serialized_egraph, &serialized_egraph.root_eclasses);
 
@@ -1293,7 +1190,7 @@ pub fn simplify(s: &str, var_dep: &Vec<u32>) -> ffi::CCost {
 }
 
 // -----------------------------------------------------------------------------------
-// 16. Basic tests
+// 15. Tests
 // -----------------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
@@ -1549,14 +1446,7 @@ mod tests {
     }
 
     #[test]
-    fn test_depth() {
-        // Initialize logger with default configuration
-        let _ = env_logger::builder()
-            .filter_level(log::LevelFilter::Info)
-            .filter_module("egg", log::LevelFilter::Error)
-            .filter_module("mig_egg::extract::faster_ilp_cbc", log::LevelFilter::Off)
-            .is_test(true)
-            .try_init();
+    fn eq_check() {
         /*
         let mut expr = egg::RecExpr::<MIG>::default();
         let a = expr.add(MIG::Symbol(egg::Symbol::from("a")));
@@ -1585,41 +1475,6 @@ mod tests {
         */
 
         let all_rules = rules();
-
-        let var_dep = vec![0, 0, 2, 5, 3, 4, 5]; // 对应 a, b, c, d, e, f, g
-        let expr: egg::RecExpr<MIG> =
-            "(M 0 b (~ (M 0 (~ (M g (M 0 d (M a c (~ f))) (M e (M a c (~ f)) g))) (M 0 (M (~ 0) d (M a c (~ f))) g))))"
-                .parse()
-                .unwrap();
-
-        let var_dep = vec![0, 0, 0, 3, 6, 4, 5]; // 对应 a, b, c, d, e, f, g
-        let expr: egg::RecExpr<MIG> =
-            "(M (~ 0) d (M (~ (M c (M e (M a (~ f) (M 0 a (~ b))) (M a g (M 0 a (~ b)))) (M (~ e) (M 0 f (M 0 c (M 0 (~ a) b))) (M 0 (~ g) (M 0 c (M 0 (~ a) b)))))) (M c (M (~ 0) c (M 0 (~ a) b)) (~ (M e (~ f) g))) (M 0 (~ c) (M e (M a (~ f) (M 0 a (~ b))) (M a g (M 0 a (~ b)))))))"
-                .parse()
-                .unwrap();
-
-        let var_dep = vec![2, 3, 1, 3, 0]; // 对应 a, b, c, d, e, f, g
-        let expr: egg::RecExpr<MIG> =
-            "(M 0 (~ (M 0 (M 0 (~ a) b) (M 0 (~ d) e))) (M 0 (~ d) (M 0 (~ c) e)))"
-                .parse()
-                .unwrap();
-
-        let mut runner = egg::Runner::default().with_expr(&expr);
-        let root = runner.roots[0];
-        runner = runner.run(&all_rules);
-
-        let (best_cost, best) = egg::Extractor::new(
-            &runner.egraph,
-            MIGCostFn_dsi::new(&runner.egraph, &var_dep, None),
-        )
-        .find_best(root);
-
-        let (prefix_expr, depth, ops_count, inv_count) = to_prefix(&best, &var_dep);
-        println!("default cost: {:?}", best_cost);
-        println!("after_expr: {}", prefix_expr);
-        println!("after_dep: {}", depth);
-        println!("after_size: {}", ops_count);
-        println!("after_invs: {}", inv_count);
 
         let expr = "Key '(M (~ 0) (M 0 (M (~ 0) a b) (~ (M 0 (M (~ 0) a b) c))) (M (~ 0) (M 0 c (~ (M 0 (M (~ 0) a b) c))) d))' is NOT equivalent to expression '(M 1 (M 0 (M 1 a b) (~ c)) (M c (~ (M b c (M 0 a c))) d))'";
         //let expr = "Key '(M (~ 0) (M 0 (~ a) (M (~ 0) g (M (~ e) (M c (~ (M (~ 0) b f)) (M 0 d (~ (M (~ 0) b f)))) (M 0 (~ e) (M (~ c) (M 0 b f) (M (~ d) f (M 0 b f))))))) (M 0 a (~ (M (~ 0) g (M (~ e) (M c (~ (M (~ 0) b f)) (M 0 d (~ (M (~ 0) b f)))) (M 0 (~ e) (M (~ c) (M 0 b f) (M (~ d) f (M 0 b f)))))))))' is NOT equivalent to expression '(~ (M 0 (~ (M 0 (M (M (M 1 b f) (~ c) (M 1 (M 1 b f) (~ d))) e (~ (M (~ c) (M f 0 (M b 0 b)) (M (M b f (~ d)) 0 (M f 0 f))))) (M 0 a (~ g)))) (M a (M (M (M 1 b f) (~ c) (M 1 (M 1 b f) (~ d))) e (~ (M (~ c) (M f 0 (M b 0 b)) (M (M b f (~ d)) 0 (M f 0 f))))) (M 1 a (~ g)))))'";
@@ -1659,7 +1514,7 @@ mod tests {
     }
 
     #[test]
-    fn prove_chain() {
+    fn sim_compare() {
         // Initialize logger with default configuration
         let _ = env_logger::builder()
             .filter_level(log::LevelFilter::Info)
@@ -1667,15 +1522,7 @@ mod tests {
             .filter_module("mig_egg::extract::faster_ilp_cbc", log::LevelFilter::Off)
             .is_test(true)
             .try_init();
-        /*
-        let rules = rules();
-        prove_something(
-            "chain",
-            "(M x 0 (M y 1 (M u 0 v)))",
-            &rules,
-            &["(M x 0 (M y x (M u 0 v)))", "(M (M y x 0) x (M 0 u v))"],
-        );
-        */
+
         let empty_vec: Vec<u32> = Vec::new();
 
         simplify("(& 0 1)", &empty_vec);

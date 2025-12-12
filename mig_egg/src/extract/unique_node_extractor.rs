@@ -21,8 +21,10 @@ pub struct UniqueNodeExtractor {
 }
 
 impl UniqueNodeExtractor {
-    pub fn new(first_depth: bool) -> Self {
-        Self { first_depth }
+    pub fn new(f_dep: Option<bool>) -> Self {
+        Self {
+            first_depth: f_dep.unwrap_or(true),
+        }
     }
 }
 
