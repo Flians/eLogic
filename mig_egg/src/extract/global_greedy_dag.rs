@@ -184,10 +184,7 @@ impl Extractor for GlobalGreedyDagExtractor {
         let mut termdag = TermDag::new(Some(self.first_depth));
         let mut best_in_class: HashMap<ClassId, TermId> = HashMap::default();
 
-        let mut i = 0;
         while keep_going {
-            i += 1;
-            // println!("iteration {}", i);
             keep_going = false;
 
             // Sort nodes by cost and size for better initial choices

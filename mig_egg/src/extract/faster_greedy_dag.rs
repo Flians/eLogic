@@ -2,6 +2,7 @@ use super::ExtractionResult; // 使用统一的 ExtractionResult
 use super::*;
 use indexmap::IndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
+use std::collections::HashMap;
 
 #[derive(Clone)]
 struct CostSet {
@@ -33,7 +34,6 @@ impl FasterGreedyDagExtractor {
         node_id: NodeId,
         costs: &FxHashMap<ClassId, CostSet>,
         best_cost: CCost,
-        extraction_result: &ExtractionResult, // 传入 ExtractionResult
         first_depth: bool,
     ) -> CostSet {
         let node = &egraph[&node_id];
@@ -91,24 +91,28 @@ impl FasterGreedyDagExtractor {
         let contains = result.contains_key(&cid);
         result.insert(cid.clone(), CCost::decode(node.cost.into()));
 
-        // 使用 ExtractionResult 的 calculate_depth 方法计算深度
+        // 使用 costs 计算深度
         let max_child_depth = node
             .children
             .iter()
             .map(|child| {
                 let child_cid = egraph.nid_to_cid(child);
-                extraction_result.calculate_depth(egraph, child_cid, Some(first_depth))
-                // 调用 ExtractionResult 的递归深度计算
+                let child_cost = &costs.get(child_cid).unwrap().total;
+                if first_depth {
+                    child_cost.dep
+                } else {
+                    child_cost.aom
+                }
             })
             .max()
             .unwrap_or(0);
 
+        let cost_val = node.cost.into_inner();
+        let ccost = CCost::decode(cost_val);
+        let node_depth = if first_depth { ccost.dep } else { ccost.aom };
+
         // 如果当前节点的操作符是 "M"，深度加 1
-        let max_depth = if node.op == "M" || node.op == "&" {
-            max_child_depth + 1
-        } else {
-            max_child_depth
-        };
+        let max_depth = max_child_depth + node_depth;
 
         // 计算 DAG 的大小
         let total_size: u32 = result
@@ -116,14 +120,24 @@ impl FasterGreedyDagExtractor {
             .map(|cost| if first_depth { cost.aom } else { cost.dep })
             .sum();
 
+        let total_inv: u32 = result.values().map(|c| c.inv).sum();
+
         // 构造结果
         let result_cost = if contains {
             CCost::max()
         } else {
-            CCost {
-                aom: total_size, // 总大小
-                dep: max_depth,  // 最大深度
-                inv: 0,          // 假设 inv 不变
+            if first_depth {
+                CCost {
+                    aom: total_size, // 总大小
+                    dep: max_depth,  // 最大深度
+                    inv: total_inv,
+                }
+            } else {
+                CCost {
+                    dep: total_size, // Area is primary (stored in dep)
+                    aom: max_depth,  // Depth is secondary (stored in aom)
+                    inv: total_inv,
+                }
             }
         };
 
@@ -176,16 +190,13 @@ impl Extractor for FasterGreedyDagExtractor {
                 if let Some(existing) = lookup {
                     prev_cost = existing.total;
                 }
-                for (cid, cost_set) in costs.clone() {
-                    result.choose(cid, cost_set.choice);
-                }
-                // 调用 calculate_cost_set，传入 ExtractionResult
+
+                // 调用 calculate_cost_set
                 let cost_set = FasterGreedyDagExtractor::calculate_cost_set(
                     egraph,
                     node_id.clone(),
                     &costs,
                     prev_cost,
-                    &result, // 传递 ExtractionResult 的引用
                     self.first_depth,
                 );
 

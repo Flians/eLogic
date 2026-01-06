@@ -20,13 +20,6 @@ impl Default for CbcExtractor {
         CbcExtractor { first_depth: true }
     }
 }
-impl CbcExtractor {
-    pub fn new(f_dep: Option<bool>) -> Self {
-        Self {
-            first_depth: f_dep.unwrap_or(true),
-        }
-    }
-}
 
 impl Extractor for CbcExtractor {
     fn extract(&self, egraph: &EGraph, roots: &[ClassId]) -> ExtractionResult {
@@ -48,7 +41,7 @@ fn extract(
     model.set_parameter("allowableGap", "0.2"); // Make more strict
     model.set_parameter("maxSolutions", "10"); // Increase solutions explored
     model.set_parameter("maxNodes", "10000"); // Increase search space
-                                              // model.set_parameter("seconds", "60");          // Increase timeout
+    // model.set_parameter("seconds", "60");          // Increase timeout
 
     // 给每个 eclass 及其 enodes 建立 binary 变量
     let vars: IndexMap<ClassId, ClassVars> = egraph

@@ -7,6 +7,8 @@ use std::fmt;
 use std::ops::{Add, AddAssign};
 use std::os::raw::c_char;
 
+mod comparison_test;
+
 // -----------------------------------------------------------------------------------
 // 1. Cost Struct (CCost)
 //    Tracks depth (dep), area (aom), and inversions (inv).
@@ -700,9 +702,9 @@ pub fn simplify_tree(s: &str, vars: *const u32, size: usize, first_depth: bool) 
     // Create a Runner and initialize with the expression
     let mut runner = egg::Runner::default()
         .with_expr(&bef_expr)
-        .with_iter_limit(30)
+        .with_iter_limit(15)
         .with_node_limit(10000)
-        .with_time_limit(std::time::Duration::from_secs(5));
+        .with_time_limit(std::time::Duration::from_secs(1));
 
     // Run the rewrite rules to saturate or partially simplify the expression
     runner = runner.run(&all_rules);
@@ -896,9 +898,9 @@ pub fn simplify_graph(s: &str, vars: *const u32, size: usize, first_depth: bool)
     // create an e-graph with the given expression
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(30)
+        .with_iter_limit(15)
         .with_node_limit(10000)
-        .with_time_limit(std::time::Duration::from_secs(5));
+        .with_time_limit(std::time::Duration::from_secs(1));
     // the Runner knows which e-class the expression given with `with_expr` is in
     let root_id = runner.roots[0];
 
@@ -960,9 +962,9 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize, first_depth: boo
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(1000)
-        .with_node_limit(5000)
-        .with_time_limit(std::time::Duration::from_secs(10));
+        .with_iter_limit(30)
+        .with_node_limit(10000)
+        .with_time_limit(std::time::Duration::from_secs(5));
     let root_id = runner.roots[0];
 
     runner = runner.run(&all_rules);
@@ -1415,8 +1417,8 @@ mod tests {
 
         let runner = egg::Runner::default()
             .with_egraph(egraph)
-            .with_iter_limit(1000)
-            .with_node_limit(100_000)
+            .with_iter_limit(30)
+            .with_node_limit(10000)
             .run(&rewrites);
 
         let unified = runner.egraph.find(id1) == runner.egraph.find(id2);
