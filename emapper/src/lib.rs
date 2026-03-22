@@ -2,9 +2,7 @@
 #![warn(clippy::pedantic, clippy::nursery)]
 
 pub mod aig_graph;
-mod abc_stats;
 pub mod emap;
-mod emap_cover;
 pub mod emap_cut;
 pub mod emap_egg;
 pub mod techlib;
@@ -19,8 +17,8 @@ pub mod aig {
 /// Technology mapping namespace.
 pub mod mapping {
     pub use crate::emap::{
-        binding_as_instance, emap, emap_with_params, write_mapped_verilog, EmapParams, EmapResult,
-        NodeBinding, NodeBindingKind,
+        binding_as_instance, emap, emap_with_params, write_mapped_verilog, EmapParams, NodeBinding,
+        NodeBindingKind,
     };
     pub use crate::emap_cut;
     pub use crate::emap_egg;
