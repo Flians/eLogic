@@ -1,9 +1,9 @@
-use crate::mig4;
+use crate::mig_graph;
 
-use mig4::MigNode;
+use mig_graph::MigNode;
 use petgraph::prelude::*;
 
-impl mig4::Mig {
+impl mig_graph::Mig {
     fn transform_majority(&mut self, node: NodeIndex) -> Option<()> {
         let (x, y, z) = self.try_unwrap_majority(node)?;
 
@@ -681,7 +681,7 @@ impl mig4::Mig {
 
 #[cfg(test)]
 mod tests {
-    use super::{mig4, MigNode, Outgoing};
+    use super::{mig_graph, MigNode, Outgoing};
 
     macro_rules! assert_edge {
         ($graph:expr, $a:expr, $b:expr, $weight:expr) => {
@@ -698,7 +698,7 @@ mod tests {
 
     #[test]
     fn transform_majority_same() {
-        let mut mig = mig4::Mig::default();
+        let mut mig = mig_graph::Mig::default();
 
         let node_input0 = mig.graph_mut().add_node(MigNode::Input(0));
         let node_input1 = mig.graph_mut().add_node(MigNode::Input(1));
@@ -718,7 +718,7 @@ mod tests {
 
     #[test]
     fn transform_majority_same_input_inverter() {
-        let mut mig = mig4::Mig::default();
+        let mut mig = mig_graph::Mig::default();
 
         let node_input0 = mig.graph_mut().add_node(MigNode::Input(0));
         let node_input1 = mig.graph_mut().add_node(MigNode::Input(1));
@@ -738,7 +738,7 @@ mod tests {
 
     #[test]
     fn transform_majority_same_output_inverter() {
-        let mut mig = mig4::Mig::default();
+        let mut mig = mig_graph::Mig::default();
 
         let node_input0 = mig.graph_mut().add_node(MigNode::Input(0));
         let node_input1 = mig.graph_mut().add_node(MigNode::Input(1));
@@ -758,7 +758,7 @@ mod tests {
 
     #[test]
     fn transform_majority_same_input_and_output_inverter() {
-        let mut mig = mig4::Mig::default();
+        let mut mig = mig_graph::Mig::default();
 
         let node_input0 = mig.graph_mut().add_node(MigNode::Input(0));
         let node_input1 = mig.graph_mut().add_node(MigNode::Input(1));
@@ -778,7 +778,7 @@ mod tests {
 
     #[test]
     fn transform_majority_different() {
-        let mut mig = mig4::Mig::default();
+        let mut mig = mig_graph::Mig::default();
 
         let node_input0 = mig.graph_mut().add_node(MigNode::Input(0));
         let node_input1 = mig.graph_mut().add_node(MigNode::Input(1));
@@ -798,7 +798,7 @@ mod tests {
 
     #[test]
     fn transform_majority_different_input_inverter() {
-        let mut mig = mig4::Mig::default();
+        let mut mig = mig_graph::Mig::default();
 
         let node_input0 = mig.graph_mut().add_node(MigNode::Input(0));
         let node_input1 = mig.graph_mut().add_node(MigNode::Input(1));
@@ -818,7 +818,7 @@ mod tests {
 
     #[test]
     fn transform_majority_different_output_inverter() {
-        let mut mig = mig4::Mig::default();
+        let mut mig = mig_graph::Mig::default();
 
         let node_input0 = mig.graph_mut().add_node(MigNode::Input(0));
         let node_input1 = mig.graph_mut().add_node(MigNode::Input(1));
@@ -838,7 +838,7 @@ mod tests {
 
     #[test]
     fn transform_majority_different_input_and_output_inverter() {
-        let mut mig = mig4::Mig::default();
+        let mut mig = mig_graph::Mig::default();
 
         let node_input0 = mig.graph_mut().add_node(MigNode::Input(0));
         let node_input1 = mig.graph_mut().add_node(MigNode::Input(1));
@@ -858,7 +858,7 @@ mod tests {
 
     #[test]
     fn transform_distributivity() {
-        let mut mig = mig4::Mig::default();
+        let mut mig = mig_graph::Mig::default();
 
         // Set up M(M(x, y, u), M(x, y, v), z)
         let node_input_x = mig.graph_mut().add_node(MigNode::Input(0));
@@ -949,7 +949,7 @@ mod tests {
 
     #[test]
     fn transform_distributivity_inner_common_inverted() {
-        let mut mig = mig4::Mig::default();
+        let mut mig = mig_graph::Mig::default();
 
         // Set up M(M(x', y, u), M(x', y, v), z)
         let node_input_x = mig.graph_mut().add_node(MigNode::Input(0));
@@ -1040,7 +1040,7 @@ mod tests {
 
     #[test]
     fn transform_distributivity_inner_different_first_inverted() {
-        let mut mig = mig4::Mig::default();
+        let mut mig = mig_graph::Mig::default();
 
         // Set up M(M(x, y, u'), M(x, y, v), z)
         let node_input_x = mig.graph_mut().add_node(MigNode::Input(0));
@@ -1131,7 +1131,7 @@ mod tests {
 
     #[test]
     fn transform_distributivity_inner_different_second_inverted() {
-        let mut mig = mig4::Mig::default();
+        let mut mig = mig_graph::Mig::default();
 
         // Set up M(M(x, y, u), M(x, y, v'), z)
         let node_input_x = mig.graph_mut().add_node(MigNode::Input(0));
@@ -1222,7 +1222,7 @@ mod tests {
 
     #[test]
     fn transform_distributivity_inner_inverted() {
-        let mut mig = mig4::Mig::default();
+        let mut mig = mig_graph::Mig::default();
 
         // Set up M(M(x', y, u), M'(x, y', v), z)
         let node_input_x = mig.graph_mut().add_node(MigNode::Input(0));
@@ -1313,7 +1313,7 @@ mod tests {
 
     #[test]
     fn transform_distributivity_inner_common_different_signs() {
-        let mut mig = mig4::Mig::default();
+        let mut mig = mig_graph::Mig::default();
 
         // Set up M(M(x', y, u), M(x, y, v), z)
         let node_input_x = mig.graph_mut().add_node(MigNode::Input(0));
@@ -1354,7 +1354,7 @@ mod tests {
 
     /*#[test]
     fn transform_relevance() {
-        let mut mig = mig4::Mig::default();
+        let mut mig = mig_graph::Mig::default();
 
         // Set up M(x, y, M(x, u, v))
         let node_input_x = mig.graph_mut().add_node(MigNode::Input(0));

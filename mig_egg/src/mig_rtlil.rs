@@ -1,5 +1,5 @@
-use crate::mig4;
-use mig4::MigNode;
+use crate::mig_graph;
+use mig_graph::MigNode;
 use std::collections::HashSet;
 
 use petgraph::{prelude::*, visit::EdgeRef};
@@ -29,7 +29,7 @@ fn to_symbol_and_bit(s: &str) -> (&str, u32) {
     (symbol, bit)
 }
 
-impl mig4::Mig {
+impl mig_graph::Mig {
     #[allow(clippy::too_many_lines, clippy::missing_errors_doc)]
     pub fn to_rtlil<T: io::Write>(&self, mut writer: T) -> io::Result<()> {
         enum WireType {
@@ -81,7 +81,12 @@ end
                     _ => return None,
                 };
 
-                let ident = if let Some(symbol) = self.symbol(*index) {
+                let symbol = match wire_type {
+                    WireType::Input => self.symbol_input(*index),
+                    WireType::Output => self.symbol_output(*index),
+                };
+
+                let ident = if let Some(symbol) = symbol {
                     let (symbol, bit) = to_symbol_and_bit(symbol);
 
                     (symbol.to_string(), bit)

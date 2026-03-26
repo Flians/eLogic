@@ -1,154 +1,87 @@
-#![allow(warnings)]
+//! Example: AIG technology mapping with `emapper`.
 
-use mignite::mig4::Mig;
-use mignite::mig4_egg::simplify;
-use mignite::mig4_egg::MIG;
-use mignite::mig4_map::Mapper;
+use std::path::PathBuf;
 
-fn compute_cuts(
-    max_cuts: usize,
-    max_inputs: usize,
-    lut_area: &[u32],
-    lut_delay: &[&[i32]],
-    wire_delay: i32,
-    mig: &Mig,
-) {
-    let mut depth1_mapper = Mapper::new(max_cuts, max_inputs, lut_area, lut_delay, wire_delay, mig);
-    depth1_mapper.compute_cuts(
-        Mapper::cut_rank_depth,
-        Mapper::cut_rank_size,
-        Mapper::cut_rank_area_flow,
-    );
-    let luts = depth1_mapper.map_luts(true);
-    let area = luts
-        .iter()
-        .map(|cut| lut_area[cut.input_count()])
-        .sum::<u32>();
-    let mut best = area;
-    let mut best_result = luts;
-
-    for _ in 1..=5 {
-        depth1_mapper.compute_cuts(
-            Mapper::cut_rank_area_flow,
-            Mapper::cut_rank_edge_flow,
-            Mapper::cut_rank_fanin_refs,
-        );
-        let luts = depth1_mapper.map_luts(false);
-        let area = luts
-            .iter()
-            .map(|cut| lut_area[cut.input_count()])
-            .sum::<u32>();
-        if area < best {
-            best = area;
-            best_result = luts;
-            println!("[new best]");
-        }
-    }
-
-    for _ in 1..=5 {
-        depth1_mapper.compute_cuts(
-            Mapper::cut_rank_exact_area,
-            Mapper::cut_rank_exact_edge,
-            Mapper::cut_rank_fanin_refs,
-        );
-        let luts = depth1_mapper.map_luts(false);
-        let area = luts
-            .iter()
-            .map(|cut| lut_area[cut.input_count()])
-            .sum::<u32>();
-        if area < best {
-            best = area;
-            best_result = luts;
-            println!("[new best]");
-        }
-    }
-
-    println!("Mapped to {} LUTs", best_result.len());
-    println!(
-        "Estimated area: {} units",
-        best_result
-            .iter()
-            .map(|cut| lut_area[cut.input_count()])
-            .sum::<u32>()
-    );
-
-    for i in 1..=max_inputs {
-        println!(
-            "LUT{}: {}",
-            i,
-            best_result
-                .iter()
-                .filter(|cut| cut.input_count() == i)
-                .count()
-        );
-    }
-}
-
-pub(crate) fn to_sexp(nodes: Vec<MIG>) -> Mig {
-    let last = nodes.len() - 1;
-    let mut mig = Mig::default();
-    to_sexp_rec(nodes, last, &mut |_| None);
-    mig
-}
-
-fn to_sexp_rec(nodes: Vec<MIG>, i: usize, f: &mut impl FnMut(usize) -> Option<String>) {
-    let node = &nodes[i];
-    let op = node.to_string();
-    match node {
-        MIG::Maj(..) => 1 as usize,
-        MIG::Not(..) => 0 as usize,
-        _ => 0 as usize,
-    };
-    for j in 0..=i {
-        let node = &nodes[j];
-        let op = node.to_string();
-        println!("{:?}", node.to_string());
-    }
-    println!("{:?}", node);
-}
+use emapper::aig::Aig;
+use emapper::mapping::{
+    EmapParams, NodeBindingKind, binding_as_instance, emap_with_params, write_mapped_verilog,
+};
+use emapper::techlib::{MappingObjective, TechLib};
 
 fn main() {
-    let (best, inital_cost, best_cost) = simplify(&"(M x3 (M x3 x4 (M x5 x6 x7)) x1)", None, None);
-    to_sexp_rec(best.as_ref().to_vec(), best.as_ref().len() - 1, &mut |_| {
-        None
-    });
-    const UNIT_K: usize = 6;
-    const UNIT_C: usize = 8;
-    const UNIT_W: i32 = 1;
-    const UNIT_LUT_AREA: [u32; 7] = [0, 1, 1, 1, 1, 1, 1];
-    const UNIT_LUT_DELAY: [&[i32]; 7] = [
-        &[],
-        &[0],
-        &[0, 0],
-        &[0, 0, 0],
-        &[0, 0, 0, 0],
-        &[0, 0, 0, 0, 0],
-        &[0, 0, 0, 0, 0, 0],
-    ];
+    let aig_path = "tools/mockturtle/experiments/benchmarks/adder.aig";
+    let genlib_path = "tools/mockturtle/experiments/cell_libraries/asap7.genlib";
 
-    let mut mig = Mig::from_aiger("tests/c17.aag");
+    let mut aig = Aig::from_aiger(aig_path);
+    aig.cleanup_graph();
 
-    mig.cleanup_graph();
+    let tech = TechLib::from_genlib(genlib_path, 6).expect("failed to load genlib");
 
-    println!();
-    println!("Unit delay:");
-    println!();
-    compute_cuts(
-        UNIT_C,
-        UNIT_K,
-        &UNIT_LUT_AREA,
-        &UNIT_LUT_DELAY,
-        UNIT_W,
-        &mig,
+    aig.to_graphviz("before.dot").expect("graphviz before");
+
+    let res = emap_with_params(
+        &aig,
+        &tech,
+        EmapParams {
+            max_cuts: 16,
+            max_inputs: 6,
+            wire_delay: 0.0,
+            use_egg: true,
+            cache_egg: true,
+            cache_tt: true,
+            objective: MappingObjective::DelayFirst,
+            critical_path_mixed_objective: false,
+            area_flow_passes: 3,
+            exact_area_passes: 2,
+            max_cover_nodes: 64,
+            use_dual_phase_delay: true,
+            mapper_name: "egraph-based-mapper",
+            abc_genlib_path: Some(PathBuf::from(genlib_path)),
+            verilog_module_name: "top",
+        },
     );
 
-    mig.to_graphviz("before.dot").unwrap();
+    let (p_cut, p_egg, p_tt, p_match) = res.perf.ratio_percent();
+    println!("mapper: {}", res.mapper_name);
+    println!(
+        "total area = {:.2}, max delay = {:.2}, gates (ABC nd) = {}, depth (ABC lev) = {}, bindings = {}",
+        res.total_area,
+        res.max_delay,
+        res.gate_count,
+        res.logic_depth,
+        res.bindings.len()
+    );
+    println!(
+        "profile: cut_gen={:.3}% egg={:.3}% tt={:.3}% tech_match={:.3}%",
+        p_cut, p_egg, p_tt, p_match
+    );
 
-    // mig.optimise_global();
-    mig.optimise_area(&mig.input_nodes());
+    let mut bindings = res.bindings.clone();
+    bindings.sort_by_key(|b| b.node);
+    for b in &bindings {
+        match &b.kind {
+            NodeBindingKind::Direct { cell } => {
+                let (ins, out) = binding_as_instance(b).expect("direct binding");
+                println!(
+                    "n{}: {} ({} inputs) area {:.2} delay {:.2} in={:?} out={:?}",
+                    b.node, cell.cell_name, cell.n_inputs, b.area, b.delay, ins, out
+                );
+            }
+            NodeBindingKind::MappedCover { graph } => {
+                println!(
+                    "n{}: mapped-cover area {:.2} delay {:.2} gates {}",
+                    b.node,
+                    b.area,
+                    b.delay,
+                    graph.nodes.len()
+                );
+            }
+        }
+    }
 
-    let f = std::fs::File::create("test.il").unwrap();
-    mig.to_rtlil(f).unwrap();
+    let f = std::fs::File::create("mapped.v").expect("create mapped.v");
+    write_mapped_verilog(&aig, &tech, &res, f, "top").expect("write verilog");
+    println!("Wrote mapped Verilog to mapped.v");
 
-    mig.to_graphviz("after.dot").unwrap();
+    aig.to_graphviz("after.dot").expect("graphviz after");
 }
