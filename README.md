@@ -9,7 +9,7 @@ project/
 ├── emig/               # C++ baseline implementation
 ├── mig/                # Python frontend
 ├── mig_egg/            # Rust e-graph engine
-└── mignite/           # MIG infrastructure
+└── emapper/            # E-Graph-based technology mapper
 ```
 
 ## Requirements

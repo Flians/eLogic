@@ -15,7 +15,8 @@ pub enum MigNode {
 #[derive(Default, Debug)]
 pub struct Mig {
     graph: StableGraph<MigNode, bool, Directed>,
-    symbol_table: HashMap<u32, String>,
+    input_symbols: HashMap<u32, String>,
+    output_symbols: HashMap<u32, String>,
     zero: NodeIndex,
 }
 
@@ -23,19 +24,32 @@ impl Mig {
     #[allow(clippy::similar_names)]
     #[must_use]
     pub fn from_aiger(path: &str) -> Self {
-        let file = std::fs::File::open(path).unwrap();
-        let reader = aiger::Reader::from_reader(file).unwrap();
-        let mut mig = Self::default();
+        let bytes = std::fs::read(path).unwrap();
+        if bytes.starts_with(b"aig") {
+            Self::from_aig_binary(&bytes)
+        } else {
+            Self::from_aag_ascii(path)
+        }
+    }
 
+    fn init_with_m(m: usize) -> Self {
+        let mut mig = Self::default();
         mig.zero = mig.graph.add_node(MigNode::Zero);
         assert_eq!(mig.zero.index(), 0);
 
-        // Pre-emptively mark every variable as a majority gate - most will be
-        // but we'll replace those that aren't while we parse.
-        for variable in 1..=reader.header().m {
+        // Pre-emptively mark every variable as a majority gate.
+        for variable in 1..=m {
             let node_index = mig.graph.add_node(MigNode::Majority);
             assert_eq!(node_index.index(), variable);
         }
+        mig
+    }
+
+    fn from_aag_ascii(path: &str) -> Self {
+        let file = std::fs::File::open(path).unwrap();
+        let reader = aiger::Reader::from_reader(file).unwrap();
+
+        let mut mig = Self::init_with_m(reader.header().m);
 
         let mut inputs = vec![];
         let mut outputs = vec![];
@@ -47,16 +61,13 @@ impl Mig {
                     mig.graph[NodeIndex::new(l.variable())] = MigNode::Input(index);
                     inputs.push(index);
                 }
-                aiger::Aiger::Latch {
-                    output: _,
-                    input: _,
-                } => todo!("latches"),
+                aiger::Aiger::Latch { .. } => todo!("latches"),
                 aiger::Aiger::Output(l) => {
-                    let index = u32::try_from(l.variable()).unwrap();
-                    let output_node = mig.graph.add_node(MigNode::Output(index));
+                    let pos = u32::try_from(outputs.len()).unwrap();
+                    let output_node = mig.graph.add_node(MigNode::Output(pos));
                     mig.graph
                         .add_edge(NodeIndex::new(l.variable()), output_node, l.is_inverted());
-                    outputs.push(index);
+                    outputs.push(pos);
                 }
                 aiger::Aiger::AndGate { output, inputs } => {
                     let input0 = inputs[0];
@@ -87,8 +98,143 @@ impl Mig {
                         aiger::Symbol::Latch => continue,
                     };
 
-                    mig.symbol_table.insert(index, symbol);
+                    match type_spec {
+                        aiger::Symbol::Input => {
+                            mig.input_symbols.insert(index, symbol);
+                        }
+                        aiger::Symbol::Output => {
+                            mig.output_symbols.insert(index, symbol);
+                        }
+                        aiger::Symbol::Latch => {}
+                    }
                 }
+            }
+        }
+
+        mig
+    }
+
+    fn from_aig_binary(bytes: &[u8]) -> Self {
+        // Minimal AIGER binary parser for combinational circuits (L=0).
+        // Format: "aig M I L O A\n" then L latch lines (ascii), O output lines (ascii literals),
+        // then A AND gates in binary delta encoding, then optional symbol/comment section.
+        let mut pos = 0usize;
+        fn read_line<'a>(bytes: &'a [u8], pos: &mut usize) -> Option<&'a str> {
+            if *pos >= bytes.len() {
+                return None;
+            }
+            let start = *pos;
+            while *pos < bytes.len() && bytes[*pos] != b'\n' {
+                *pos += 1;
+            }
+            if *pos >= bytes.len() {
+                return None;
+            }
+            let end = *pos;
+            *pos += 1;
+            std::str::from_utf8(&bytes[start..end]).ok()
+        }
+
+        let header = read_line(bytes, &mut pos).expect("missing AIG header");
+        let mut it = header.split_whitespace();
+        let magic = it.next().expect("missing magic");
+        assert_eq!(magic, "aig", "expected binary aig header");
+        let m: usize = it.next().unwrap().parse().unwrap();
+        let i_cnt: usize = it.next().unwrap().parse().unwrap();
+        let l_cnt: usize = it.next().unwrap().parse().unwrap();
+        let o_cnt: usize = it.next().unwrap().parse().unwrap();
+        let a_cnt: usize = it.next().unwrap().parse().unwrap();
+
+        assert_eq!(l_cnt, 0, "binary AIG with latches not supported yet");
+
+        let mut mig = Self::init_with_m(m);
+
+        // Inputs are implicit: literals 2,4,...,2I correspond to variables 1..I.
+        for v in 1..=i_cnt {
+            mig.graph[NodeIndex::new(v)] = MigNode::Input(u32::try_from(v).unwrap());
+        }
+
+        // Outputs: ascii literals (possibly inverted).
+        let mut output_pos = Vec::<u32>::new();
+        for out_p in 0..o_cnt {
+            let l = read_line(bytes, &mut pos).expect("missing output literal");
+            let lit: usize = l.trim().parse().unwrap();
+            let var = lit / 2;
+            let inv = (lit & 1) == 1;
+            let pos_id = u32::try_from(out_p).unwrap();
+            let output_node = mig.graph.add_node(MigNode::Output(pos_id));
+            mig.graph.add_edge(NodeIndex::new(var), output_node, inv);
+            output_pos.push(pos_id);
+        }
+
+        // AND gates: delta encoding.
+        fn read_uvarint(bytes: &[u8], pos: &mut usize) -> u64 {
+            let mut x = 0u64;
+            let mut s = 0u32;
+            loop {
+                let b = bytes.get(*pos).copied().expect("unexpected EOF in varint");
+                *pos += 1;
+                x |= u64::from(b & 0x7F) << s;
+                if (b & 0x80) == 0 {
+                    break;
+                }
+                s += 7;
+            }
+            x
+        }
+
+        // LHS literals start at 2*(I+1) and increase by 2.
+        let mut lhs_lit = 2 * (i_cnt + 1);
+        for _ in 0..a_cnt {
+            let d0 = read_uvarint(bytes, &mut pos) as usize;
+            let d1 = read_uvarint(bytes, &mut pos) as usize;
+            let rhs0 = lhs_lit - d0;
+            let rhs1 = rhs0 - d1;
+
+            let lhs_var = lhs_lit / 2;
+            let gate = NodeIndex::new(lhs_var);
+
+            let rhs0_var = rhs0 / 2;
+            let rhs1_var = rhs1 / 2;
+            let rhs0_inv = (rhs0 & 1) == 1;
+            let rhs1_inv = (rhs1 & 1) == 1;
+
+            mig.graph.add_edge(NodeIndex::new(rhs0_var), gate, rhs0_inv);
+            mig.graph.add_edge(NodeIndex::new(rhs1_var), gate, rhs1_inv);
+            mig.graph.add_edge(mig.zero, gate, false);
+
+            lhs_lit += 2;
+        }
+
+        // Parse optional symbol table (ascii) if present.
+        while let Some(line) = read_line(bytes, &mut pos) {
+            if line.starts_with('c') {
+                break;
+            }
+            if line.len() < 2 {
+                continue;
+            }
+            let (tag, rest) = line.split_at(1);
+            let mut it = rest.splitn(2, ' ');
+            let pos_str = it.next().unwrap_or("");
+            let name = it.next().unwrap_or("").to_string();
+            if name.is_empty() {
+                continue;
+            }
+            let p: usize = pos_str.trim().parse().unwrap_or(usize::MAX);
+            match tag {
+                "i" => {
+                    if p < i_cnt {
+                        let var = p + 1;
+                        mig.input_symbols.insert(var as u32, name);
+                    }
+                }
+                "o" => {
+                    if p < output_pos.len() {
+                        mig.output_symbols.insert(output_pos[p], name);
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -109,7 +255,10 @@ impl Mig {
                         "{} [shape=box,color=blue,label=\"Input {} ({})\"];",
                         node.index(),
                         node.index(),
-                        self.symbol_table[&index]
+                        self.input_symbols
+                            .get(&index)
+                            .map(String::as_str)
+                            .unwrap_or("")
                     )?;
                 }
                 MigNode::Output(index) => {
@@ -118,7 +267,10 @@ impl Mig {
                         "{} [shape=box,color=green,label=\"Output {} ({})\"];",
                         node.index(),
                         node.index(),
-                        self.symbol_table[&index]
+                        self.output_symbols
+                            .get(&index)
+                            .map(String::as_str)
+                            .unwrap_or("")
                     )?;
                 }
                 MigNode::Zero => {}
@@ -252,8 +404,20 @@ impl Mig {
     }
 
     #[must_use]
+    pub fn symbol_input(&self, var: u32) -> Option<&String> {
+        self.input_symbols.get(&var)
+    }
+
+    #[must_use]
+    pub fn symbol_output(&self, pos: u32) -> Option<&String> {
+        self.output_symbols.get(&pos)
+    }
+
+    #[must_use]
     pub fn symbol(&self, index: u32) -> Option<&String> {
-        self.symbol_table.get(&index)
+        self.input_symbols
+            .get(&index)
+            .or_else(|| self.output_symbols.get(&index))
     }
 
     #[must_use]

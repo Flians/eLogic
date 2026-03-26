@@ -24,3 +24,4 @@ rewrite_elo_mig_k8_post2.json
 mig_egg/serd_egraph.json
 rewrite_*.json
 mig_*.json
+res/

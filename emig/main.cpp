@@ -11,8 +11,6 @@
 // #include <mockturtle/algorithms/rewrite.hpp>
 #include <mockturtle/mockturtle.hpp>
 
-#define EXPERIMENTS_PATH "./tools/mockturtle/experiments/"
-
 const uint32_t CutSize = 8u;
 
 void main_aig() {
@@ -26,10 +24,9 @@ void main_aig() {
 
   for (auto const &benchmark : experiments::epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
-    std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
 
     mockturtle::aig_network aig;
-    if (lorina::read_aiger(benchmark_path, mockturtle::aiger_reader(aig)) != lorina::return_code::success) {
+    if (lorina::read_aiger(experiments::benchmark_path(benchmark), mockturtle::aiger_reader(aig)) != lorina::return_code::success) {
       continue;
     }
 
@@ -43,7 +40,7 @@ void main_aig() {
     ps.cut_enumeration_ps.cut_limit = 15u;
     mockturtle::rewrite<mockturtle::aig_network, mockturtle::exact_library<mockturtle::aig_network, 4u>, CutSize>(aig, exact_lib, ps, &st);
 
-    bool const cec = experiments::abc_cec_impl(aig, benchmark_path);
+    bool const cec = experiments::abc_cec_impl(aig, benchmark);
     uint32_t const size_after = aig.num_gates();
     uint32_t const depth_after = mockturtle::depth_view(aig).depth();
     exp(benchmark, size_before, depth_before, aig.num_gates(), depth_after, mockturtle::to_seconds(st.time_total), cec);
@@ -67,10 +64,9 @@ void main_mig() {
 
   for (auto const &benchmark : experiments::epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
-    std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
 
     mockturtle::mig_network mig;
-    if (lorina::read_aiger(benchmark_path, mockturtle::aiger_reader(mig)) != lorina::return_code::success) {
+    if (lorina::read_aiger(experiments::benchmark_path(benchmark), mockturtle::aiger_reader(mig)) != lorina::return_code::success) {
       continue;
     }
 
@@ -125,7 +121,7 @@ void main_mig() {
       runtime_after_post_resub = mockturtle::to_seconds(st_size.time_total);
     }
 
-    bool const cec = experiments::abc_cec_impl(mig, benchmark_path);
+    bool const cec = experiments::abc_cec_impl(mig, benchmark);
 
     uint32_t const size_after_post_resub = mig.num_gates();
     uint32_t const depth_after_post_resub = mockturtle::depth_view(mig).depth();

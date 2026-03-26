@@ -45,7 +45,6 @@
 
 #include "baseline.hpp"
 
-#define EXPERIMENTS_PATH "tools/mockturtle/experiments/"
 #define CUT_SIZE 4u
 
 void main_aig(const bool use_dc) {
@@ -61,10 +60,9 @@ void main_aig(const bool use_dc) {
 
   for (auto const &benchmark : epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
-    std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
 
     aig_network aig;
-    if (lorina::read_aiger(benchmark_path, aiger_reader(aig)) != lorina::return_code::success) {
+    if (lorina::read_aiger(experiments::benchmark_path(benchmark), aiger_reader(aig)) != lorina::return_code::success) {
       continue;
     }
 
@@ -79,7 +77,7 @@ void main_aig(const bool use_dc) {
     ps.cut_enumeration_ps.cut_limit = 15u;
     baseline::rewrite(aig, exact_lib, ps, &st);
 
-    bool const cec = abc_cec_impl(aig, benchmark_path);
+    bool const cec = abc_cec_impl(aig, benchmark);
     exp(benchmark, size_before, aig.num_gates(), depth_before, depth_view(aig).depth(), to_seconds(st.time_total), cec);
   }
 
@@ -101,10 +99,9 @@ void main_mig(const bool use_dc) {
 
   for (auto const &benchmark : epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
-    std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
 
     mig_network mig;
-    if (lorina::read_aiger(benchmark_path, aiger_reader(mig)) != lorina::return_code::success) {
+    if (lorina::read_aiger(experiments::benchmark_path(benchmark), aiger_reader(mig)) != lorina::return_code::success) {
       continue;
     }
 
@@ -125,7 +122,7 @@ void main_mig(const bool use_dc) {
 
     baseline::rewrite(mig, exact_lib, ps, &st);
 
-    bool const cec = abc_cec_impl(mig, benchmark_path);
+    bool const cec = abc_cec_impl(mig, benchmark);
     exp(benchmark, size_before, depth_before, size_after, depth_after, time_after, mig.num_gates(), depth_view(mig).depth(), to_seconds(st.time_total), cec);
   }
 
@@ -146,10 +143,9 @@ void main_xag(const bool use_dc) {
 
   for (auto const &benchmark : epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
-    std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
 
     xag_network xag;
-    if (lorina::read_aiger(benchmark_path, aiger_reader(xag)) != lorina::return_code::success) {
+    if (lorina::read_aiger(experiments::benchmark_path(benchmark), aiger_reader(xag)) != lorina::return_code::success) {
       continue;
     }
 
@@ -164,7 +160,7 @@ void main_xag(const bool use_dc) {
     ps.cut_enumeration_ps.cut_limit = 15u;
     baseline::rewrite(xag, exact_lib, ps, &st);
 
-    bool const cec = abc_cec_impl(xag, benchmark_path);
+    bool const cec = abc_cec_impl(xag, benchmark);
     exp(benchmark, size_before, xag.num_gates(), depth_before, depth_view(xag).depth(), to_seconds(st.time_total), cec);
   }
 
@@ -177,10 +173,9 @@ int mig_resubstitution(const bool use_dc) {
 
   for (auto const &benchmark : experiments::epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
-    std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
 
     mockturtle::mig_network mig;
-    if (lorina::read_aiger(benchmark_path, mockturtle::aiger_reader(mig)) != lorina::return_code::success) {
+    if (lorina::read_aiger(experiments::benchmark_path(benchmark), mockturtle::aiger_reader(mig)) != lorina::return_code::success) {
       continue;
     }
 
@@ -209,7 +204,7 @@ int mig_resubstitution(const bool use_dc) {
     mig_resubstitution2(fanout_mig2, ps, &st);
     mig = cleanup_dangling(mig);
 
-    bool const cec = experiments::abc_cec_impl(mig, benchmark_path);
+    bool const cec = experiments::abc_cec_impl(mig, benchmark);
     exp(benchmark, size_before, depth_before, size_after, depth_after, time_after, mig.num_gates(), mockturtle::depth_view(mig).depth(), mockturtle::to_seconds(st.time_total), cec);
   }
 
@@ -228,10 +223,9 @@ void mig_algebraic_depth_rewriting() {
 
   for (auto const &benchmark : epfl_benchmarks()) {
     fmt::print("[i] processing {}\n", benchmark);
-    std::string benchmark_path = fmt::format("{}benchmarks/{}.aig", EXPERIMENTS_PATH, benchmark);
 
     mig_network mig;
-    if (lorina::read_aiger(benchmark_path, aiger_reader(mig)) != lorina::return_code::success) {
+    if (lorina::read_aiger(experiments::benchmark_path(benchmark), aiger_reader(mig)) != lorina::return_code::success) {
       continue;
     }
 
@@ -243,7 +237,7 @@ void mig_algebraic_depth_rewriting() {
     mockturtle::mig_algebraic_depth_rewriting_stats st;
     mockturtle::mig_algebraic_depth_rewriting(depth_mig, ps, &st);
 
-    bool const cec = abc_cec_impl(mig, benchmark_path);
+    bool const cec = abc_cec_impl(mig, benchmark);
     exp(benchmark, size_before, mig.num_gates(), depth_before, depth_view(mig).depth(), to_seconds(st.time_total), cec);
   }
 

@@ -1,9 +1,6 @@
 use std::{cmp::Ordering, collections::HashMap, usize};
 
-use crate::{
-    mig4::{self, MigNode},
-    mig4_egg::{simplify, CCost},
-};
+use crate::aig_graph::{Aig as AigGraph, AigNode};
 
 use itertools::Itertools;
 use petgraph::prelude::*;
@@ -48,17 +45,16 @@ impl Cut {
         self.nodes.len()
     }
 
-    /// Merge three cuts into a new cut, rooted at `output`.
+    /// Merge two cuts into a new cut, rooted at `output`.
     ///
     /// This method is linear in the number of nodes in `x`, `y` and `z`.
     #[must_use]
-    pub fn union(x: &Self, y: &Self, z: &Self, output: usize) -> Self {
-        let nodes = [x.output, y.output, z.output];
+    pub fn union2(x: &Self, y: &Self, output: usize) -> Self {
+        let nodes = [x.output, y.output];
         let inputs = x
             .inputs
             .iter()
             .merge(&y.inputs)
-            .merge(&z.inputs)
             .dedup()
             .copied()
             .collect::<Vec<_>>();
@@ -66,7 +62,6 @@ impl Cut {
             .nodes
             .iter()
             .merge(&y.nodes)
-            .merge(&z.nodes)
             .merge(&nodes)
             .dedup()
             .copied()
@@ -82,6 +77,16 @@ impl Cut {
         self.inputs.iter().map(|node| NodeIndex::new(*node))
     }
 
+    #[must_use]
+    pub fn input_indices(&self) -> &[usize] {
+        &self.inputs
+    }
+
+    #[must_use]
+    pub const fn output_index(&self) -> usize {
+        self.output
+    }
+
     pub fn nodes(&self) -> impl Iterator<Item = NodeIndex> + '_ {
         self.nodes.iter().map(|node| NodeIndex::new(*node))
     }
@@ -93,7 +98,7 @@ pub struct Mapper<'a> {
     lut_area: &'a [u32],
     lut_delay: &'a [&'a [i32]],
     wire_delay: i32,
-    mig: &'a mig4::Mig,
+    aig: &'a AigGraph,
     cuts: Vec<Vec<Cut>>,
     depth: Vec<i32>,
     max_depth: i32,
@@ -111,11 +116,11 @@ impl<'a> Mapper<'a> {
         lut_area: &'a [u32],
         lut_delay: &'a [&'a [i32]],
         wire_delay: i32,
-        mig: &'a mig4::Mig,
+        aig: &'a AigGraph,
     ) -> Self {
-        assert!(!petgraph::algo::is_cyclic_directed(mig.graph()));
+        assert!(!petgraph::algo::is_cyclic_directed(aig.graph()));
 
-        let len = mig
+        let len = aig
             .graph()
             .node_indices()
             .map(|node| node.index())
@@ -128,7 +133,7 @@ impl<'a> Mapper<'a> {
             lut_area,
             lut_delay,
             wire_delay,
-            mig,
+            aig,
             cuts: vec![Vec::new(); len],
             depth: vec![-1000; len],
             max_depth: -1000,
@@ -158,149 +163,68 @@ impl<'a> Mapper<'a> {
             .iter()
             .map(|pi| (*pi, (usize::MAX, 0 as usize)))
             .collect::<HashMap<usize, (usize, usize)>>();
-        let mut original_expr: String = String::new();
         let mut max_dep: usize = 0;
-        let mut cur_dep: usize = 0;
-
-        let mut stack: Vec<usize> = Vec::new();
-        stack.push(cut.output);
-        while let Some(node) = stack.last() {
-            if *node == usize::MAX {
-                cur_dep -= 1;
-                original_expr.push_str(")");
-                stack.pop(); // pop MAX flag
-                let cur_root: usize = stack.pop().unwrap(); // pop M/A root
-                let cur_expsi_odeg = expsi_odegs.get_mut(&cur_root).unwrap();
-                cur_expsi_odeg.1 += 1; // visited again
-                discovered.insert(cur_root, original_expr[cur_expsi_odeg.0..].to_string());
-                continue;
-            }
-            if discovered.contains_key(node) {
-                original_expr.push_str(" ");
-                original_expr += discovered.get(node).unwrap();
-                expsi_odegs.get_mut(&node).unwrap().1 += 1; // visited again
-                stack.pop();
+        fn inv_wrap(s: String, inv: bool) -> String {
+            if inv {
+                format!("(~ {s})")
             } else {
-                cur_dep += 1;
-                max_dep = std::cmp::max(max_dep, cur_dep);
-                expsi_odegs.insert(*node, (original_expr.len(), 1)); // record the starting index
-                if *node == cut.output {
-                    original_expr.push_str("(M");
-                } else {
-                    original_expr.push_str(" (M");
-                }
-                let (x_edge, y_edge, z_edge) = self
-                    .mig
-                    .try_unwrap_majority(NodeIndex::new(*node))
-                    .expect("majority node with less than three inputs");
-                stack.push(usize::MAX);
-                let x = self.mig.edge_source(x_edge);
-                stack.push(x.index());
-                let y = self.mig.edge_source(y_edge);
-                stack.push(y.index());
-                let z = self.mig.edge_source(z_edge);
-                stack.push(z.index());
+                s
             }
         }
+        fn build_expr(
+            this: &Mapper<'_>,
+            node: usize,
+            discovered: &mut HashMap<usize, String>,
+            expsi_odegs: &mut HashMap<usize, (usize, usize)>,
+            dep: usize,
+            max_dep: &mut usize,
+        ) -> String {
+            if let Some(s) = discovered.get(&node) {
+                if let Some(v) = expsi_odegs.get_mut(&node) {
+                    v.1 += 1;
+                }
+                return s.clone();
+            }
+            *max_dep = std::cmp::max(*max_dep, dep);
+            let (x_edge, y_edge) = this
+                .aig
+                .try_unwrap_and(NodeIndex::new(node))
+                .expect("AND node with less than two inputs");
+            let x = this.aig.edge_source(x_edge).index();
+            let y = this.aig.edge_source(y_edge).index();
+            let xs = inv_wrap(
+                build_expr(this, x, discovered, expsi_odegs, dep + 1, max_dep),
+                this.aig.is_edge_inverted(x_edge),
+            );
+            let ys = inv_wrap(
+                build_expr(this, y, discovered, expsi_odegs, dep + 1, max_dep),
+                this.aig.is_edge_inverted(y_edge),
+            );
+            let expr = format!("(& {xs} {ys})");
+            expsi_odegs.insert(node, (0, 1));
+            discovered.insert(node, expr.clone());
+            expr
+        }
+        let original_expr = build_expr(
+            self,
+            cut.output,
+            &mut discovered,
+            &mut expsi_odegs,
+            1,
+            &mut max_dep,
+        );
         let mffc: usize = 1 + cut
             .nodes
             .iter()
             .filter(|node| {
                 !cut.inputs.contains(node)
                     && **node != cut.output
-                    && self.mig.output_degree(NodeIndex::new(**node))
+                    && self.aig.output_degree(NodeIndex::new(**node))
                         <= expsi_odegs.get(&node).unwrap().1
             })
             .count();
 
         (mffc, max_dep, original_expr)
-    }
-
-    #[inline]
-    pub fn rebuild_cut(
-        &self,
-        cut: &Cut,
-        expr: &String,
-    ) -> (
-        (usize, bool),
-        Vec<NodeIndex>,
-        StableGraph<MigNode, bool, Directed>,
-    ) {
-        let const_false: usize = 0;
-        let mut signal_stack: Vec<(usize, bool)> = Vec::new();
-
-        let mut graph: StableGraph<MigNode, bool, Directed> = StableGraph::new();
-        let inputs = cut
-            .inputs()
-            .into_iter()
-            .map(|node| {
-                if node.index() == 0 {
-                    graph.add_node(MigNode::Zero)
-                } else {
-                    graph.add_node(self.mig.node_type(node))
-                }
-            })
-            .collect::<Vec<NodeIndex>>();
-
-        for start in expr.chars() {
-            // skip space
-            if start.is_whitespace() {
-                continue;
-            }
-
-            if start == '(' {
-                signal_stack.push((usize::MAX, false));
-            } else if start == ')' {
-                // 1. collect children
-                let mut children: Vec<(usize, bool)> = Vec::new();
-                while !signal_stack.is_empty() {
-                    let cid = signal_stack.pop().unwrap();
-                    if cid.0 == usize::MAX {
-                        break;
-                    }
-                    children.push(cid);
-                }
-                // 2. build node
-                let num_ins = children.len();
-                let mut new_node = (0, false);
-                if num_ins == 1 {
-                    // NOT
-                    new_node = (children[0].0, !children[0].1);
-                } else if num_ins == 2 { // AND
-                     // new_node = ntk.create_and(children[0], children[1]);
-                } else if num_ins == 3 {
-                    // MAJ
-                    // new_node = ntk.create_maj(children[0], children[1], children[2]);
-                    let new_node = graph.add_node(MigNode::Majority);
-                    for node in children {
-                        graph.add_edge(NodeIndex::new(node.0), new_node, node.1);
-                    }
-                } else {
-                    assert!(false);
-                }
-                signal_stack.push(new_node);
-            } else {
-                if start == '~' || start == 'M' || start == '&' {
-                    // pass
-                } else {
-                    if start == '0' {
-                        signal_stack.push((const_false, false));
-                    } else if start == '1' {
-                        signal_stack.push((const_false, true));
-                    } else {
-                        signal_stack
-                            .push((inputs[(start as u8 - 'a' as u8) as usize].index(), false));
-                    }
-                }
-            }
-        }
-        let new_root = signal_stack.last().unwrap();
-        (*new_root, inputs, graph)
-    }
-
-    pub fn rewrite_expr(&self, expr: &String, ori_deps: Option<&[u32]>) -> (String, CCost) {
-        let (best, inital_cost, best_cost) = simplify(&expr, ori_deps, None);
-        (best.to_string(), best_cost)
     }
 
     #[must_use]
@@ -346,7 +270,7 @@ impl<'a> Mapper<'a> {
         let references = self.references.clone();
         if let Some(repr_cut) = self.cuts[cut.output].first() {
             if cut == repr_cut {
-                let area2 = self.exact_area_ref(cut);
+                let _area2 = self.exact_area_ref(cut);
                 let area1 = self.exact_area_deref(cut);
                 //assert_eq!(area1, area2);
                 self.references = references;
@@ -355,7 +279,7 @@ impl<'a> Mapper<'a> {
         }
 
         let area1 = self.exact_area_deref(cut);
-        let area2 = self.exact_area_ref(cut);
+        let _area2 = self.exact_area_ref(cut);
         //assert_eq!(area1, area2);
         self.references = references;
         area1
@@ -364,7 +288,7 @@ impl<'a> Mapper<'a> {
     fn exact_area_deref(&mut self, cut: &Cut) -> u32 {
         let mut area = self.lut_area[cut.input_count()];
         for input in &cut.inputs {
-            if !self.mig.input_nodes().contains(&NodeIndex::new(*input))
+            if !self.aig.input_nodes().contains(&NodeIndex::new(*input))
                 && self.references[*input] >= 1
             {
                 assert!(
@@ -384,7 +308,7 @@ impl<'a> Mapper<'a> {
     fn exact_area_ref(&mut self, cut: &Cut) -> u32 {
         let mut area = self.lut_area[cut.input_count()];
         for input in &cut.inputs {
-            if !self.mig.input_nodes().contains(&NodeIndex::new(*input)) {
+            if !self.aig.input_nodes().contains(&NodeIndex::new(*input)) {
                 if self.references[*input] == 0 {
                     area += self.exact_area_ref(&self.cuts[*input][0].clone());
                 }
@@ -400,7 +324,7 @@ impl<'a> Mapper<'a> {
         let references = self.references.clone();
         if let Some(repr_cut) = self.cuts[cut.output].first() {
             if cut == repr_cut {
-                let area2 = self.exact_edge_deref(cut);
+                let _area2 = self.exact_edge_deref(cut);
                 let area1 = self.exact_edge_ref(cut);
                 self.references = references;
                 //assert_eq!(area1, area2);
@@ -418,7 +342,7 @@ impl<'a> Mapper<'a> {
     fn exact_edge_deref(&mut self, cut: &Cut) -> usize {
         let mut area = cut.input_count();
         for input in &cut.inputs {
-            if !self.mig.input_nodes().contains(&NodeIndex::new(*input))
+            if !self.aig.input_nodes().contains(&NodeIndex::new(*input))
                 && self.references[*input] >= 1
             {
                 assert!(
@@ -438,7 +362,7 @@ impl<'a> Mapper<'a> {
     fn exact_edge_ref(&mut self, cut: &Cut) -> usize {
         let mut area = cut.input_count();
         for input in &cut.inputs {
-            if !self.mig.input_nodes().contains(&NodeIndex::new(*input)) {
+            if !self.aig.input_nodes().contains(&NodeIndex::new(*input)) {
                 if self.references[*input] == 0 {
                     area += self.exact_edge_ref(&self.cuts[*input][0].clone());
                 }
@@ -521,35 +445,34 @@ impl<'a> Mapper<'a> {
         F2: Fn(&mut Self, &Cut, &Cut) -> Ordering,
         F3: Fn(&mut Self, &Cut, &Cut) -> Ordering,
     {
-        for node in self.mig.graph().node_indices() {
+        for node in self.aig.graph().node_indices() {
             self.depth[node.index()] = -1000;
             self.area_flow[node.index()] = 0.0;
             self.edge_flow[node.index()] = 0.0;
             self.references[node.index()] = 0;
         }
 
-        for node in self.mig.input_nodes() {
+        for node in self.aig.input_nodes() {
             self.cuts[node.index()] = vec![Cut::single_node(node.index())];
             self.depth[node.index()] = 0;
             self.area_flow[node.index()] = 0.0;
             self.edge_flow[node.index()] = 0.0;
         }
 
-        for node in self.mig.graph().externals(Outgoing) {
-            if let mig4::MigNode::Output(node) = self.mig.graph()[node] {
+        for node in self.aig.graph().externals(Outgoing) {
+            if let AigNode::Output(node) = self.aig.graph()[node] {
                 self.references[node as usize] = 1;
             }
         }
 
-        let mut iter = petgraph::visit::Topo::new(self.mig.graph());
+        let mut iter = petgraph::visit::Topo::new(self.aig.graph());
 
         let mut cut_count = 0;
 
-        while let Some(node) = iter.next(&self.mig.graph()) {
-            if let Some((x_edge, y_edge, z_edge)) = self.mig.try_unwrap_majority(node) {
-                let x = self.mig.edge_source(x_edge);
-                let y = self.mig.edge_source(y_edge);
-                let z = self.mig.edge_source(z_edge);
+        while let Some(node) = iter.next(&self.aig.graph()) {
+            if let Some((x_edge, y_edge)) = self.aig.try_unwrap_and(node) {
+                let x = self.aig.edge_source(x_edge);
+                let y = self.aig.edge_source(y_edge);
 
                 // Compute the trivial cut of this node.
                 //let mut inputs = vec![x.index(), y.index(), z.index()];
@@ -566,8 +489,7 @@ impl<'a> Mapper<'a> {
                 let cuts = self.cuts[x.index()]
                     .iter()
                     .cartesian_product(&self.cuts[y.index()])
-                    .cartesian_product(&self.cuts[z.index()])
-                    .map(|((x_cut, y_cut), z_cut)| Cut::union(x_cut, y_cut, z_cut, node.index()))
+                    .map(|(x_cut, y_cut)| Cut::union2(x_cut, y_cut, node.index()))
                     .chain(self.cuts[node.index()].first().cloned())
                     .filter(|candidate| candidate.input_count() <= max_inputs)
                     .filter(|candidate| required < 0 || self.cut_depth(candidate) <= required)
@@ -592,18 +514,6 @@ impl<'a> Mapper<'a> {
 
                 self.cuts[node.index()] = cuts;
                 let best_cut = &self.cuts[node.index()][0];
-                let (mffc, max_dep, original_expr) = self.cut_dep_mffc_prefixexp(best_cut);
-                let (aft_expr, cost) = self.rewrite_expr(
-                    &original_expr,
-                    Some(
-                        best_cut
-                            .inputs()
-                            .map(|pi| self.depth[pi.index()] as u32)
-                            .collect::<Vec<u32>>()
-                            .as_slice(),
-                    ),
-                );
-                self.rebuild_cut(best_cut, &aft_expr);
 
                 for input in &best_cut.inputs {
                     self.references[*input] += 1;
@@ -625,15 +535,15 @@ impl<'a> Mapper<'a> {
     #[allow(clippy::missing_panics_doc)]
     pub fn map_luts(&mut self, print_stats: bool) -> Vec<Cut> {
         let mut frontier = self
-            .mig
+            .aig
             .graph()
             .externals(Outgoing)
-            .flat_map(|output| self.mig.graph().neighbors_directed(output, Incoming))
-            .filter(|node| self.mig.node_type(*node) == mig4::MigNode::Majority)
+            .flat_map(|output| self.aig.graph().neighbors_directed(output, Incoming))
+            .filter(|node| self.aig.node_type(*node) == AigNode::And)
             .collect::<Vec<_>>();
         let mut mapping = Vec::new();
         let mut mapped_nodes = Vec::new();
-        let input_nodes = self.mig.input_nodes();
+        let input_nodes = self.aig.input_nodes();
 
         while let Some(node) = frontier.pop() {
             let cut = &self.cuts[node.index()][0];
@@ -668,15 +578,15 @@ impl<'a> Mapper<'a> {
             println!("Maximum delay: {}", self.max_depth);
         }
 
-        for node in self.mig.graph().node_indices() {
+        for node in self.aig.graph().node_indices() {
             self.required[node.index()] = self.max_depth;
         }
 
-        let mut required_dfs = petgraph::visit::DfsPostOrder::empty(self.mig.graph());
-        let pis = self.mig.input_nodes();
+        let mut required_dfs = petgraph::visit::DfsPostOrder::empty(self.aig.graph());
+        let pis = self.aig.input_nodes();
         for pi in pis {
             required_dfs.move_to(pi);
-            while let Some(node) = required_dfs.next(self.mig.graph()) {
+            while let Some(node) = required_dfs.next(self.aig.graph()) {
                 if let Some(cut) = self.cuts[node.index()].first() {
                     let required = self.required[node.index()] - self.wire_delay;
                     for (index, input) in cut

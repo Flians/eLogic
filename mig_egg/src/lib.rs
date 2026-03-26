@@ -702,7 +702,7 @@ pub fn simplify_tree(s: &str, vars: *const u32, size: usize, first_depth: bool) 
     // Create a Runner and initialize with the expression
     let mut runner = egg::Runner::default()
         .with_expr(&bef_expr)
-        .with_iter_limit(15)
+        .with_iter_limit(30)
         .with_node_limit(10000)
         .with_time_limit(std::time::Duration::from_secs(1));
 
@@ -898,7 +898,7 @@ pub fn simplify_graph(s: &str, vars: *const u32, size: usize, first_depth: bool)
     // create an e-graph with the given expression
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(15)
+        .with_iter_limit(30)
         .with_node_limit(10000)
         .with_time_limit(std::time::Duration::from_secs(1));
     // the Runner knows which e-class the expression given with `with_expr` is in

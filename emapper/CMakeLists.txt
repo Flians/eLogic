@@ -1,0 +1,12 @@
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+find_package (Python 3.10 COMPONENTS Interpreter Development REQUIRED)
+
+add_executable(emapper ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
+target_link_libraries(emapper PUBLIC map_egg mockturtle experiments fmt Coin::OsiCbc ${Python_LIBRARIES})
+target_include_directories(emapper PRIVATE ${Python_INCLUDE_DIRS})
+add_dependencies(emapper map_egg mockturtle Python::Python)
+
+#add_executable(baseline ${CMAKE_CURRENT_SOURCE_DIR}/baseline.cpp)
+#target_link_libraries(baseline PUBLIC mockturtle experiments fmt)
+#add_dependencies(baseline mockturtle)
