@@ -197,10 +197,10 @@ namespace mockturtle {
 
       if (is_bad(key_deps)) return nullptr;
 
-      if (first_depth) {
-        if (auto it = table.find(key_deps); it != table.end()) return it->second.get();
-      } else {
-        if (auto it = table_merged.find(key_deps); it != table_merged.end()) return it->second.get();
+      auto [it, inserted] = table.try_emplace(key_deps, nullptr);
+
+      if (inserted) {
+        it->second = std::make_unique<CCost>(simplify_graph(key, leaf_levels.data(), leaf_levels.size(), true));
       }
 
       auto it = table.find(key_deps);
@@ -218,15 +218,10 @@ namespace mockturtle {
         it = table.emplace(key_deps, std::move(new_cost)).first;
       }
 
-      if (first_depth) return it->second.get();
-
-      auto it_size = table_size.find(key_deps);
-      if (it_size == table_size.end()) {
-        std::unique_ptr<CCost> size_cost;
-        if (egg_method == 0) {
-          size_cost = std::make_unique<CCost>(simplify_graph(key, leaf_levels.data(), leaf_levels.size(), false));
-        } else {
-          size_cost = std::make_unique<CCost>(simplify_tree(key, leaf_levels.data(), leaf_levels.size(), false));
+      if (!first_depth) {
+        auto [it_size, inserted_size] = table_size.try_emplace(key_deps, nullptr);
+        if (inserted_size) {
+          it_size->second = std::make_unique<CCost>(simplify_graph(key, leaf_levels.data(), leaf_levels.size(), false));
         }
 
         it_size = table_size.emplace(key_deps, std::move(size_cost)).first;
@@ -413,11 +408,11 @@ namespace mockturtle {
 
     CCost optimize_by_egg(const std::vector<uint32_t> &leaf_levels, bool first_depth = true) const {
       std::vector<uint32_t> const depth_ranking = this->depth_ranking(leaf_levels);
-      if (_egg_method == 0) {
-        return simplify_graph(_original_expr, depth_ranking.data(), depth_ranking.size(), first_depth);
-      } else {
-        return simplify_tree(_original_expr, depth_ranking.data(), depth_ranking.size(), first_depth);
-      }
+      return simplify_graph(_original_expr, depth_ranking.data(), depth_ranking.size(), true);
+    }
+
+    void feedback(bool is_bad) const {
+      if (is_bad) exp_map.set_bad(_original_expr);
     }
 
     static signal rebuild(Ntk &ntk, const char *aft_expr, const std::uint32_t aft_expr_len, const std::vector<node> &leaves) {

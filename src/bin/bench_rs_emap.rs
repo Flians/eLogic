@@ -1,119 +1,48 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
 use std::time::Instant;
 
 use emapper::aig::Aig;
-use emapper::mapping::{emap_with_params, EmapParams};
+use emapper::emap::EmapResult;
+use emapper::mapping::{EmapParams, NodeBindingKind, emap_with_params};
 use emapper::techlib::{MappingObjective, TechLib};
 
 fn main() {
-    let mut args = std::env::args().skip(1);
-    let genlib = args
+    let mut a = std::env::args().skip(1);
+    let genlib: PathBuf = a
         .next()
         .map(PathBuf::from)
-        .unwrap_or_else(|| usage_exit());
-    let aig = args
+        .unwrap_or_else(|| "tools/mockturtle/experiments/cell_libraries/asap7.genlib".into());
+    let aig: PathBuf = a
         .next()
         .map(PathBuf::from)
-        .unwrap_or_else(|| usage_exit());
-    let verilog_out = args.next().map(PathBuf::from);
+        .unwrap_or_else(|| "tests/adder2.aig".into());
+    let verilog_out = a.next().map(PathBuf::from);
 
     let mut aig_graph = Aig::from_aiger(aig.to_string_lossy().as_ref());
     aig_graph.cleanup_graph();
-
     let tech = TechLib::from_genlib(&genlib, 6).expect("failed to load genlib");
 
-    let use_egg = std::env::var("EMAP_USE_EGG")
-        .ok()
-        .map(|v| v != "0" && v.to_lowercase() != "false")
-        .unwrap_or(true);
-    let objective = match std::env::var("EMAP_OBJECTIVE")
-        .unwrap_or_else(|_| "delay".to_string())
-        .to_lowercase()
-        .as_str()
-    {
-        "area" => MappingObjective::AreaFirst,
-        _ => MappingObjective::DelayFirst,
-    };
-    let mixed_obj = std::env::var("EMAP_MIXED_OBJECTIVE")
-        .ok()
-        .map(|v| v == "1" || v.to_lowercase() == "true")
-        .unwrap_or(false);
     let t0 = Instant::now();
-    let res = emap_with_params(
-        &aig_graph,
-        &tech,
-        EmapParams {
-            max_cuts: 16,
-            max_inputs: 6,
-            wire_delay: 0.0,
-            use_egg,
-            cache_egg: use_egg,
-            cache_tt: true,
-            objective,
-            critical_path_mixed_objective: mixed_obj,
-            area_flow_passes: std::env::var("EMAP_AREA_FLOW_PASSES")
-                .ok()
-                .and_then(|v| v.parse::<usize>().ok())
-                .unwrap_or(1),
-            exact_area_passes: std::env::var("EMAP_EXACT_AREA_PASSES")
-                .ok()
-                .and_then(|v| v.parse::<usize>().ok())
-                .unwrap_or(1),
-            max_cover_nodes: std::env::var("EMAP_MAX_COVER_NODES")
-                .ok()
-                .and_then(|v| v.parse::<usize>().ok())
-                .unwrap_or(64),
-            mapper_name: "egraph-based-mapper",
-        },
-    );
+    let res = emap_with_params(&aig_graph, &tech, emap_params_from_env());
     let runtime = t0.elapsed().as_secs_f64();
     let (p_cut, p_egg, p_tt, p_match) = res.perf.ratio_percent();
+    let max_depth = max_binding_depth(&res);
 
-    // Depth proxy: LUT/cut depth (levels of mapped nodes)
-    // depth(node) = 1 + max depth(leaf) over mapped leaves; PIs/consts have depth 0.
-    let mut bind_set = std::collections::HashSet::<usize>::new();
-    for b in &res.bindings {
-        bind_set.insert(b.node);
-    }
-    let mut depth_memo: HashMap<usize, u32> = HashMap::new();
-    fn depth_of(
-        node: usize,
-        binds: &Vec<emapper::mapping::NodeBinding>,
-        bind_set: &std::collections::HashSet<usize>,
-        memo: &mut HashMap<usize, u32>,
-    ) -> u32 {
-        if let Some(&d) = memo.get(&node) {
-            return d;
-        }
-        let b = binds.iter().find(|b| b.node == node).expect("binding");
-        let mut best = 0u32;
-        for &leaf in &b.leaves {
-            if leaf == 0 {
-                continue;
-            }
-            if bind_set.contains(&leaf) {
-                best = best.max(depth_of(leaf, binds, bind_set, memo));
-            }
-        }
-        let d = best + 1;
-        memo.insert(node, d);
-        d
-    }
-    let mut max_depth = 0u32;
-    for b in &res.bindings {
-        max_depth = max_depth.max(depth_of(b.node, &res.bindings, &bind_set, &mut depth_memo));
-    }
-
-    // Always produce a netlist for CEC; use user path when provided.
-    let (vpath, cleanup_tmp) = if let Some(vout) = verilog_out {
-        (vout, false)
-    } else {
-        let mut tmp = std::env::temp_dir();
-        tmp.push(format!("bench_rs_emap_{}_{}.v", std::process::id(), chrono_like_stamp()));
-        (tmp, true)
-    };
+    let (vpath, cleanup_tmp) = verilog_out.map_or_else(
+        || {
+            let mut p = std::env::temp_dir();
+            p.push(format!(
+                "bench_rs_emap_{}_{}.v",
+                std::process::id(),
+                nanos_stamp()
+            ));
+            (p, true)
+        },
+        |p| (p, false),
+    );
     let f = std::fs::File::create(&vpath).expect("create verilog");
     emapper::mapping::write_mapped_verilog(&aig_graph, &tech, &res, f, "top")
         .expect("write verilog");
@@ -122,7 +51,6 @@ fn main() {
         let _ = std::fs::remove_file(&vpath);
     }
 
-    // JSON benchmark output for the egraph-based mapper.
     println!(
         "{{\"mapper\":\"{}\",\"area\": {:.6}, \"gates\": {:.6}, \"delay\": {:.6}, \"depth\": {:.6}, \"runtime\": {:.6}, \"nec\": {:.6}}}",
         res.mapper_name,
@@ -139,8 +67,7 @@ fn main() {
         p_egg,
         p_tt,
         p_match,
-        res.perf.total_accounted().as_secs_f64()
-        ,
+        res.perf.total_accounted().as_secs_f64(),
         res.perf.direct_tt_hit,
         res.perf.direct_variant_reject,
         res.perf.egg_attempt,
@@ -152,58 +79,234 @@ fn main() {
     );
 }
 
+fn emap_params_from_env() -> EmapParams {
+    let use_egg = match std::env::var("EMAP_USE_EGG") {
+        Ok(v) => v != "0" && !v.eq_ignore_ascii_case("false"),
+        Err(_) => true,
+    };
+    let objective = match std::env::var("EMAP_OBJECTIVE")
+        .unwrap_or_else(|_| "delay".to_string())
+        .to_lowercase()
+    {
+        ref s if s == "area" => MappingObjective::AreaFirst,
+        _ => MappingObjective::DelayFirst,
+    };
+    let mixed = std::env::var("EMAP_MIXED_OBJECTIVE")
+        .ok()
+        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+    let env_u = |k: &str, d: usize| {
+        std::env::var(k)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(d)
+    };
+    let dual = std::env::var("EMAP_SINGLE_PHASE_DELAY")
+        .ok()
+        .is_none_or(|v| v != "1" && !v.eq_ignore_ascii_case("true"));
+
+    EmapParams {
+        max_cuts: 16,
+        max_inputs: 6,
+        wire_delay: 0.0,
+        use_egg,
+        cache_egg: use_egg,
+        cache_tt: true,
+        objective,
+        critical_path_mixed_objective: mixed,
+        area_flow_passes: env_u("EMAP_AREA_FLOW_PASSES", 1),
+        exact_area_passes: env_u("EMAP_EXACT_AREA_PASSES", 1),
+        max_cover_nodes: env_u("EMAP_MAX_COVER_NODES", 64),
+        use_dual_phase_delay: dual,
+        mapper_name: "egraph-based-mapper",
+    }
+}
+
+fn max_binding_depth(res: &EmapResult) -> u32 {
+    type BindMap<'a> = HashMap<(usize, bool), &'a emapper::mapping::NodeBinding>;
+    let bind_map: BindMap = res
+        .bindings
+        .iter()
+        .map(|b| ((b.node, b.phase_neg), b))
+        .collect();
+    let bind_nodes: HashSet<usize> = res.bindings.iter().map(|b| b.node).collect();
+    let mut memo = HashMap::<(usize, bool), u32>::new();
+
+    fn depth(
+        node: usize,
+        phase_neg: bool,
+        binds: &BindMap<'_>,
+        bind_nodes: &HashSet<usize>,
+        memo: &mut HashMap<(usize, bool), u32>,
+    ) -> u32 {
+        if let Some(&d) = memo.get(&(node, phase_neg)) {
+            return d;
+        }
+        let d = if let Some(b) = binds.get(&(node, phase_neg)) {
+            let mut best = 0u32;
+            match &b.kind {
+                NodeBindingKind::Direct { cell } => {
+                    for (i, &leaf) in b.leaves.iter().take(cell.n_inputs as usize).enumerate() {
+                        if leaf != 0 && bind_nodes.contains(&leaf) {
+                            let neg = ((cell.neg_mask >> i) & 1) == 1;
+                            best = best.max(depth(leaf, neg, binds, bind_nodes, memo));
+                        }
+                    }
+                }
+                NodeBindingKind::MappedCover { .. } => {
+                    for &leaf in &b.leaves {
+                        if leaf != 0 && bind_nodes.contains(&leaf) {
+                            best = best.max(depth(leaf, false, binds, bind_nodes, memo));
+                        }
+                    }
+                }
+            }
+            best + 1
+        } else if phase_neg && bind_nodes.contains(&node) {
+            depth(node, false, binds, bind_nodes, memo) + 1
+        } else {
+            0
+        };
+        memo.insert((node, phase_neg), d);
+        d
+    }
+
+    res.bindings
+        .iter()
+        .map(|b| depth(b.node, b.phase_neg, &bind_map, &bind_nodes, &mut memo))
+        .max()
+        .unwrap_or(0)
+}
+
 fn usage_exit() -> ! {
     eprintln!("Usage: bench_rs_emap genlibPath aigPath [verilogPath]");
+    eprintln!("Env: BENCH_RS_EMAP_ABC=…  BENCH_RS_EMAP_CEC_DEBUG=1");
     std::process::exit(1);
 }
 
-fn run_abc_cec(genlib: &PathBuf, aig: &PathBuf, vpath: &PathBuf) -> f64 {
+static ABC_FOR_CEC: OnceLock<Option<PathBuf>> = OnceLock::new();
+
+fn abc_for_cec() -> Option<PathBuf> {
+    ABC_FOR_CEC
+        .get_or_init(|| {
+            if let Ok(p) = std::env::var("BENCH_RS_EMAP_ABC") {
+                let pb = PathBuf::from(p.trim());
+                return if pb.as_os_str().is_empty() || !pb.is_file() {
+                    None
+                } else {
+                    Some(pb)
+                };
+            }
+            ["yosys-abc", "abc"]
+                .into_iter()
+                .find(|n| Command::new(n).arg("-h").output().is_ok())
+                .map(PathBuf::from)
+        })
+        .clone()
+}
+
+fn parse_cec_outcome(txt: &str) -> Option<f64> {
+    let lower = txt.to_ascii_lowercase();
+    if lower.contains("networks are equivalent") || txt.contains("UNSAT") {
+        return Some(1.0);
+    }
+    if lower.contains("networks are not equivalent") {
+        return Some(0.0);
+    }
+    if txt.contains("SAT") && !txt.contains("UNSAT") {
+        return Some(0.0);
+    }
+    None
+}
+
+fn shell_path(p: &Path) -> String {
+    let s = p.to_string_lossy();
+    if s.contains(' ') {
+        format!("\"{s}\"")
+    } else {
+        s.into_owned()
+    }
+}
+
+fn abs(p: &Path) -> PathBuf {
+    std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
+}
+
+fn cec_debug(msg: &str) {
+    if std::env::var("BENCH_RS_EMAP_CEC_DEBUG").as_deref() == Ok("1") {
+        eprintln!("{msg}");
+    }
+}
+
+fn run_abc_cec(genlib: &Path, aig: &Path, vpath: &Path) -> f64 {
+    let Some(exe) = abc_for_cec() else {
+        cec_debug("BENCH_RS_EMAP_CEC_DEBUG: no ABC (set BENCH_RS_EMAP_ABC or PATH yosys-abc/abc)");
+        return -1.0;
+    };
+    let g = abs(genlib);
+    let a = abs(aig);
+    let v = abs(vpath);
     let mut impl_aig = std::env::temp_dir();
     impl_aig.push(format!(
         "bench_rs_emap_impl_{}_{}.aig",
         std::process::id(),
-        chrono_like_stamp()
+        nanos_stamp()
     ));
+    let impl_s = shell_path(&impl_aig);
 
-    let cmd_build = format!(
+    let build = format!(
         "read_library {}; read_verilog -m {}; strash; write_aiger {}",
-        genlib.display(),
-        vpath.display(),
-        impl_aig.display()
+        shell_path(&g),
+        shell_path(&v),
+        impl_s
     );
-    let out_build = Command::new("abc").args(["-c", &cmd_build]).output();
-    let Ok(out_build) = out_build else {
-        return -1.0;
+    let out_b = match Command::new(&exe).args(["-c", &build]).output() {
+        Ok(o) => o,
+        Err(_) => {
+            cec_debug("BENCH_RS_EMAP_CEC_DEBUG: spawn failed (read_library/read_verilog)");
+            return -1.0;
+        }
     };
-    if !out_build.status.success() || !impl_aig.exists() {
+    if !out_b.status.success() || !impl_aig.exists() {
+        cec_debug(&format!(
+            "BENCH_RS_EMAP_CEC_DEBUG: ABC build failed (exit {:?})\n--- stdout ---\n{}\n--- stderr ---\n{}",
+            out_b.status.code(),
+            String::from_utf8_lossy(&out_b.stdout),
+            String::from_utf8_lossy(&out_b.stderr)
+        ));
         let _ = std::fs::remove_file(&impl_aig);
         return -1.0;
     }
 
-    let cmd_cec = format!("cec -n {} {}", aig.display(), impl_aig.display());
-    let out = Command::new("abc").args(["-c", &cmd_cec]).output();
-    let _ = std::fs::remove_file(&impl_aig);
-    let Ok(out) = out else {
-        return -1.0;
+    let cec = format!("cec -n {} {}", shell_path(&a), impl_s);
+    let out = match Command::new(&exe).args(["-c", &cec]).output() {
+        Ok(o) => o,
+        Err(_) => {
+            cec_debug("BENCH_RS_EMAP_CEC_DEBUG: spawn failed (cec)");
+            let _ = std::fs::remove_file(&impl_aig);
+            return -1.0;
+        }
     };
-    let mut txt = String::new();
-    txt.push_str(&String::from_utf8_lossy(&out.stdout));
-    txt.push_str(&String::from_utf8_lossy(&out.stderr));
-    if txt.contains("Networks are equivalent") || txt.contains("UNSAT") {
-        1.0
-    } else if txt.contains("Networks are NOT EQUIVALENT") || txt.contains("SAT") {
-        0.0
-    } else {
-        -1.0
+    let _ = std::fs::remove_file(&impl_aig);
+
+    let txt = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    if let Some(x) = parse_cec_outcome(&txt) {
+        return x;
     }
+    cec_debug(&format!(
+        "BENCH_RS_EMAP_CEC_DEBUG: unrecognized cec output (exit {:?})\n{txt}",
+        out.status.code()
+    ));
+    -1.0
 }
 
-fn chrono_like_stamp() -> String {
+fn nanos_stamp() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
-    let ns = SystemTime::now()
+    SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    format!("{ns}")
+        .map(|d| d.as_nanos().to_string())
+        .unwrap_or_else(|_| "0".into())
 }
-

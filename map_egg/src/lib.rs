@@ -1,10 +1,12 @@
 use egg::Id;
-use std::collections::HashSet;
+use emapper::map_cut_to_cover;
+use emapper::techlib::{MappingObjective as EmapObjective, TechLib};
+use emapper::{MappedCoverChoice, MappedCoverNode};
 use std::ffi::CString;
 use std::fmt;
 use std::os::raw::c_char;
+use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
 pub struct CCost {
@@ -27,13 +29,6 @@ egg::define_language! {
         Symbol(egg::Symbol),
     }
 }
-
-#[derive(Default, Clone)]
-pub struct ConstantFold;
-
-type EGraph = egg::EGraph<AIG, ConstantFold>;
-type Rewrite = egg::Rewrite<AIG, ConstantFold>;
-type GateEGraph = EGraph;
 
 /// Compute a 64-bit truth table for an expression with up to 6 variables.
 ///
@@ -99,99 +94,20 @@ pub fn sexp_to_tt64(sexp: &str) -> Option<(u8, u64)> {
     Some((n_inputs, root & mask))
 }
 
-impl egg::Analysis<AIG> for ConstantFold {
-    type Data = Option<(u8, egg::PatternAst<AIG>)>;
-
-    fn merge(&mut self, to: &mut Self::Data, from: Self::Data) -> egg::DidMerge {
-        match (to.take(), from) {
-            (None, None) => egg::DidMerge(false, false),
-            (None, some_from @ Some(_)) => {
-                *to = some_from;
-                egg::DidMerge(true, false)
-            }
-            (some_to @ Some(_), None) => {
-                *to = some_to;
-                egg::DidMerge(false, false)
-            }
-            (Some(a), Some(b)) => {
-                if a.0 == b.0 {
-                    *to = Some(a);
-                } else {
-                    // Conservative fallback: conflicting constants mean this e-class
-                    // cannot be treated as a known constant.
-                    *to = None;
-                }
-                egg::DidMerge(true, true)
-            }
-        }
-    }
-
-    fn make(egraph: &mut EGraph, enode: &AIG, _id: Id) -> Self::Data {
-        let x = |i: &Id| egraph[*i].data.as_ref().map(|c| c.0);
-        match enode {
-            AIG::Bool(c) => Some((*c, c.to_string().parse().ok()?)),
-            AIG::Symbol(_) => None,
-            AIG::And([a, b]) => {
-                let v = (x(a)? & x(b)? == 1) as u8;
-                Some((v, v.to_string().parse().ok()?))
-            }
-            AIG::Not(a) => {
-                let v = 1u8 ^ x(a)?;
-                Some((v, v.to_string().parse().ok()?))
-            }
-        }
-    }
-
-    fn modify(egraph: &mut EGraph, id: Id) {
-        if let Some(c) = egraph[id].data.clone() {
-            egraph.union_instantiations(
-                &c.1,
-                &c.0.to_string()
-                    .parse()
-                    .unwrap_or_else(|_| "0".parse().unwrap()),
-                &Default::default(),
-                "const-fold".to_string(),
-            );
-        }
-    }
+fn default_genlib_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../tools/mockturtle/experiments/cell_libraries/asap7.genlib")
 }
 
-macro_rules! rule {
-    ($name:ident, $lhs:literal, $rhs:literal) => {
-        fn $name() -> Rewrite {
-            egg::rewrite!(stringify!($name); $lhs => $rhs)
-        }
-    };
-    ($name:ident, $name2:ident, $lhs:literal, $rhs:literal) => {
-        rule!($name, $lhs, $rhs);
-        rule!($name2, $rhs, $lhs);
-    };
-}
-
-rule!(double_neg, "(~ (~ ?a))", "?a");
-rule!(not_zero, "(~ 0)", "1");
-rule!(not_one, "(~ 1)", "0");
-rule!(and_comm, "(& ?a ?b)", "(& ?b ?a)");
-rule!(and_assoc, "(& ?a (& ?b ?c))", "(& ?b (& ?a ?c))");
-rule!(and_comp, "(& ?a (~ ?a))", "0");
-rule!(and_id, "(& ?a ?a)", "?a");
-rule!(and_true, "(& ?a 1)", "?a");
-rule!(and_false, "(& ?a 0)", "0");
-rule!(demorgan_and, "(~ (& ?a ?b))", "(& (~ ?a) (~ ?b))");
-
-fn rules() -> Vec<Rewrite> {
-    vec![
-        double_neg(),
-        not_zero(),
-        not_one(),
-        and_comm(),
-        and_assoc(),
-        and_comp(),
-        and_id(),
-        and_true(),
-        and_false(),
-        demorgan_and(),
-    ]
+fn techlib_store() -> &'static TechLib {
+    static TECH: OnceLock<TechLib> = OnceLock::new();
+    TECH.get_or_init(|| {
+        let env_path = std::env::var("MAP_EGG_TECHLIB_PATH").ok();
+        let candidate = env_path
+            .map(PathBuf::from)
+            .unwrap_or_else(default_genlib_path);
+        TechLib::from_genlib(&candidate, 6).unwrap_or_default()
+    })
 }
 
 fn parse_var_dep(vars: *const u32, size: usize) -> Vec<u32> {
@@ -220,203 +136,61 @@ fn make_cache_key(s: &str, vars: &[u32], objective: u8) -> String {
     key
 }
 
-fn run_extract(s: &str, var_dep: &[u32], first_depth: bool) -> Option<(String, CCost)> {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MappingObjective {
+    DelayArea,
+    AreaDelay,
+}
+
+impl MappingObjective {
+    fn from_u8(objective: u8) -> Self {
+        match objective {
+            1 => Self::AreaDelay,
+            _ => Self::DelayArea,
+        }
+    }
+}
+
+fn run_extract(s: &str, var_dep: &[u32], objective: MappingObjective) -> Option<MappedCoverChoice> {
     let _ = sexp_to_tt64(s)?;
-    let (egraph, root) = rewrite_to_gategraph(s)?;
-    extract_cover_from_egraph(&egraph, root, var_dep, first_depth)
-}
-
-fn rewrite_to_gategraph(s: &str) -> Option<(GateEGraph, Id)> {
-    let expr: egg::RecExpr<AIG> = s.parse().ok()?;
-    if expr.as_ref().is_empty() {
-        return None;
-    }
-    let runner = egg::Runner::default()
-        .with_expr(&expr)
-        .with_iter_limit(40)
-        .with_node_limit(20000)
-        .with_time_limit(Duration::from_secs(2))
-        .run(&rules());
-    let root = *runner.roots.first()?;
-    Some((runner.egraph, root))
-}
-
-#[derive(Clone, Debug)]
-enum CoverChoiceKind {
-    Const(bool),
-    Input(usize),
-    Not(usize),
-    And(usize, usize),
-}
-
-#[derive(Clone, Debug)]
-struct CoverChoice {
-    cost: CCost,
-    kind: CoverChoiceKind,
-    class_areas: std::collections::HashMap<usize, u32>,
-}
-
-fn merge_class_areas(
-    lhs: &std::collections::HashMap<usize, u32>,
-    rhs: &std::collections::HashMap<usize, u32>,
-) -> std::collections::HashMap<usize, u32> {
-    let mut out = lhs.clone();
-    for (k, v) in rhs {
-        out.entry(*k).or_insert(*v);
-    }
-    out
-}
-
-fn better_cover_choice(lhs: &CoverChoice, rhs: &CoverChoice, first_depth: bool) -> bool {
-    if first_depth {
-        (lhs.cost.dep, lhs.cost.aom, lhs.cost.inv) < (rhs.cost.dep, rhs.cost.aom, rhs.cost.inv)
-    } else {
-        (lhs.cost.aom, lhs.cost.dep, lhs.cost.inv) < (rhs.cost.aom, rhs.cost.dep, rhs.cost.inv)
-    }
-}
-
-fn extract_cover_from_egraph(
-    egraph: &GateEGraph,
-    root: Id,
-    var_dep: &[u32],
-    first_depth: bool,
-) -> Option<(String, CCost)> {
-    let mut best = std::collections::HashMap::<usize, Option<CoverChoice>>::new();
-
-    fn best_eclass(
-        id: Id,
-        egraph: &GateEGraph,
-        var_dep: &[u32],
-        first_depth: bool,
-        best: &mut std::collections::HashMap<usize, Option<CoverChoice>>,
-        visiting: &mut std::collections::HashSet<usize>,
-    ) -> Option<CoverChoice> {
-        let key = usize::from(id);
-        if let Some(v) = best.get(&key) {
-            return v.clone();
-        }
-        if !visiting.insert(key) {
-            return None;
-        }
-
-        let mut choice: Option<CoverChoice> = None;
-        for enode in &egraph[id].nodes {
-            let op = match enode {
-                AIG::Bool(v) => Some(CoverChoice {
-                    cost: CCost {
-                        dep: 0,
-                        aom: 0,
-                        inv: 0,
-                    },
-                    kind: CoverChoiceKind::Const(*v == 1),
-                    class_areas: std::collections::HashMap::new(),
-                }),
-                AIG::Symbol(sym) => {
-                    let bytes = sym.as_str().as_bytes();
-                    if bytes.len() != 1 || !(b'a'..=b'f').contains(&bytes[0]) {
-                        None
-                    } else {
-                        let i = (bytes[0] - b'a') as usize;
-                        Some(CoverChoice {
-                            cost: CCost {
-                                dep: var_dep.get(i).copied().unwrap_or(0),
-                                aom: 0,
-                                inv: 0,
-                            },
-                            kind: CoverChoiceKind::Input(i),
-                            class_areas: std::collections::HashMap::new(),
-                        })
-                    }
-                }
-                AIG::Not(a) => {
-                    let child = best_eclass(*a, egraph, var_dep, first_depth, best, visiting)?;
-                    Some(CoverChoice {
-                        cost: CCost {
-                            dep: child.cost.dep,
-                            aom: child.cost.aom,
-                            inv: child.cost.inv + 1,
-                        },
-                        kind: CoverChoiceKind::Not(usize::from(*a)),
-                        class_areas: child.class_areas.clone(),
-                    })
-                }
-                AIG::And([a, b]) => {
-                    let lhs = best_eclass(*a, egraph, var_dep, first_depth, best, visiting)?;
-                    let rhs = best_eclass(*b, egraph, var_dep, first_depth, best, visiting)?;
-                    let merged = merge_class_areas(&lhs.class_areas, &rhs.class_areas);
-                    let mut class_areas = merged.clone();
-                    class_areas.insert(key, 1);
-                    Some(CoverChoice {
-                        cost: CCost {
-                            dep: lhs.cost.dep.max(rhs.cost.dep) + 1,
-                            aom: class_areas.values().sum(),
-                            inv: lhs.cost.inv + rhs.cost.inv,
-                        },
-                        kind: CoverChoiceKind::And(usize::from(*a), usize::from(*b)),
-                        class_areas,
-                    })
-                }
-            };
-
-            choice = match (choice, op) {
-                (Some(cur), Some(newc)) if better_cover_choice(&newc, &cur, first_depth) => {
-                    Some(newc)
-                }
-                (None, Some(newc)) => Some(newc),
-                (cur, _) => cur,
-            };
-        }
-
-        visiting.remove(&key);
-        best.insert(key, choice.clone());
-        choice
-    }
-
-    let mut visiting = std::collections::HashSet::<usize>::new();
-    let root_choice = best_eclass(root, egraph, var_dep, first_depth, &mut best, &mut visiting)?;
-
-    fn materialize(
-        id: usize,
-        best: &std::collections::HashMap<usize, Option<CoverChoice>>,
-        memo: &mut std::collections::HashMap<usize, String>,
-    ) -> Option<String> {
-        if let Some(s) = memo.get(&id) {
-            return Some(s.clone());
-        }
-        let c = best.get(&id)?.as_ref()?;
-        let s = match &c.kind {
-            CoverChoiceKind::Const(v) => {
-                if *v {
-                    "1".to_string()
-                } else {
-                    "0".to_string()
-                }
-            }
-            CoverChoiceKind::Input(i) => ((b'a' + (*i as u8)) as char).to_string(),
-            CoverChoiceKind::Not(a) => format!("(~ {})", materialize(*a, best, memo)?),
-            CoverChoiceKind::And(a, b) => {
-                format!(
-                    "(& {} {})",
-                    materialize(*a, best, memo)?,
-                    materialize(*b, best, memo)?
-                )
-            }
-        };
-        memo.insert(id, s.clone());
-        Some(s)
-    }
-
-    let mut memo = std::collections::HashMap::<usize, String>::new();
-    let expr = materialize(usize::from(root), &best, &mut memo)?;
-    Some((expr, root_choice.cost))
+    let tech = techlib_store();
+    let arrivals: Vec<f32> = var_dep.iter().map(|&d| d as f32).collect();
+    let emap_obj = match objective {
+        MappingObjective::AreaDelay => EmapObjective::AreaFirst,
+        MappingObjective::DelayArea => EmapObjective::DelayFirst,
+    };
+    map_cut_to_cover(s, tech, &arrivals, emap_obj)
 }
 
 #[cxx::bridge]
 mod ffi {
+    /// A single node in the mapped cover graph transferred over FFI.
+    ///
+    /// - `kind == 0`: primary input; `input_idx` identifies variable index (0='a', etc.)
+    /// - `kind == 1`: constant; `const_val` is 0 or 1.
+    /// - `kind == 2`: standard-cell instance; `cell_name`/`out_pin` identify the gate,
+    ///   `neg_mask` gives per-input inversion bits, `out_neg` gives output inversion,
+    ///   `fanins` lists indices into `CCost::cell_nodes`.
+    struct MappedNode {
+        kind: u8,
+        input_idx: u8,
+        const_val: u8,
+        neg_mask: u16,
+        out_neg: u8,
+        cell_name: String,
+        out_pin: String,
+        fanins: Vec<u32>,
+    }
+
     struct CCost {
         aft_expr: Vec<String>,
         aft_dep: u32,
         aft_size: u32,
+        /// Structured cell-level cover nodes. Empty when mapping failed or no
+        /// techlib cells could be matched (falls back to AIG-sexp in aft_expr).
+        cell_nodes: Vec<MappedNode>,
+        /// Index of the root node inside `cell_nodes`. Valid iff `!cell_nodes.is_empty()`.
+        cell_root: u32,
     }
 
     extern "Rust" {
@@ -440,12 +214,27 @@ fn merge_ccost(depth: &ffi::CCost, size: &ffi::CCost) -> ffi::CCost {
     }
 }
 
+fn clone_mapped_node(n: &ffi::MappedNode) -> ffi::MappedNode {
+    ffi::MappedNode {
+        kind: n.kind,
+        input_idx: n.input_idx,
+        const_val: n.const_val,
+        neg_mask: n.neg_mask,
+        out_neg: n.out_neg,
+        cell_name: n.cell_name.clone(),
+        out_pin: n.out_pin.clone(),
+        fanins: n.fanins.clone(),
+    }
+}
+
 impl Clone for ffi::CCost {
     fn clone(&self) -> Self {
         Self {
             aft_expr: self.aft_expr.clone(),
             aft_dep: self.aft_dep,
             aft_size: self.aft_size,
+            cell_nodes: self.cell_nodes.iter().map(clone_mapped_node).collect(),
+            cell_root: self.cell_root,
         }
     }
 }
@@ -471,95 +260,163 @@ pub fn cut_mapping_with_objective(
 ) -> ffi::CCost {
     let var_dep = parse_var_dep(vars, size);
     let cache_key = make_cache_key(s, &var_dep, objective);
+    let objective = MappingObjective::from_u8(objective);
     if let Ok(guard) = cache_store().lock() {
         if let Some(v) = guard.get(&cache_key) {
             return v.clone();
         }
     }
 
-    let out = match objective {
-        0 | 1 => {
-            // Evaluate both extraction orders and keep all ties for requested objective.
-            let a = run_extract(s, &var_dep, true);
-            let b = run_extract(s, &var_dep, false);
-            match (a, b) {
-                (Some((ea, ca)), Some((eb, cb))) => {
-                    let key_a = if objective == 0 {
-                        (ca.dep, ca.aom)
-                    } else {
-                        (ca.aom, ca.dep)
-                    };
-                    let key_b = if objective == 0 {
-                        (cb.dep, cb.aom)
-                    } else {
-                        (cb.aom, cb.dep)
-                    };
-                    let mut exprs = HashSet::new();
-                    let best_cost = if key_a < key_b {
-                        exprs.insert(ea);
-                        ca
-                    } else if key_b < key_a {
-                        exprs.insert(eb);
-                        cb
-                    } else {
-                        exprs.insert(ea);
-                        exprs.insert(eb);
-                        // equal objective key; keep stable representative cost
-                        if (ca.dep, ca.aom) <= (cb.dep, cb.aom) { ca } else { cb }
-                    };
-                    ffi::CCost {
-                        aft_expr: exprs.into_iter().collect(),
-                        aft_dep: best_cost.dep,
-                        aft_size: best_cost.aom,
-                    }
-                }
-                (Some((e, c)), None) | (None, Some((e, c))) => ffi::CCost {
-                    aft_expr: vec![e],
-                    aft_dep: c.dep,
-                    aft_size: c.aom,
-                },
-                (None, None) => ffi::CCost {
-                    aft_expr: vec![s.to_string()],
-                    aft_dep: 0,
-                    aft_size: u32::MAX / 2,
-                },
+    let out = match run_extract(s, &var_dep, objective) {
+        Some(cover) => {
+            // Build cell_nodes from MappedCoverGraph.
+            let graph = &cover.graph;
+            let cell_nodes: Vec<ffi::MappedNode> = graph
+                .nodes
+                .iter()
+                .map(|node| match node {
+                    MappedCoverNode::Input(li) => ffi::MappedNode {
+                        kind: 0,
+                        input_idx: *li as u8,
+                        const_val: 0,
+                        neg_mask: 0,
+                        out_neg: 0,
+                        cell_name: String::new(),
+                        out_pin: String::new(),
+                        fanins: vec![],
+                    },
+                    MappedCoverNode::Const(v) => ffi::MappedNode {
+                        kind: 1,
+                        input_idx: 0,
+                        const_val: if *v { 1 } else { 0 },
+                        neg_mask: 0,
+                        out_neg: 0,
+                        cell_name: String::new(),
+                        out_pin: String::new(),
+                        fanins: vec![],
+                    },
+                    MappedCoverNode::Cell { cell, fanins } => ffi::MappedNode {
+                        kind: 2,
+                        input_idx: 0,
+                        const_val: 0,
+                        neg_mask: cell.neg_mask,
+                        out_neg: if cell.out_neg { 1 } else { 0 },
+                        cell_name: cell.cell_name.clone(),
+                        out_pin: cell.out_pin.clone(),
+                        fanins: fanins.iter().map(|&fi| fi as u32).collect(),
+                    },
+                })
+                .collect();
+            ffi::CCost {
+                aft_expr: vec![], // cell_nodes path: aft_expr intentionally empty
+                aft_dep: cover.delay.round() as u32,
+                aft_size: cover.area.round() as u32,
+                cell_root: graph.root as u32,
+                cell_nodes,
             }
         }
-        _ => {
-            // fallback: evaluate both only for unknown objective
-            let a = run_extract(s, &var_dep, true);
-            let b = run_extract(s, &var_dep, false);
-            match (a, b) {
-                (Some((ea, ca)), Some((eb, cb))) => {
-                    let best = if (ca.dep, ca.aom) <= (cb.dep, cb.aom) {
-                        (ea, ca)
-                    } else {
-                        (eb, cb)
-                    };
-                    let mut exprs = HashSet::new();
-                    exprs.insert(best.0.clone());
-                    ffi::CCost {
-                        aft_expr: exprs.into_iter().collect(),
-                        aft_dep: best.1.dep,
-                        aft_size: best.1.aom,
-                    }
-                }
-                (Some((e, c)), None) | (None, Some((e, c))) => ffi::CCost {
-                    aft_expr: vec![e],
-                    aft_dep: c.dep,
-                    aft_size: c.aom,
-                },
-                (None, None) => ffi::CCost {
-                    aft_expr: vec![s.to_string()],
-                    aft_dep: 0,
-                    aft_size: u32::MAX / 2,
-                },
-            }
-        }
+        None => ffi::CCost {
+            aft_expr: vec![s.to_string()],
+            aft_dep: 0,
+            aft_size: u32::MAX / 2,
+            cell_nodes: vec![],
+            cell_root: 0,
+        },
     };
 
     if let Ok(mut guard) = cache_store().lock() {
         guard.insert(cache_key, out.clone());
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    const SIMPLE_AND: &str = "(& a b)";
+
+    fn call_cut_mapping(expr: &str, vars: &[u32], objective: u8) -> ffi::CCost {
+        cut_mapping_with_objective(expr, vars.as_ptr(), vars.len(), objective)
+    }
+
+    fn clear_cache() {
+        let guard = cache_store().lock();
+        let mut guard = guard.expect("cache mutex poisoned");
+        guard.clear();
+    }
+
+    fn expr_tt_set(exprs: &[String]) -> HashSet<(u8, u64)> {
+        exprs.iter().filter_map(|e| sexp_to_tt64(e)).collect()
+    }
+
+    #[test]
+    fn objective_results_keep_boolean_equivalence() {
+        let input = "(& a (~ b))";
+        let vars = vec![0u32, 0u32];
+        let input_tt = sexp_to_tt64(input).expect("input should parse");
+
+        for objective in [0u8, 1u8, 2u8] {
+            let out = call_cut_mapping(input, &vars, objective);
+            assert!(
+                !out.cell_nodes.is_empty() || !out.aft_expr.is_empty(),
+                "objective {} produced neither cell cover nor expr fallback",
+                objective
+            );
+            if !out.aft_expr.is_empty() {
+                let tts = expr_tt_set(&out.aft_expr);
+                assert!(
+                    !tts.is_empty(),
+                    "objective {} produced unparsable exprs",
+                    objective
+                );
+                assert!(
+                    tts.contains(&input_tt),
+                    "objective {} returned non-equivalent expression set {:?}",
+                    objective,
+                    out.aft_expr
+                );
+            } else {
+                assert!(
+                    !out.cell_nodes.is_empty(),
+                    "objective {} should return structured cell cover on success",
+                    objective
+                );
+                assert!(out.cell_root < out.cell_nodes.len() as u32);
+                let _ = input_tt;
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_expression_falls_back_to_original() {
+        let bad = "(% a b)";
+        let out = call_cut_mapping(bad, &[0u32, 0u32], 0);
+        assert_eq!(out.aft_dep, 0);
+        assert_eq!(out.aft_size, u32::MAX / 2);
+        assert_eq!(out.aft_expr, vec![bad.to_string()]);
+    }
+
+    #[test]
+    fn cache_key_includes_objective() {
+        let vars = vec![0u32, 0u32];
+        let k0 = make_cache_key(SIMPLE_AND, &vars, 0);
+        let k2 = make_cache_key(SIMPLE_AND, &vars, 2);
+        assert_ne!(
+            k0, k2,
+            "same expr+vars but different objectives must map to distinct keys"
+        );
+    }
+
+    #[test]
+    fn same_call_hits_cache_and_is_stable() {
+        clear_cache();
+        let vars = vec![0u32, 0u32];
+        let out1 = call_cut_mapping(SIMPLE_AND, &vars, 1);
+        let out2 = call_cut_mapping(SIMPLE_AND, &vars, 1);
+        assert_eq!(out1.aft_dep, out2.aft_dep);
+        assert_eq!(out1.aft_size, out2.aft_size);
+        assert_eq!(expr_tt_set(&out1.aft_expr), expr_tt_set(&out2.aft_expr));
+    }
 }
