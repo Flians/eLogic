@@ -1,5 +1,9 @@
+#define USE_EGG
+#ifndef USE_EGG
+#include "mockturtle/algorithms/emap.hpp"
+#else
 #include "emap_egg.hpp"
-// #include "map_egg/src/lib.rs.h"
+#endif
 #include "rust/cxx.h"
 
 #include <stdio.h>
@@ -94,12 +98,29 @@ int main_emapper() {
     ps.area_oriented_mapping = false;
     ps.map_multioutput = false;
     ps.relax_required = 0;
+#ifdef USE_EGG
     ps.enable_egg_fallback = true;
-    ps.egg_min_cut_size = 4;
-    ps.egg_min_cut_depth = 2;
+    ps.egg_min_cut_size = 6;
+    ps.egg_min_internal_nodes = 6;
     ps.egg_max_per_node = 3;
+    ps.egg_reserved_cut_slots = 2;
+    ps.egg_cache_max_entries = 200000;
+    ps.egg_cache_max_fail_entries = 50000;
+    ps.egg_cache_file = "emapper/lib_expr2cost.jsonl";
+#endif
     emap_stats st;
     cell_view<block_network> res = emap<9>(aig, tech_lib, ps, &st);
+#ifdef USE_EGG
+    fmt::print(
+        "[i] egg {}: cand={} tt_miss={} try={} solve={} cache_hit={} succ={}\n",
+        benchmark,
+        st.egg_candidate_cuts,
+        st.egg_tt_miss_cuts,
+        st.egg_try_calls,
+        st.egg_solver_calls,
+        st.egg_cache_hits,
+        st.egg_successes);
+#endif
 
     names_view res_names{res};
     restore_network_name(aig, res_names);

@@ -38,7 +38,9 @@
 #include <cmath>
 #include <cstdint>
 #include <deque>
+#include <fstream>
 #include <functional>
+#include <iomanip>
 #include <limits>
 #include <memory>
 #include <string>
@@ -154,16 +156,40 @@ namespace mockturtle {
     bool verbose{false};
 
     /*! \brief Enable e-graph fallback on TT miss. */
-    bool enable_egg_fallback{true};
+    bool enable_egg_fallback{false};
 
     /*! \brief Minimum cut size to trigger e-graph fallback. */
     uint32_t egg_min_cut_size{4u};
 
-    /*! \brief Minimum estimated cut depth to trigger e-graph fallback. */
-    uint32_t egg_min_cut_depth{2u};
+    /*! \brief Minimum number of internal nodes in the cut-induced cone to trigger e-graph fallback (0 disables). */
+    uint32_t egg_min_internal_nodes{0u};
 
     /*! \brief Max egg attempts per node after TT miss (0 = try egg on every TT-miss candidate immediately). */
     uint32_t egg_max_per_node{0u};
+
+    /*! \brief Extra cut slots during merge when egg fallback is on (capped by max internal cut set size).
+     *
+     * Enumeration inserts by AREA and truncates to cut_limit, which drops large cuts first.
+     * When non-zero, merge uses cut_limit + this value (up to the max cut set capacity), then
+     * trims back to cut_limit while preserving up to this many largest cuts (size >= effective
+     * egg_min_cut_size) before the rest fill by AREA.
+     */
+    uint32_t egg_reserved_cut_slots{0u};
+
+    /*! \brief Maximum number of egg cache entries (0 disables cache). */
+    uint32_t egg_cache_max_entries{200000u};
+
+    /*! \brief Maximum number of failed egg cache entries retained (0 keeps none). */
+    uint32_t egg_cache_max_fail_entries{50000u};
+
+    /*! \brief Global limit for expensive egg solve calls per run (0 disables limit). */
+    uint32_t egg_global_budget{0u};
+
+    /*! \brief Optional local file to persist egg cache entries across runs (empty disables). */
+    std::string egg_cache_file{};
+
+    /*! \brief Time limit (seconds) for expensive egg solve calls per run (0 disables limit). */
+    uint32_t egg_time_budget_seconds{0u};
   };
 
   /*! \brief Statistics for emap.
@@ -198,6 +224,19 @@ namespace mockturtle {
     /*! \brief Mapping error. */
     bool mapping_error{false};
 
+    /*! \brief Egg candidate cut count (passed egg gate checks). */
+    uint64_t egg_candidate_cuts{0};
+    /*! \brief TT-miss cuts seen by egg fallback path. */
+    uint64_t egg_tt_miss_cuts{0};
+    /*! \brief Calls to try_egg_match_cut. */
+    uint64_t egg_try_calls{0};
+    /*! \brief Expensive calls to cut_mapping_with_objective. */
+    uint64_t egg_solver_calls{0};
+    /*! \brief Cache hits in egg_cut_cache_ (success + failure). */
+    uint64_t egg_cache_hits{0};
+    /*! \brief Successful egg matches. */
+    uint64_t egg_successes{0};
+
     void report() const {
       for (auto const &stat : round_stats) {
         std::cout << stat;
@@ -211,6 +250,9 @@ namespace mockturtle {
         std::cout << fmt::format("[i] Multi-output gates   = {:>5}\n", multioutput_gates);
         std::cout << fmt::format("[i] Multi-output runtime = {:>5.2f} secs\n", to_seconds(time_multioutput));
       }
+      std::cout << fmt::format(
+          "[i] Egg stats            = candidates {:>8}, tt_miss {:>8}, try {:>8}, solve {:>8}, cache_hit {:>8}, success {:>8}\n",
+          egg_candidate_cuts, egg_tt_miss_cuts, egg_try_calls, egg_solver_calls, egg_cache_hits, egg_successes);
       std::cout << fmt::format("[i] Total runtime        = {:>5.2f} secs\n", to_seconds(time_total));
     }
   };
@@ -787,6 +829,16 @@ namespace mockturtle {
         egg_composed_nodes_.clear();
         egg_supergates_.clear();
         egg_cut_cache_.clear();
+        egg_cache_fifo_.clear();
+        egg_cache_fail_fifo_.clear();
+        egg_global_attempts_ = 0u;
+        egg_candidate_cuts_ = 0u;
+        egg_tt_miss_cuts_ = 0u;
+        egg_try_calls_ = 0u;
+        egg_solver_calls_ = 0u;
+        egg_cache_hits_ = 0u;
+        egg_successes_ = 0u;
+        load_egg_cache_from_file();
 
         auto [res, old2new] = initialize_block_network();
 
@@ -829,7 +881,14 @@ namespace mockturtle {
 
         /* generate the output network */
         finalize_cover_block(res, old2new);
+        st.egg_candidate_cuts = egg_candidate_cuts_;
+        st.egg_tt_miss_cuts = egg_tt_miss_cuts_;
+        st.egg_try_calls = egg_try_calls_;
+        st.egg_solver_calls = egg_solver_calls_;
+        st.egg_cache_hits = egg_cache_hits_;
+        st.egg_successes = egg_successes_;
         st.time_total = (clock::now() - time_begin);
+        save_egg_cache_to_file();
 
         return res;
       }
@@ -839,6 +898,16 @@ namespace mockturtle {
         egg_composed_nodes_.clear();
         egg_supergates_.clear();
         egg_cut_cache_.clear();
+        egg_cache_fifo_.clear();
+        egg_cache_fail_fifo_.clear();
+        egg_global_attempts_ = 0u;
+        egg_candidate_cuts_ = 0u;
+        egg_tt_miss_cuts_ = 0u;
+        egg_try_calls_ = 0u;
+        egg_solver_calls_ = 0u;
+        egg_cache_hits_ = 0u;
+        egg_successes_ = 0u;
+        load_egg_cache_from_file();
 
         auto [res, old2new] = initialize_map_network();
 
@@ -881,7 +950,14 @@ namespace mockturtle {
 
         /* generate the output network */
         finalize_cover(res, old2new);
+        st.egg_candidate_cuts = egg_candidate_cuts_;
+        st.egg_tt_miss_cuts = egg_tt_miss_cuts_;
+        st.egg_try_calls = egg_try_calls_;
+        st.egg_solver_calls = egg_solver_calls_;
+        st.egg_cache_hits = egg_cache_hits_;
+        st.egg_successes = egg_successes_;
         st.time_total = (clock::now() - time_begin);
+        save_egg_cache_to_file();
 
         return res;
       }
@@ -891,6 +967,16 @@ namespace mockturtle {
         egg_composed_nodes_.clear();
         egg_supergates_.clear();
         egg_cut_cache_.clear();
+        egg_cache_fifo_.clear();
+        egg_cache_fail_fifo_.clear();
+        egg_global_attempts_ = 0u;
+        egg_candidate_cuts_ = 0u;
+        egg_tt_miss_cuts_ = 0u;
+        egg_try_calls_ = 0u;
+        egg_solver_calls_ = 0u;
+        egg_cache_hits_ = 0u;
+        egg_successes_ = 0u;
+        load_egg_cache_from_file();
 
         auto [res, old2new] = initialize_map_network();
 
@@ -923,7 +1009,14 @@ namespace mockturtle {
 
         /* generate the output network */
         finalize_cover(res, old2new);
+        st.egg_candidate_cuts = egg_candidate_cuts_;
+        st.egg_tt_miss_cuts = egg_tt_miss_cuts_;
+        st.egg_try_calls = egg_try_calls_;
+        st.egg_solver_calls = egg_solver_calls_;
+        st.egg_cache_hits = egg_cache_hits_;
+        st.egg_successes = egg_successes_;
         st.time_total = (clock::now() - time_begin);
+        save_egg_cache_to_file();
 
         return res;
       }
@@ -1108,7 +1201,7 @@ namespace mockturtle {
         }
 
         /* set cut limit for run-time optimization*/
-        rcuts.set_cut_limit(ps.cut_enumeration_ps.cut_limit);
+        rcuts.set_cut_limit(egg_effective_cut_insert_limit());
 
         cut_t new_cut;
         new_cut->pattern_index = 0;
@@ -1155,6 +1248,7 @@ namespace mockturtle {
 
         cuts_total += rcuts.size();
 
+        rebalance_cut_set_for_egg(rcuts);
         finalize_egg_tt_miss_cuts(index, n);
 
         /* limit the maximum number of cuts */
@@ -1186,7 +1280,7 @@ namespace mockturtle {
         auto &rcuts = *lcuts[fanin];
 
         /* set cut limit for run-time optimization*/
-        rcuts.set_cut_limit(ps.cut_enumeration_ps.cut_limit);
+        rcuts.set_cut_limit(egg_effective_cut_insert_limit());
         fanin_cut_t vcuts;
 
         if (fanin > 1 && fanin <= ps.cut_enumeration_ps.fanin_limit) {
@@ -1227,6 +1321,7 @@ namespace mockturtle {
             return true;
           });
 
+          rebalance_cut_set_for_egg(rcuts);
           finalize_egg_tt_miss_cuts(index, n);
 
           /* limit the maximum number of cuts */
@@ -1247,6 +1342,7 @@ namespace mockturtle {
               rcuts.simple_insert(new_cut, sort);
           }
 
+          rebalance_cut_set_for_egg(rcuts);
           finalize_egg_tt_miss_cuts(index, n);
 
           /* limit the maximum number of cuts */
@@ -4202,10 +4298,12 @@ namespace mockturtle {
           cut->negations = {negations_pos, negations_neg};
         } else {
           /* TT miss: e-graph fallback (immediate or deferred top-K per node). */
+          ++egg_tt_miss_cuts_;
           if (!ps.enable_egg_fallback || !is_egg_candidate_cut(cut, n)) {
             cut->ignore = true;
             return;
           }
+          ++egg_candidate_cuts_;
           if (ps.egg_max_per_node == 0u) {
             if (!try_egg_match_cut(cut, n)) {
               cut->ignore = true;
@@ -4222,6 +4320,77 @@ namespace mockturtle {
         recompute_cut_data(cut, n);
       }
 
+      uint32_t egg_effective_cut_insert_limit() const noexcept {
+        if (!ps.enable_egg_fallback || ps.egg_reserved_cut_slots == 0u)
+          return ps.cut_enumeration_ps.cut_limit;
+        return std::min(max_cut_num, ps.cut_enumeration_ps.cut_limit + ps.egg_reserved_cut_slots);
+      }
+
+      void rebalance_cut_set_for_egg(cut_set_t &rcuts) {
+        uint32_t const lim = ps.cut_enumeration_ps.cut_limit;
+        if (!ps.enable_egg_fallback || ps.egg_reserved_cut_slots == 0u || rcuts.size() <= lim)
+          return;
+
+        std::vector<cut_t> storage;
+        storage.reserve(static_cast<size_t>(rcuts.size()));
+        for (auto it = rcuts.begin(); it != rcuts.end(); ++it) {
+          cut_t *cp = *it;
+          storage.push_back(*cp);
+        }
+
+        std::vector<cut_t *> large;
+        std::vector<cut_t *> small;
+        large.reserve(storage.size());
+        small.reserve(storage.size());
+        for (auto &c : storage) {
+          if (c.size() >= egg_min_cut_size_eff_)
+            large.push_back(&c);
+          else
+            small.push_back(&c);
+        }
+
+        if (large.empty()) {
+          rcuts.limit(lim);
+          return;
+        }
+
+        std::sort(large.begin(), large.end(), [](cut_t *a, cut_t *b) {
+          if (a->size() != b->size())
+            return a->size() > b->size();
+          return cut_set_t::sort_area(*a, *b);
+        });
+        std::sort(small.begin(), small.end(), [](cut_t *a, cut_t *b) {
+          return cut_set_t::sort_area(*a, *b);
+        });
+
+        uint32_t const take_large = std::min(ps.egg_reserved_cut_slots, static_cast<uint32_t>(large.size()));
+        std::vector<cut_t *> out;
+        out.reserve(lim);
+        std::unordered_set<cut_t *> chosen;
+        chosen.reserve(storage.size() * 2u);
+
+        for (uint32_t i = 0; i < take_large; ++i) {
+          chosen.insert(large[i]);
+          out.push_back(large[i]);
+        }
+        for (auto p : small) {
+          if (out.size() >= lim)
+            break;
+          if (chosen.insert(p).second)
+            out.push_back(p);
+        }
+        for (uint32_t i = take_large; i < large.size() && out.size() < lim; ++i) {
+          if (chosen.insert(large[i]).second)
+            out.push_back(large[i]);
+        }
+
+        rcuts.clear();
+        rcuts.set_cut_limit(lim);
+        emap_cut_sort_type const sort = emap_cut_sort_type::AREA;
+        for (auto p : out)
+          rcuts.simple_insert(*p, sort);
+      }
+
       void finalize_egg_tt_miss_cuts(uint32_t index, node<Ntk> const &n) {
         if (!ps.enable_egg_fallback || ps.egg_max_per_node == 0u)
           return;
@@ -4229,8 +4398,10 @@ namespace mockturtle {
         auto &rcuts = cuts[index];
         struct item_t {
           cut_t *cut;
+          float flow;
+          float delay;
+          uint32_t internal_nodes;
           uint32_t sz;
-          uint32_t dep;
         };
         std::vector<item_t> pending;
         pending.reserve(static_cast<size_t>(rcuts.size()));
@@ -4243,16 +4414,31 @@ namespace mockturtle {
             (*cp)->egg_tt_miss = false;
             continue;
           }
-          pending.push_back(item_t{cp, static_cast<uint32_t>(cp->size()), estimate_cut_depth(*cp, n)});
+          pending.push_back(item_t{
+              cp,
+              (*cp)->flow,
+              (*cp)->delay,
+              internal_nodes_in_cut_cone(*cp, n),
+              static_cast<uint32_t>(cp->size()),
+          });
         }
 
         if (pending.empty())
           return;
 
         std::sort(pending.begin(), pending.end(), [](item_t const &a, item_t const &b) {
-          if (a.sz != b.sz)
-            return a.sz > b.sz;
-          return a.dep > b.dep;
+          constexpr float eps = 0.005f;
+          if (a.flow < b.flow - eps)
+            return true;
+          if (a.flow > b.flow + eps)
+            return false;
+          if (a.internal_nodes != b.internal_nodes)
+            return a.internal_nodes > b.internal_nodes;
+          if (a.delay < b.delay - eps)
+            return true;
+          if (a.delay > b.delay + eps)
+            return false;
+          return a.sz > b.sz;
         });
 
         uint32_t const k = std::min(ps.egg_max_per_node, static_cast<uint32_t>(pending.size()));
@@ -4275,23 +4461,12 @@ namespace mockturtle {
         }
       }
 
-      uint32_t estimate_cut_depth(cut_t const &cut, node<Ntk> const &n) const {
-        auto const root_index = ntk.node_to_index(n);
-        auto const root_arrival = std::max(node_match[root_index].arrival[0], node_match[root_index].arrival[1]);
-        float min_leaf_arrival = std::numeric_limits<float>::max();
-        for (auto leaf : cut) {
-          min_leaf_arrival = std::min(min_leaf_arrival, static_cast<float>(node_match[leaf].arrival[0]));
-        }
-        if (!std::isfinite(min_leaf_arrival) || !std::isfinite(root_arrival))
-          return 0u;
-        return static_cast<uint32_t>(
-            std::max(0.0f, static_cast<float>(std::floor(root_arrival - min_leaf_arrival))));
-      }
-
       bool try_egg_match_cut(cut_t &cut, node<Ntk> const &n) {
+        ++egg_try_calls_;
         auto const cache_key = make_egg_cache_key(cut);
         if (auto it = egg_cut_cache_.find(cache_key); it != egg_cut_cache_.end()) {
-          auto const &ce = it->second;
+          ++egg_cache_hits_;
+          auto &ce = it->second;
           if (!ce.success)
             return false;
 
@@ -4310,7 +4485,25 @@ namespace mockturtle {
           kitty::static_truth_table<6> fe;
           kitty::create_from_words(fe, &ce.tt_word, &ce.tt_word + 1);
           cut->function = fe;
-          return build_egg_supergate_from_expr(ce.expr, ce.n_inputs, cut);
+          if (ce.supergate_idx != std::numeric_limits<uint32_t>::max() && ce.supergate_idx < egg_supergates_.size()) {
+            cut->supergates = {&egg_supergates_[ce.supergate_idx], nullptr};
+            cut->negations = {0, 0};
+            ++egg_successes_;
+            return true;
+          }
+          if (ce.cell_nodes.empty() || ce.cell_root >= ce.cell_nodes.size()) {
+            ce.success = false;
+            return false;
+          }
+          auto cached_res = make_cached_ccost(ce);
+          uint32_t sg_idx = std::numeric_limits<uint32_t>::max();
+          if (!build_egg_supergate_from_mapped(cached_res, static_cast<uint8_t>(cut.size()), cut, &sg_idx)) {
+            ce.success = false;
+            return false;
+          }
+          ce.supergate_idx = sg_idx;
+          ++egg_successes_;
+          return true;
         }
 
         std::string expr;
@@ -4348,80 +4541,106 @@ namespace mockturtle {
           return arr + crit_eps >= delay ? 0u : 1u;
         };
 
+        if (ps.egg_global_budget != 0u && egg_global_attempts_ >= ps.egg_global_budget)
+          return false;
+        if (ps.egg_time_budget_seconds != 0u) {
+          auto const elapsed_s = to_seconds(clock::now() - time_begin);
+          if (elapsed_s >= static_cast<float>(ps.egg_time_budget_seconds))
+            return false;
+        }
+        ++egg_global_attempts_;
+        ++egg_solver_calls_;
         CCost res = cut_mapping_with_objective(expr, leaf_levels.data(), leaf_levels.size(), choose_objective());
-        if (res.aft_expr.empty()) {
-          egg_cut_cache_.emplace(cache_key, egg_cache_entry_t{false, {}, 0u, 0u});
+        if (res.cell_nodes.empty()) {
+          emplace_egg_cache_entry(cache_key, egg_cache_entry_t{false, {}, 0u, 0u, std::numeric_limits<uint32_t>::max()});
           return false;
         }
 
-        for (auto const &cand_expr_r : res.aft_expr) {
-          std::string cand_expr = std::string(cand_expr_r);
-          uint64_t tt_word = 0u;
-          uint8_t n_inputs = 0u;
-          uint8_t used_mask = 0u;
-          if (!sexp_eval_tt(cand_expr, tt_word, n_inputs, used_mask))
-            continue;
-          if (n_inputs == 0u || n_inputs > cut.size() || n_inputs > 6u)
-            continue;
-          if ((used_mask & ((1u << n_inputs) - 1u)) != ((1u << n_inputs) - 1u))
-            continue;
-
-          if (n_inputs < cut.size()) {
-            std::vector<uint32_t> reduced_leaves;
-            reduced_leaves.reserve(n_inputs);
-            uint8_t i = 0u;
-            for (auto leaf : cut) {
-              if (i++ >= n_inputs)
-                break;
-              reduced_leaves.push_back(leaf);
-            }
-            cut.set_leaves(reduced_leaves.begin(), reduced_leaves.end());
-          }
-
-          kitty::static_truth_table<6> fe;
-          kitty::create_from_words(fe, &tt_word, &tt_word + 1);
-          cut->function = fe;
-
-          if (build_egg_supergate_from_expr(cand_expr, n_inputs, cut)) {
-            egg_cut_cache_.emplace(cache_key, egg_cache_entry_t{true, cand_expr, tt_word, n_inputs});
-            return true;
-          }
+        uint32_t sg_idx = std::numeric_limits<uint32_t>::max();
+        if (!build_egg_supergate_from_mapped(res, static_cast<uint8_t>(cut.size()), cut, &sg_idx)) {
+          emplace_egg_cache_entry(cache_key, egg_cache_entry_t{false, {}, 0u, 0u, std::numeric_limits<uint32_t>::max()});
+          return false;
         }
 
-        egg_cut_cache_.emplace(cache_key, egg_cache_entry_t{false, {}, 0u, 0u});
-        return false;
+        // cut->function already holds the correct TT (computed before this call).
+        auto const tt_word = *cut->function.cbegin();
+        auto const n_inputs_stored = static_cast<uint8_t>(cut.size());
+        egg_cache_entry_t cache_entry;
+        cache_entry.success = true;
+        cache_entry.tt_word = tt_word;
+        cache_entry.n_inputs = n_inputs_stored;
+        cache_entry.supergate_idx = sg_idx;
+        cache_entry.cell_root = res.cell_root;
+        cache_entry.cell_nodes.reserve(res.cell_nodes.size());
+        for (auto const &node : res.cell_nodes) {
+          cache_entry.cell_nodes.push_back(node);
+        }
+        emplace_egg_cache_entry(cache_key, std::move(cache_entry));
+        ++egg_successes_;
+        return true;
       }
 
       bool is_egg_candidate_cut(cut_t const &cut, node<Ntk> const &n) const {
         if (cut.size() < egg_min_cut_size_eff_)
           return false;
-
-        auto const root_index = ntk.node_to_index(n);
-        auto const root_arrival = std::max(node_match[root_index].arrival[0], node_match[root_index].arrival[1]);
-        float min_leaf_arrival = std::numeric_limits<float>::max();
-        for (auto leaf : cut) {
-          min_leaf_arrival = std::min(min_leaf_arrival, static_cast<float>(node_match[leaf].arrival[0]));
-        }
-        if (!std::isfinite(min_leaf_arrival) || !std::isfinite(root_arrival))
+        if (ps.egg_min_internal_nodes == 0u)
           return true;
+        return internal_nodes_in_cut_cone(cut, n, ps.egg_min_internal_nodes) >= ps.egg_min_internal_nodes;
+      }
 
-        return estimate_cut_depth(cut, n) >= egg_min_cut_depth_eff_;
+      uint32_t internal_nodes_in_cut_cone(cut_t const &cut, node<Ntk> const &n, uint32_t cap = std::numeric_limits<uint32_t>::max()) const {
+        auto const root = ntk.node_to_index(n);
+        std::vector<uint32_t> stack;
+        stack.reserve((cap == std::numeric_limits<uint32_t>::max()) ? 64u : cap + 8u);
+        stack.push_back(root);
+
+        std::unordered_set<uint32_t> visited;
+        if (cap == std::numeric_limits<uint32_t>::max())
+          visited.reserve(128u);
+        else
+          visited.reserve(static_cast<size_t>(cap) * 2u);
+
+        auto is_leaf = [&](uint32_t idx) -> bool {
+          for (auto leaf : cut) {
+            if (leaf == idx)
+              return true;
+          }
+          return false;
+        };
+
+        uint32_t cnt = 0u;
+        while (!stack.empty()) {
+          auto const idx = stack.back();
+          stack.pop_back();
+
+          if (is_leaf(idx))
+            continue;
+          auto const node = ntk.index_to_node(idx);
+          if (ntk.is_constant(node) || ntk.is_pi(node))
+            continue;
+
+          if (!visited.insert(idx).second)
+            continue;
+
+          ++cnt;
+          if (cnt >= cap)
+            return cnt;
+
+          ntk.foreach_fanin(node, [&](auto const &f) {
+            stack.push_back(ntk.node_to_index(ntk.get_node(f)));
+          });
+        }
+        return cnt;
       }
 
       void init_egg_fallback_guards() {
         egg_min_cut_size_eff_ = std::max<uint32_t>(1u, std::min<uint32_t>(ps.egg_min_cut_size, NInputs));
-        egg_min_cut_depth_eff_ = std::max<uint32_t>(1u, ps.egg_min_cut_depth);
 
         if (ps.verbose) {
           if (ps.egg_min_cut_size != egg_min_cut_size_eff_) {
             std::cout << fmt::format(
                 "[i] emap egg: clamp egg_min_cut_size {} -> {} (NInputs={})\n",
                 ps.egg_min_cut_size, egg_min_cut_size_eff_, NInputs);
-          }
-          if (ps.egg_min_cut_depth != egg_min_cut_depth_eff_) {
-            std::cout << fmt::format(
-                "[i] emap egg: clamp egg_min_cut_depth {} -> {}\n",
-                ps.egg_min_cut_depth, egg_min_cut_depth_eff_);
           }
         }
       }
@@ -4449,7 +4668,161 @@ namespace mockturtle {
         std::string expr{};
         uint64_t tt_word{0};
         uint8_t n_inputs{0};
+        uint32_t supergate_idx{std::numeric_limits<uint32_t>::max()};
+        std::vector<MappedNode> cell_nodes{};
+        uint32_t cell_root{0};
       };
+
+      CCost make_cached_ccost(egg_cache_entry_t const &entry) const {
+        CCost out;
+        out.cell_root = entry.cell_root;
+        for (auto const &node : entry.cell_nodes) {
+          out.cell_nodes.push_back(node);
+        }
+        return out;
+      }
+
+      void emplace_egg_cache_entry(egg_cache_key_t const &key, egg_cache_entry_t &&entry) {
+        if (ps.egg_cache_max_entries == 0u)
+          return;
+        if (egg_cut_cache_.find(key) != egg_cut_cache_.end())
+          return;
+
+        bool const is_fail = !entry.success;
+        egg_cut_cache_.emplace(key, std::move(entry));
+        egg_cache_fifo_.push_back(key);
+        if (is_fail)
+          egg_cache_fail_fifo_.push_back(key);
+
+        while (egg_cut_cache_.size() > ps.egg_cache_max_entries && !egg_cache_fifo_.empty()) {
+          auto const old = egg_cache_fifo_.front();
+          egg_cache_fifo_.pop_front();
+          egg_cut_cache_.erase(old);
+        }
+
+        while (ps.egg_cache_max_fail_entries < egg_cache_fail_fifo_.size() && !egg_cache_fail_fifo_.empty()) {
+          auto const old = egg_cache_fail_fifo_.front();
+          egg_cache_fail_fifo_.pop_front();
+          auto it = egg_cut_cache_.find(old);
+          if (it != egg_cut_cache_.end() && !it->second.success)
+            egg_cut_cache_.erase(it);
+        }
+      }
+
+      void load_egg_cache_from_file() {
+        if (ps.egg_cache_file.empty())
+          return;
+        std::ifstream in(ps.egg_cache_file);
+        if (!in.good())
+          return;
+
+        std::string magic;
+        if (!(in >> magic) || magic != "egg_cache_v2")
+          return;
+
+        std::string tag;
+        while (in >> tag) {
+          if (tag != "ENTRY")
+            return;
+
+          uint64_t tt_hash = 0u, support_hash = 0u;
+          uint32_t size = 0u;
+          int success_i = 0;
+          uint64_t tt_word = 0u;
+          uint32_t n_inputs_u32 = 0u;
+          uint32_t cell_root = 0u;
+          uint32_t node_count = 0u;
+          if (!(in >> tt_hash >> support_hash >> size >> success_i >> tt_word >> n_inputs_u32 >> cell_root >> node_count))
+            return;
+
+          egg_cache_key_t key{tt_hash, support_hash, size};
+          egg_cache_entry_t entry;
+          entry.success = (success_i != 0);
+          entry.tt_word = tt_word;
+          entry.n_inputs = static_cast<uint8_t>(std::min<uint32_t>(n_inputs_u32, 255u));
+          entry.supergate_idx = std::numeric_limits<uint32_t>::max();
+          entry.cell_root = cell_root;
+          entry.cell_nodes.reserve(node_count);
+
+          for (uint32_t node_idx = 0; node_idx < node_count; ++node_idx) {
+            std::string node_tag;
+            if (!(in >> node_tag) || node_tag != "NODE")
+              return;
+
+            MappedNode node;
+            uint32_t kind = 0u;
+            uint32_t input_idx = 0u;
+            uint32_t const_val = 0u;
+            uint32_t neg_mask = 0u;
+            uint32_t out_neg = 0u;
+            uint32_t fanin_count = 0u;
+            std::string cell_name;
+            std::string out_pin;
+            if (!(in >> kind >> input_idx >> const_val >> neg_mask >> out_neg >> std::quoted(cell_name) >> std::quoted(out_pin) >> fanin_count)) {
+              return;
+            }
+
+            node.kind = static_cast<uint8_t>(kind);
+            node.input_idx = static_cast<uint8_t>(input_idx);
+            node.const_val = static_cast<uint8_t>(const_val);
+            node.neg_mask = static_cast<uint16_t>(neg_mask);
+            node.out_neg = static_cast<uint8_t>(out_neg);
+            node.cell_name = rust::String(cell_name);
+            node.out_pin = rust::String(out_pin);
+            for (uint32_t fanin_idx = 0; fanin_idx < fanin_count; ++fanin_idx) {
+              uint32_t fanin = 0u;
+              if (!(in >> fanin))
+                return;
+              node.fanins.push_back(fanin);
+            }
+            entry.cell_nodes.push_back(std::move(node));
+          }
+
+          if (entry.success && entry.cell_root >= entry.cell_nodes.size()) {
+            entry.success = false;
+            entry.cell_nodes.clear();
+            entry.cell_root = 0u;
+          }
+
+          emplace_egg_cache_entry(key, std::move(entry));
+        }
+      }
+
+      void save_egg_cache_to_file() const {
+        if (ps.egg_cache_file.empty())
+          return;
+        std::ofstream out(ps.egg_cache_file, std::ios::trunc);
+        if (!out.good())
+          return;
+        out << "egg_cache_v2\n";
+        for (auto const &kv : egg_cut_cache_) {
+          auto const &k = kv.first;
+          auto const &e = kv.second;
+          out << "ENTRY "
+              << k.tt_hash << ' '
+              << k.support_hash << ' '
+              << k.size << ' '
+              << (e.success ? 1 : 0) << ' '
+              << e.tt_word << ' '
+              << static_cast<uint32_t>(e.n_inputs) << ' '
+              << e.cell_root << ' '
+              << static_cast<uint32_t>(e.cell_nodes.size()) << '\n';
+          for (auto const &node : e.cell_nodes) {
+            out << "NODE "
+                << static_cast<uint32_t>(node.kind) << ' '
+                << static_cast<uint32_t>(node.input_idx) << ' '
+                << static_cast<uint32_t>(node.const_val) << ' '
+                << static_cast<uint32_t>(node.neg_mask) << ' '
+                << static_cast<uint32_t>(node.out_neg) << ' '
+                << std::quoted(static_cast<std::string>(node.cell_name)) << ' '
+                << std::quoted(static_cast<std::string>(node.out_pin)) << ' '
+                << static_cast<uint32_t>(node.fanins.size());
+            for (auto fanin : node.fanins)
+              out << ' ' << fanin;
+            out << '\n';
+          }
+        }
+      }
 
       egg_cache_key_t make_egg_cache_key(cut_t const &cut) const {
         uint64_t support_hash = 1469598103934665603ull;
@@ -4460,75 +4833,21 @@ namespace mockturtle {
         return egg_cache_key_t{tt_hash, support_hash, static_cast<uint32_t>(cut.size())};
       }
 
-      bool build_egg_supergate_from_expr(std::string const &s, uint8_t n_inputs, cut_t &cut) {
-        struct egg_expr_node {
-          enum class kind_t { VAR,
-                              NOT,
-                              AND };
-          kind_t kind{kind_t::VAR};
-          uint8_t var{0};
-          std::unique_ptr<egg_expr_node> lhs{};
-          std::unique_ptr<egg_expr_node> rhs{};
-        };
+      /// Build a composed_gate tree from the structured cell-level cover returned by Rust,
+      /// using real library gate pointers, pin delays, and area.
+      ///
+      /// Each MappedNode with kind==2 is looked up by cell_name in the library; its
+      /// neg_mask/out_neg wiring is materialised with inverter nodes.
+      /// Returns true and populates cut->supergates on success.
+      bool build_egg_supergate_from_mapped(CCost const &res, uint8_t n_inputs, cut_t &cut, uint32_t *sg_out_idx = nullptr) {
+        if (res.cell_nodes.empty())
+          return false;
 
-        struct parser_t {
-          std::string const &s;
-          size_t p{0};
+        auto const &gates = library.get_gates();
 
-          void skip() {
-            while (p < s.size() && std::isspace(static_cast<unsigned char>(s[p])))
-              ++p;
-          }
+        auto const inv_delay = static_cast<float>(lib_inv_delay);
+        auto const inv_area = static_cast<float>(lib_inv_area);
 
-          std::unique_ptr<egg_expr_node> parse_expr() {
-            skip();
-            if (p >= s.size())
-              return nullptr;
-            if (s[p] != '(') {
-              if (s[p] < 'a' || s[p] > 'f')
-                return nullptr;
-              auto n = std::make_unique<egg_expr_node>();
-              n->kind = egg_expr_node::kind_t::VAR;
-              n->var = static_cast<uint8_t>(s[p] - 'a');
-              ++p;
-              return n;
-            }
-
-            ++p;
-            skip();
-            if (p >= s.size())
-              return nullptr;
-            char op = s[p++];
-
-            if (op == '~') {
-              auto a = parse_expr();
-              skip();
-              if (!a || p >= s.size() || s[p] != ')')
-                return nullptr;
-              ++p;
-              auto n = std::make_unique<egg_expr_node>();
-              n->kind = egg_expr_node::kind_t::NOT;
-              n->lhs = std::move(a);
-              return n;
-            }
-            if (op == '&') {
-              auto a = parse_expr();
-              auto b = parse_expr();
-              skip();
-              if (!a || !b || p >= s.size() || s[p] != ')')
-                return nullptr;
-              ++p;
-              auto n = std::make_unique<egg_expr_node>();
-              n->kind = egg_expr_node::kind_t::AND;
-              n->lhs = std::move(a);
-              n->rhs = std::move(b);
-              return n;
-            }
-            return nullptr;
-          }
-        };
-
-        auto const gates = library.get_gates();
         gate const *inv_gate_ptr = nullptr;
         for (auto const &g : gates) {
           if (g.id == lib_inv_id) {
@@ -4539,120 +4858,216 @@ namespace mockturtle {
         if (inv_gate_ptr == nullptr)
           return false;
 
-        auto const inv_delay = static_cast<float>(lib_inv_delay);
-        auto const inv_area = static_cast<float>(lib_inv_area);
-
-        gate const *and_gate_ptr = nullptr;
-        float and_delay = 0.0f;
-        float and_area = 1.0f;
-        {
-          kitty::static_truth_table<6> va, vb;
-          kitty::create_nth_var(va, 0);
-          kitty::create_nth_var(vb, 1);
-          auto const and_tt = va & vb;
-          auto const and_sgs = library.get_supergates(and_tt);
-          if (and_sgs == nullptr || and_sgs->empty())
-            return false;
-          auto const &sg = (*and_sgs)[0];
-          if (sg.root == nullptr || sg.root->root == nullptr)
-            return false;
-          and_gate_ptr = sg.root->root;
-          and_delay = std::max(sg.tdelay[0], sg.tdelay[1]);
-          and_area = static_cast<float>(sg.area);
-        }
-
-        parser_t ps{s};
-        auto ast = ps.parse_expr();
-        ps.skip();
-        if (!ast || ps.p != s.size())
+        uint32_t const node_count = static_cast<uint32_t>(res.cell_nodes.size());
+        if (res.cell_root >= node_count)
           return false;
 
+        for (uint32_t idx = 0u; idx < node_count; ++idx) {
+          auto const &mn = res.cell_nodes[idx];
+          for (auto const fanin_idx : mn.fanins) {
+            if (fanin_idx >= node_count)
+              return false;
+          }
+        }
+
+        // Allocate composed_gate nodes for each MappedNode, plus space for
+        // inverter nodes that materialise neg_mask/out_neg wiring.
         std::vector<std::unique_ptr<composed_gate<NInputs>>> local_nodes;
-        local_nodes.reserve(2 * n_inputs + 8);
+        local_nodes.reserve(node_count * 2u + 8u);
+
         auto mk_node = [&local_nodes]() -> composed_gate<NInputs> * {
           local_nodes.push_back(std::make_unique<composed_gate<NInputs>>());
           return local_nodes.back().get();
         };
 
+        // per-MappedNode: the composed_gate* that represents the *output* of that node
+        // (after any out_neg inverter has been applied).
+        std::vector<composed_gate<NInputs> *> node_out(node_count, nullptr);
+        std::vector<uint8_t> build_state(node_count, 0u);
+
+        // Root-level arrival accumulator (index = variable index 0..n_inputs-1).
         std::array<float, NInputs> root_delays{};
         root_delays.fill(0.0f);
 
-        std::function<composed_gate<NInputs> *(egg_expr_node const &, std::array<float, NInputs> &)> build_rec;
-        build_rec = [&](egg_expr_node const &node, std::array<float, NInputs> &arr) -> composed_gate<NInputs> * {
+        // Recursive builder; builds only what is reachable from root.
+        std::function<composed_gate<NInputs> *(uint32_t, std::array<float, NInputs> &)> build;
+        build = [&](uint32_t idx, std::array<float, NInputs> &arr) -> composed_gate<NInputs> * {
           arr.fill(-std::numeric_limits<float>::infinity());
 
-          if (node.kind == egg_expr_node::kind_t::VAR) {
-            if (node.var >= n_inputs)
+          if (idx >= node_count)
+            return nullptr;
+
+          if (build_state[idx] == 1u)
+            return nullptr;
+
+          if (build_state[idx] == 2u) {
+            // Already built; recover its arrival contribution from its composed_gate tdelay.
+            // (We don't cache arr per node, so just mark all as 0 — callers use the
+            //  supergate's tdelay[] which is computed at the root level.)
+            return node_out[idx];
+          }
+
+          build_state[idx] = 1u;
+
+          auto const &mn = res.cell_nodes[idx];
+
+          if (mn.kind == 0) {
+            // Primary input.
+            uint8_t const vi = mn.input_idx;
+            if (vi >= n_inputs) {
+              build_state[idx] = 0u;
               return nullptr;
+            }
             auto *t = mk_node();
-            t->id = node.var;
+            t->id = vi;
             t->root = nullptr;
             t->is_super = false;
             t->num_vars = n_inputs;
-            arr[node.var] = 0.0f;
+            arr[vi] = 0.0f;
+            node_out[idx] = t;
+            build_state[idx] = 2u;
             return t;
           }
 
-          if (node.kind == egg_expr_node::kind_t::NOT) {
-            std::array<float, NInputs> cdel{};
-            auto *c = build_rec(*node.lhs, cdel);
-            if (!c)
-              return nullptr;
-            auto *g = mk_node();
-            g->id = static_cast<uint32_t>(local_nodes.size());
-            g->root = inv_gate_ptr;
-            g->is_super = false;
-            g->num_vars = 1;
-            g->area = inv_area;
-            g->fanin = {c};
-            g->tdelay.fill(0.0f);
-            g->tdelay[0] = inv_delay;
-            for (uint8_t i = 0; i < n_inputs; ++i) {
-              if (std::isfinite(cdel[i]))
-                arr[i] = cdel[i] + inv_delay;
-            }
-            return g;
+          if (mn.kind == 1) {
+            // Constant — represent as a pi-like node with a sentinel id.
+            auto *t = mk_node();
+            t->id = 0xFFFFFFFFu;
+            t->root = nullptr;
+            t->is_super = false;
+            t->num_vars = 0;
+            node_out[idx] = t;
+            build_state[idx] = 2u;
+            return t;
           }
 
-          std::array<float, NInputs> ldel{}, rdel{};
-          auto *l = build_rec(*node.lhs, ldel);
-          auto *r = build_rec(*node.rhs, rdel);
-          if (!l || !r)
+          if (mn.kind != 2) {
+            build_state[idx] = 0u;
             return nullptr;
-          auto *g = mk_node();
-          g->id = static_cast<uint32_t>(local_nodes.size());
-          g->root = and_gate_ptr;
-          g->is_super = false;
-          g->num_vars = 2;
-          g->area = and_area;
-          g->fanin = {l, r};
-          g->tdelay.fill(0.0f);
-          g->tdelay[0] = and_delay;
-          g->tdelay[1] = and_delay;
-          for (uint8_t i = 0; i < n_inputs; ++i) {
-            float best = -std::numeric_limits<float>::infinity();
-            if (std::isfinite(ldel[i]))
-              best = std::max(best, ldel[i] + and_delay);
-            if (std::isfinite(rdel[i]))
-              best = std::max(best, rdel[i] + and_delay);
-            arr[i] = best;
           }
-          return g;
+
+          // kind == 2: standard-cell instance.
+          // ── 1. Find the base gate in the library ──────────────────────────
+          gate const *base_gate = nullptr;
+          for (auto const &g : gates) {
+            if (g.name == std::string(mn.cell_name)) {
+              base_gate = &g;
+              break;
+            }
+          }
+          if (base_gate == nullptr) {
+            build_state[idx] = 0u;
+            return nullptr;
+          }
+
+          // ── 2. Recursively build fanin composed_gates ─────────────────────
+          std::vector<composed_gate<NInputs> *> fanin_nodes;
+          fanin_nodes.reserve(mn.fanins.size());
+          std::vector<std::array<float, NInputs>> fanin_arrs(mn.fanins.size());
+          for (uint32_t fi = 0; fi < static_cast<uint32_t>(mn.fanins.size()); ++fi) {
+            auto *c = build(mn.fanins[fi], fanin_arrs[fi]);
+            if (c == nullptr) {
+              build_state[idx] = 0u;
+              return nullptr;
+            }
+            fanin_nodes.push_back(c);
+          }
+
+          // ── 3. Materialise per-input inversions from neg_mask ──────────────
+          std::vector<composed_gate<NInputs> *> actual_fanins;
+          actual_fanins.reserve(mn.fanins.size());
+          std::vector<std::array<float, NInputs>> actual_arrs(mn.fanins.size());
+          for (uint32_t fi = 0; fi < static_cast<uint32_t>(mn.fanins.size()); ++fi) {
+            if (((mn.neg_mask >> fi) & 1u) == 1u) {
+              auto *inv_node = mk_node();
+              inv_node->id = static_cast<uint32_t>(local_nodes.size());
+              inv_node->root = inv_gate_ptr;
+              inv_node->is_super = false;
+              inv_node->num_vars = 1;
+              inv_node->area = inv_area;
+              inv_node->fanin = {fanin_nodes[fi]};
+              inv_node->tdelay.fill(0.0f);
+              inv_node->tdelay[0] = inv_delay;
+              for (uint8_t k = 0; k < n_inputs; ++k) {
+                if (std::isfinite(fanin_arrs[fi][k]))
+                  actual_arrs[fi][k] = fanin_arrs[fi][k] + inv_delay;
+                else
+                  actual_arrs[fi][k] = -std::numeric_limits<float>::infinity();
+              }
+              actual_fanins.push_back(inv_node);
+            } else {
+              actual_arrs[fi] = fanin_arrs[fi];
+              actual_fanins.push_back(fanin_nodes[fi]);
+            }
+          }
+
+          // ── 4. Build the gate node ─────────────────────────────────────────
+          auto *g_node = mk_node();
+          g_node->id = static_cast<uint32_t>(local_nodes.size());
+          g_node->root = base_gate;
+          g_node->is_super = false;
+          g_node->num_vars = static_cast<uint32_t>(mn.fanins.size());
+          g_node->area = static_cast<float>(base_gate->area);
+          g_node->fanin = actual_fanins;
+          g_node->tdelay.fill(0.0f);
+
+          // Pin delays from base_gate->pins (max of rise/fall block delay).
+          for (uint32_t fi = 0; fi < static_cast<uint32_t>(mn.fanins.size()) && fi < base_gate->pins.size(); ++fi) {
+            float pd = static_cast<float>(std::max(base_gate->pins[fi].rise_block_delay,
+                                                   base_gate->pins[fi].fall_block_delay));
+            g_node->tdelay[fi] = pd;
+            for (uint8_t k = 0; k < n_inputs; ++k) {
+              if (std::isfinite(actual_arrs[fi][k])) {
+                float d = actual_arrs[fi][k] + pd;
+                arr[k] = std::max(arr[k], d);
+              }
+            }
+          }
+
+          // ── 5. Materialise output inversion ───────────────────────────────
+          if (mn.out_neg != 0u) {
+            auto *out_inv = mk_node();
+            out_inv->id = static_cast<uint32_t>(local_nodes.size());
+            out_inv->root = inv_gate_ptr;
+            out_inv->is_super = false;
+            out_inv->num_vars = 1;
+            out_inv->area = inv_area;
+            out_inv->fanin = {g_node};
+            out_inv->tdelay.fill(0.0f);
+            out_inv->tdelay[0] = inv_delay;
+            for (uint8_t k = 0; k < n_inputs; ++k) {
+              if (std::isfinite(arr[k]))
+                arr[k] += inv_delay;
+            }
+            node_out[idx] = out_inv;
+            build_state[idx] = 2u;
+            return out_inv;
+          }
+
+          node_out[idx] = g_node;
+          build_state[idx] = 2u;
+          return g_node;
         };
 
-        auto *root = build_rec(*ast, root_delays);
-        if (!root)
+        auto *root_node = build(res.cell_root, root_delays);
+        if (root_node == nullptr)
           return false;
-        root->is_super = true;
-        root->num_vars = n_inputs;
+        root_node->is_super = true;
+        root_node->num_vars = n_inputs;
 
-        for (auto &ptr : local_nodes) {
+        for (auto &ptr : local_nodes)
           egg_composed_nodes_.push_back(std::move(ptr));
-        }
 
         supergate<NInputs> sg;
-        sg.root = root;
-        sg.area = static_cast<double>(rescale_egg_area(*root));
+        sg.root = root_node;
+        {
+          float total_area = 0.0f;
+          for (auto const &ptr : local_nodes) {
+            if (ptr && ptr->root != nullptr)
+              total_area += static_cast<float>(ptr->area);
+          }
+          sg.area = static_cast<double>(rescale_egg_area(*root_node));
+        }
         sg.tdelay.fill(0.0f);
         sg.permutation.clear();
         for (uint8_t i = 0; i < n_inputs; ++i) {
@@ -4663,6 +5078,8 @@ namespace mockturtle {
         sg.polarity = 0;
 
         egg_supergates_.push_back(std::vector<supergate<NInputs>>{sg});
+        if (sg_out_idx != nullptr)
+          *sg_out_idx = static_cast<uint32_t>(egg_supergates_.size() - 1u);
         cut->supergates = {&egg_supergates_.back(), nullptr};
         cut->negations = {0, 0};
         return true;
@@ -5707,8 +6124,16 @@ namespace mockturtle {
       std::vector<std::unique_ptr<composed_gate<NInputs>>> egg_composed_nodes_;
       std::deque<std::vector<supergate<NInputs>>> egg_supergates_;
       std::unordered_map<egg_cache_key_t, egg_cache_entry_t, egg_cache_key_hash_t> egg_cut_cache_;
+      std::deque<egg_cache_key_t> egg_cache_fifo_;
+      std::deque<egg_cache_key_t> egg_cache_fail_fifo_;
       uint32_t egg_min_cut_size_eff_{1u};
-      uint32_t egg_min_cut_depth_eff_{1u};
+      uint32_t egg_global_attempts_{0u};
+      uint64_t egg_candidate_cuts_{0u};
+      uint64_t egg_tt_miss_cuts_{0u};
+      uint64_t egg_try_calls_{0u};
+      uint64_t egg_solver_calls_{0u};
+      uint64_t egg_cache_hits_{0u};
+      uint64_t egg_successes_{0u};
 
       time_point time_begin;
     };

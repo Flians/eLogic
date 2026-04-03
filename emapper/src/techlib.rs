@@ -2,15 +2,24 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fs,
     path::Path,
+    sync::{Arc, OnceLock},
 };
 
 use thiserror::Error;
+
+use crate::emap_egg::EggRewriteBundle;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
 pub enum MappingObjective {
     AreaFirst,
     #[default]
     DelayFirst,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct PhaseArrival {
+    pub pos: f32,
+    pub neg: f32,
 }
 
 #[derive(Debug, Error)]
@@ -92,7 +101,7 @@ pub struct CellVariant {
     pub pin_names: Vec<String>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub struct TechLib {
     pub cells: Vec<Cell>,
     /// Smallest inverter (if present).
@@ -119,6 +128,8 @@ pub struct TechLib {
     pub const1_out_pin: Option<String>,
     /// Index from (n_inputs, truth_table) to possible implementations.
     pub index: HashMap<(u8, u64), Vec<CellVariant>>,
+    /// Lazy egg rewrite rules + gate symbol table; see [`TechLib::egg_rewrite_bundle`] in `emap_egg`.
+    pub(crate) egg_bundle_cache: OnceLock<Arc<EggRewriteBundle>>,
 }
 
 impl TechLib {
@@ -324,28 +335,16 @@ impl TechLib {
         self.and2_variant.as_ref()
     }
 
-    /// Pick the best matching cell variant for a function, using pin delays and area.
-    ///
-    /// - **Delay model**: \( \max_i(arrival[i] + pinDelay[i] + invDelay_if_input_negated) \) plus
-    ///   `inv_delay` if output is negated.
-    /// - **Area model**: `cell.area + inv_area * (#neg_inputs + out_neg)`.
-    ///
-    /// Returns `(best_delay, best_area, best_variant)`.
-    pub fn best_for_tt(
+    fn best_variant_from_candidates<'a>(
         &self,
-        n_inputs: u8,
+        cands: impl IntoIterator<Item = &'a CellVariant>,
         tt64: u64,
-        arrivals: &[f32],
+        arrivals: &[PhaseArrival],
         objective: MappingObjective,
-    ) -> Option<(f32, f32, &CellVariant)> {
-        let cands = self.candidates(n_inputs, tt64)?;
-        if arrivals.len() != n_inputs as usize {
-            return None;
-        }
-        let inv_delay = self.inv_delay;
+    ) -> Option<(f32, f32, &'a CellVariant)> {
         let inv_area = self.inv_area;
 
-        let mut best: Option<(f32, f32, &CellVariant)> = None;
+        let mut best: Option<(f32, f32, &'a CellVariant)> = None;
         for v in cands {
             // Semantic guard: ensure this variant really realizes `tt64` under
             // the same pin/negation wiring semantics used by netlist emission.
@@ -353,18 +352,20 @@ impl TechLib {
                 continue;
             }
             let mut delay = 0.0f32;
-            for i in 0..(n_inputs as usize) {
-                let mut d = arrivals[i] + v.pin_delay[i];
-                if ((v.neg_mask >> i) & 1) == 1 {
-                    d += inv_delay;
-                }
+            for (i, arrival) in arrivals.iter().enumerate() {
+                let phase_arrival = if ((v.neg_mask >> i) & 1) == 1 {
+                    arrival.neg
+                } else {
+                    arrival.pos
+                };
+                let d = phase_arrival + v.pin_delay[i];
                 delay = delay.max(d);
             }
             if v.out_neg {
-                delay += inv_delay;
+                delay += self.inv_delay;
             }
 
-            let invs = (0..(n_inputs as usize))
+            let invs = (0..arrivals.len())
                 .filter(|&i| ((v.neg_mask >> i) & 1) == 1)
                 .count() as f32
                 + if v.out_neg { 1.0 } else { 0.0 };
@@ -384,6 +385,80 @@ impl TechLib {
             }
         }
         best
+    }
+
+    /// Pick the best matching cell variant for a function, using pin delays and area.
+    ///
+    /// - **Delay model**: \( \max_i(arrival[i] + pinDelay[i] + invDelay_if_input_negated) \) plus
+    ///   `inv_delay` if output is negated.
+    /// - **Area model**: `cell.area + inv_area * (#neg_inputs + out_neg)`.
+    ///
+    /// Returns `(best_delay, best_area, best_variant)`.
+    pub fn best_for_tt(
+        &self,
+        n_inputs: u8,
+        tt64: u64,
+        arrivals: &[f32],
+        objective: MappingObjective,
+    ) -> Option<(f32, f32, &CellVariant)> {
+        let phase_arrivals = arrivals
+            .iter()
+            .map(|&a| PhaseArrival {
+                pos: a,
+                neg: a + self.inv_delay,
+            })
+            .collect::<Vec<_>>();
+        self.best_for_tt_phase_arrivals(n_inputs, tt64, &phase_arrivals, objective)
+    }
+
+    pub fn best_for_tt_phase_arrivals(
+        &self,
+        n_inputs: u8,
+        tt64: u64,
+        arrivals: &[PhaseArrival],
+        objective: MappingObjective,
+    ) -> Option<(f32, f32, &CellVariant)> {
+        let cands = self.candidates(n_inputs, tt64)?;
+        if arrivals.len() != n_inputs as usize {
+            return None;
+        }
+        self.best_variant_from_candidates(cands.iter(), tt64, arrivals, objective)
+    }
+
+    /// Pick the best variant for a specific base standard cell.
+    #[must_use]
+    pub fn best_for_cell(
+        &self,
+        cell: &Cell,
+        arrivals: &[f32],
+        objective: MappingObjective,
+    ) -> Option<(f32, f32, &CellVariant)> {
+        let phase_arrivals = arrivals
+            .iter()
+            .map(|&a| PhaseArrival {
+                pos: a,
+                neg: a + self.inv_delay,
+            })
+            .collect::<Vec<_>>();
+        self.best_for_cell_phase_arrivals(cell, &phase_arrivals, objective)
+    }
+
+    #[must_use]
+    pub fn best_for_cell_phase_arrivals(
+        &self,
+        cell: &Cell,
+        arrivals: &[PhaseArrival],
+        objective: MappingObjective,
+    ) -> Option<(f32, f32, &CellVariant)> {
+        let n_inputs = cell.vars.len();
+        if arrivals.len() != n_inputs {
+            return None;
+        }
+        let cands = self
+            .candidates(n_inputs as u8, cell.tt64)?
+            .iter()
+            .filter(|v| v.cell_name == cell.name);
+        self.best_variant_from_candidates(cands, cell.tt64, arrivals, objective)
     }
 
     fn variant_tt_wiring(&self, v: &CellVariant) -> Option<u64> {

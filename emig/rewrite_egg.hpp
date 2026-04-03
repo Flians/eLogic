@@ -65,7 +65,9 @@ namespace mockturtle {
         if (!node_to_value.has(n)) {
           std::vector<SimulationType> fanin_values(ntk.fanin_size(n));
 
-          auto const fanin_fun = [&](auto const &f, auto i) { fanin_values[i] = node_to_value[ntk.get_node(f)]; };
+          auto const fanin_fun = [&](auto const &f, auto i) {
+            fanin_values[i] = node_to_value[ntk.get_node(f)];
+          };
 
           if constexpr (is_crossed_network_type_v<Ntk>) {
             ntk.foreach_fanin_ignore_crossings(n, fanin_fun);
@@ -729,7 +731,7 @@ namespace mockturtle {
       }
 
       bool
-      select_cut_by_egg(mockturtle::node<Ntk> const &n, cut_t const *cut, bool const &is_on_critical_path, std::vector<node<Ntk>> const &leaves, std::vector<uint32_t> const &leaf_levels, std::string &best_expr_aft, int32_t &best_gain = -1, uint32_t &best_level = UINT32_MAX) {
+      select_cut_by_egg(mockturtle::node<Ntk> const &n, cut_t const *cut, bool const &is_on_critical_path, std::vector<node<Ntk>> const &leaves, std::vector<uint32_t> const &leaf_levels, std::string &best_expr_aft, int32_t &best_gain, uint32_t &best_level) {
 
         // measure the MFFC contained in the cut
         const uint32_t mffc_size = measure_mffc_deref(n, cut);
@@ -807,9 +809,9 @@ namespace mockturtle {
                                   uint &global_max_leaves,
                                   const bool containment,
                                   mockturtle::signal<Ntk> &best_signal,
-                                  int32_t &best_gain = -1,
-                                  uint32_t &best_level = UINT32_MAX,
-                                  bool &best_phase = false) {
+                                  int32_t &best_gain,
+                                  uint32_t &best_level,
+                                  bool &best_phase) {
 #else
       bool select_cut_by_exact(mockturtle::node<Ntk> const &n,
                                cut_t const *cut,
@@ -817,9 +819,9 @@ namespace mockturtle {
                                std::array<mockturtle::signal<Ntk>, num_vars> &leaves,
                                mockturtle::cut_view<Ntk> const &cut_mig,
                                mockturtle::signal<Ntk> &best_signal,
-                               int32_t &best_gain = -1,
-                               uint32_t &best_level = UINT32_MAX,
-                               bool &best_phase = false) {
+                               int32_t &best_gain,
+                               uint32_t &best_level,
+                               bool &best_phase) {
 #endif
         auto &db = library.get_database();
 
@@ -1155,7 +1157,9 @@ namespace mockturtle {
             update_node_level(n);
           };
 
-          auto const update_level_of_deleted_node = [&](node<Ntk> const &n) { ntk.set_level(n, -1); };
+          auto const update_level_of_deleted_node = [&](node<Ntk> const &n) {
+            ntk.set_level(n, -1);
+          };
 
           add_event = ntk.events().register_add_event(update_level_of_new_node);
           modified_event = ntk.events().register_modified_event(update_level_of_existing_node);

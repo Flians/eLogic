@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     emap::{EmapParams, NodeBindingKind},
-    emap_egg::{rewrite_to_gategraph, AIG, EggRewriteBundle, GateEGraph},
+    emap_egg::{rewrite_to_gategraph, EggRewriteBundle, GateEGraph, AIG},
     techlib::{Cell, CellVariant, MappingObjective, TechLib},
 };
 
@@ -23,18 +23,21 @@ pub struct MappedCoverGraph {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct MappedCoverChoice {
-    pub(crate) graph: MappedCoverGraph,
-    pub(crate) delay: f32,
-    pub(crate) area: f32,
-    pub(crate) used_leaf_indices: Vec<usize>,
+pub struct MappedCoverChoice {
+    pub graph: MappedCoverGraph,
+    pub delay: f32,
+    pub area: f32,
+    pub used_leaf_indices: Vec<usize>,
 }
 
 #[derive(Clone, Debug)]
 enum CoverChoiceKind {
     Const(bool),
     Input(usize),
-    Gate { cell: CellVariant, fanins: Vec<usize> },
+    Gate {
+        cell: CellVariant,
+        fanins: Vec<usize>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -218,7 +221,7 @@ pub(crate) fn extract_mapped_cover_from_expr(
                         })
                     }
                 }
-                ("~", [a]) => {
+                ("~", [a]) => (|| {
                     let child = best_eclass(
                         *a,
                         egraph,
@@ -238,8 +241,8 @@ pub(crate) fn extract_mapped_cover_from_expr(
                         child.class_areas.clone(),
                         tech,
                     )
-                }
-                ("&", [a, b]) => {
+                })(),
+                ("&", [a, b]) => (|| {
                     let lhs = best_eclass(
                         *a,
                         egraph,
@@ -270,7 +273,7 @@ pub(crate) fn extract_mapped_cover_from_expr(
                         merged,
                         tech,
                     )
-                }
+                })(),
                 _ => gate_cells.get(op).and_then(|cell| {
                     let mut fanins = Vec::with_capacity(enode.children.len());
                     let mut child_delays = Vec::with_capacity(enode.children.len());
@@ -291,19 +294,13 @@ pub(crate) fn extract_mapped_cover_from_expr(
                         child_maps.push(child_choice.class_areas);
                     }
                     let merged = union_many_class_areas(&child_maps);
-                    gate_choice_for_cell(
-                        key,
-                        cell,
-                        &fanins,
-                        &child_delays,
-                        merged,
-                        tech,
-                        objective,
-                    )
+                    gate_choice_for_cell(key, cell, &fanins, &child_delays, merged, tech, objective)
                 }),
             };
             choice = match (choice, cand) {
-                (Some(cur), Some(newc)) if better_choice(&newc, &cur, objective).is_lt() => Some(newc),
+                (Some(cur), Some(newc)) if better_choice(&newc, &cur, objective).is_lt() => {
+                    Some(newc)
+                }
                 (None, Some(newc)) => Some(newc),
                 (cur, _) => cur,
             };
@@ -412,7 +409,7 @@ pub(crate) fn extract_mapped_cover_from_expr(
     })
 }
 
-pub(crate) fn build_mapped_cover_binding(
+pub fn build_mapped_cover_binding(
     cut_output_index: usize,
     cut: &crate::emap_cut::Cut,
     leaves: &[usize],
@@ -431,4 +428,121 @@ pub(crate) fn build_mapped_cover_binding(
         delay: cover.delay + wire_delay,
         area: cover.area,
     }
+}
+
+/// Expand a [`MappedCoverGraph`] node to an AIG s-expression string.
+///
+/// Each `Cell` node is expanded to an AIG using the cell's `Expr` function,
+/// with the variant's `neg_mask` and `out_neg` applied to its fanin connections.
+/// Returns `None` if the underlying `TechLib` does not contain the referenced cell.
+fn materialized_sexp(
+    node_idx: usize,
+    graph: &MappedCoverGraph,
+    tech: &crate::techlib::TechLib,
+    memo: &mut HashMap<usize, String>,
+) -> Option<String> {
+    if let Some(s) = memo.get(&node_idx) {
+        return Some(s.clone());
+    }
+    let s = match &graph.nodes[node_idx] {
+        MappedCoverNode::Const(false) => "0".to_string(),
+        MappedCoverNode::Const(true) => "1".to_string(),
+        MappedCoverNode::Input(li) => ((b'a' + *li as u8) as char).to_string(),
+        MappedCoverNode::Cell { cell, fanins } => {
+            // Resolve fanin AIG sexps first.
+            let mut fanin_sexps: Vec<String> = Vec::with_capacity(fanins.len());
+            for &fi in fanins {
+                fanin_sexps.push(materialized_sexp(fi, graph, tech, memo)?);
+            }
+            // Apply neg_mask: each fanin[i] is optionally inverted before connecting.
+            let mut fanin_sexps_neg: Vec<String> = Vec::with_capacity(fanins.len());
+            for (i, s) in fanin_sexps.iter().enumerate() {
+                if ((cell.neg_mask >> i) & 1) == 1 {
+                    fanin_sexps_neg.push(format!("(~ {})", s));
+                } else {
+                    fanin_sexps_neg.push(s.clone());
+                }
+            }
+            // Look up the base Cell to get its Expr and variable order.
+            let base_cell = tech.cells.iter().find(|c| c.name == cell.cell_name)?;
+            // Build a mapping from cell variable name -> fanin AIG sexp, using
+            // pin_names to identify which variant input connects to which cell variable.
+            let mut var_to_sexp: HashMap<&str, &str> = HashMap::new();
+            for (i, pin_name) in cell.pin_names.iter().enumerate() {
+                if let Some(sexp) = fanin_sexps_neg.get(i) {
+                    var_to_sexp.insert(pin_name.as_str(), sexp.as_str());
+                }
+            }
+            let expanded = expand_expr(&base_cell.expr, &var_to_sexp)?;
+            if cell.out_neg {
+                format!("(~ {})", expanded)
+            } else {
+                expanded
+            }
+        }
+    };
+    memo.insert(node_idx, s.clone());
+    Some(s)
+}
+
+/// Lower an [`Expr`] to an AIG s-expression by substituting variables.
+fn expand_expr(expr: &crate::techlib::Expr, vars: &HashMap<&str, &str>) -> Option<String> {
+    match expr {
+        crate::techlib::Expr::Const(false) => Some("0".to_string()),
+        crate::techlib::Expr::Const(true) => Some("1".to_string()),
+        crate::techlib::Expr::Var(v) => vars.get(v.as_str()).map(|s| (*s).to_string()),
+        crate::techlib::Expr::Not(a) => Some(format!("(~ {})", expand_expr(a, vars)?)),
+        crate::techlib::Expr::And(a, b) => Some(format!(
+            "(& {} {})",
+            expand_expr(a, vars)?,
+            expand_expr(b, vars)?
+        )),
+        crate::techlib::Expr::Or(a, b) => {
+            let la = expand_expr(a, vars)?;
+            let rb = expand_expr(b, vars)?;
+            Some(format!("(~ (& (~ {la}) (~ {rb})))"))
+        }
+    }
+}
+
+/// Map a cut expression to an AIG s-expression using technology-library-aware cell cover.
+///
+/// - `expr`: the input AIG s-expression (variables `a`..`f`).
+/// - `tech`: the loaded [`TechLib`].
+/// - `input_arrivals`: arrival times (or logical depths) for each input, length = number of inputs.
+/// - `objective`: optimisation goal.
+///
+/// Returns the full [`MappedCoverChoice`] on success, containing the cell-level graph,
+/// real techlib delay/area, and which input indices were actually used.
+pub fn map_cut_to_cover(
+    expr: &str,
+    tech: &crate::techlib::TechLib,
+    input_arrivals: &[f32],
+    objective: crate::techlib::MappingObjective,
+) -> Option<MappedCoverChoice> {
+    let ps = crate::emap::EmapParams {
+        max_cover_nodes: 256,
+        ..Default::default()
+    };
+    extract_mapped_cover_from_expr(expr, tech, input_arrivals, objective, &ps, None)
+}
+
+/// - `input_arrivals`: arrival times (or logical depths) for each input, length = number of inputs.
+/// - `objective`: optimisation goal.
+///
+/// Returns `(aig_sexp, delay, area)` on success.
+pub fn map_cut_to_aig_sexp(
+    expr: &str,
+    tech: &crate::techlib::TechLib,
+    input_arrivals: &[f32],
+    objective: crate::techlib::MappingObjective,
+) -> Option<(String, f32, f32)> {
+    let ps = crate::emap::EmapParams {
+        max_cover_nodes: 256,
+        ..Default::default()
+    };
+    let cover = extract_mapped_cover_from_expr(expr, tech, input_arrivals, objective, &ps, None)?;
+    let mut memo = HashMap::<usize, String>::new();
+    let sexp = materialized_sexp(cover.graph.root, &cover.graph, tech, &mut memo)?;
+    Some((sexp, cover.delay, cover.area))
 }

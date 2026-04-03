@@ -9,11 +9,6 @@ use std::collections::VecDeque;
 // Two-phase ILP approach example: first minimize size, then minimize depth while keeping size constant
 // -------------------------------------------------------------------------
 
-// These weighting constants are kept at 0 to demonstrate the two-phase approach
-const W_DEP: f64 = 0.0;
-const W_AOM: f64 = 0.0;
-const W_INV: f64 = 0.0;
-
 pub struct Config {
     pub pull_up_costs: bool,
     pub remove_self_loops: bool,
@@ -21,11 +16,8 @@ pub struct Config {
     pub remove_more_expensive_subsumed_nodes: bool,
     pub remove_unreachable_classes: bool,
     pub pull_up_single_parent: bool,
-    pub take_intersection_of_children_in_class: bool,
-    pub move_min_cost_of_members_to_class: bool,
     pub find_extra_roots: bool,
     pub remove_empty_classes: bool,
-    pub return_improved_on_timeout: bool,
     pub remove_single_zero_cost: bool,
 }
 
@@ -38,11 +30,8 @@ impl Config {
             remove_more_expensive_subsumed_nodes: true,
             remove_unreachable_classes: true,
             pull_up_single_parent: true,
-            take_intersection_of_children_in_class: true,
-            move_min_cost_of_members_to_class: false,
             find_extra_roots: true,
             remove_empty_classes: true,
-            return_improved_on_timeout: true,
             remove_single_zero_cost: true,
         }
     }
@@ -457,53 +446,6 @@ fn solve_min_depth_with_size_constraint(
     }
 
     result
-}
-
-/* ----------------------------------------------------------------
- * 以下辅助函数与原先类似
- * ----------------------------------------------------------------*/
-
-fn block_cycle(model: &mut Model, cycle: &Vec<ClassId>, vars: &IndexMap<ClassId, ClassILP>) {
-    if cycle.is_empty() {
-        return;
-    }
-    info!("{} {:?}", "Found cycle:".bright_blue(), cycle);
-    let mut blocking = Vec::new();
-    for i in 0..cycle.len() {
-        let current_class_id = &cycle[i];
-        let next_class_id = &cycle[(i + 1) % cycle.len()];
-
-        let mut this_level = Vec::default();
-        for node in &vars[current_class_id].as_nodes() {
-            if node.children_classes.contains(next_class_id) {
-                this_level.push(node.variable);
-            }
-        }
-
-        if !this_level.is_empty() {
-            let blocking_var = if this_level.len() == 1 {
-                this_level[0]
-            } else {
-                let var = model.add_binary();
-                for n in this_level {
-                    let row = model.add_row();
-                    model.set_row_upper(row, 0.0);
-                    model.set_weight(row, n, 1.0);
-                    model.set_weight(row, var, -1.0);
-                }
-                var
-            };
-            blocking.push(blocking_var);
-        }
-    }
-
-    if !blocking.is_empty() {
-        let row = model.add_row();
-        model.set_row_upper(row, blocking.len() as f64 - 1.0);
-        for b in blocking {
-            model.set_weight(row, b, 1.0)
-        }
-    }
 }
 
 fn find_cycles_in_result(

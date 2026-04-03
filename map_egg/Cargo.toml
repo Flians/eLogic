@@ -13,6 +13,7 @@ crate-type = ["staticlib"]
 [dependencies]
 
 cxx = "1.0"
+emapper = { path = "../emapper" }
 egg = { version = "0.11.0", features = ["lp"] }
 pyo3 = { version = "0.27.1", features = ["extension-module"] }
 coin_cbc = { version = "0.1.8", optional = true }

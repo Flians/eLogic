@@ -2,10 +2,9 @@
 # Compare QoR: emapper (bench_rs_emap), mockturtle emap_single, yosys-abc map.
 # Usage: ./scripts/compare_mapping_qor.sh <genlib> <aig> [--resyn2]
 # Env: COMPARE_RESYN2=1 or third arg --resyn2 → yosys-abc strash; resyn2 on <aig> first.
-#      COMPARE_BUILD=1 → cargo + cmake build first. MOCKTURTLE_EMAP_SINGLE overrides path to emap_single. VERBOSE=1.
-#      mockturtle cmake: -DMOCKTURTLE_BUILD_EXPERIMENTS=ON (not MOCKTURTLE_EXPERIMENTS).
+#      COMPARE_BUILD=1 → cargo + cmake build first. MOCKTURTLE_EMAP_SINGLE, VERBOSE=1.
 #
-# nec: emapper uses BENCH_RS_EMAP_ABC (default: yosys-abc if in PATH). mockturtle emap_single uses `abc` if in PATH; else -1. yosys line has nec=-1.
+# nec: only the emapper line includes it (ABC CEC). mockturtle JSON has nec=-1 (no CEC). yosys line has no nec field.
 
 set -uo pipefail
 
@@ -37,7 +36,7 @@ if [[ "${COMPARE_BUILD:-0}" == 1 ]]; then
   ( cd "$ROOT" && cargo build --release --bin bench_rs_emap )
   MT="$ROOT/tools/mockturtle"
   MB="$ROOT/tools/mockturtle/build"
-  cmake -S "$MT" -B "$MB" -DMOCKTURTLE_BUILD_EXPERIMENTS=ON -DCMAKE_BUILD_TYPE=Release
+  cmake -S "$MT" -B "$MB" -DMOCKTURTLE_EXPERIMENTS=ON -DCMAKE_BUILD_TYPE=Release
   cmake --build "$MB" --target emap_single -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 fi
 

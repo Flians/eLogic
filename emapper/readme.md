@@ -19,7 +19,7 @@
 - 拓扑序遍历节点，做 cut 枚举（受 max_cuts/max_inputs 限制）。
 -对每个 cut 调 score_cut：
   -- 先 TT direct match（best_for_tt）
-  -- TT miss 且开 EMAP_USE_EGG=1 时，走 egg 构造 CoverAig
+  -- TT miss 且启用 egg（`EMAP_USE_EGG` 默认 1；未设置即开启，设为 0/false 关闭）时，走 egg 构造 CoverAig
 - 绑定类型：
   -- Direct { cell }
   -- CoverAig { expr }
