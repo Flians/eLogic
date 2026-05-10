@@ -1,0 +1,4 @@
+results/
+abc.history
+*.pyc
+__pycache__/
