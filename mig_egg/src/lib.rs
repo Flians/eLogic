@@ -599,37 +599,35 @@ rule! {and_true,       "(& ?a 1)",                         "?a"                 
 rule! {and_false,      "(& ?a 0)",                         "0"                     }
 
 fn rules() -> Vec<CRewrite> {
+    // AIG-only configuration: per advisor guidance, this benchmark drives the
+    // e-graph on pure AIG expressions (& and ~). Majority-only rules are
+    // disabled because they cannot fire on the input and only inflate
+    // saturation cost.
     vec![
+        // const + NOT (universal)
         neg_false(),
         true_false(),
         neg_true(),
         false_true(),
         double_neg(),
         double_neg_flip(),
-        neg(),
-        neg_flip(),
-        distri(),
-        distri_flip(),
-        com_associ(),
-        com_associ_flip(),
-        maj_com_equ(),
-        maj_equ_com(),
-        associ(),
-        comm_lm(),
-        comm_lr(),
-        comm_mr(),
-        maj_2_equ(),
-        maj_2_com(),
-        xnor_0(),
-        xnor_0_flip(),
-        xor_1(),
-        xor_1_flip(),
-        // associ_and(),
-        // comm_and(),
-        // comp_and(),
-        // dup_and(),
-        // and_true(),
-        // and_false(),
+        // AND identities (was commented out upstream)
+        // associ_and(),  // O(N^2) match cost, disabled for hard 22 bench
+        comm_and(),
+        comp_and(),
+        dup_and(),
+        and_true(),
+        and_false(),
+        // -- Majority-only rules disabled for AIG path --
+        // neg(),               neg_flip(),
+        // distri(),            distri_flip(),
+        // com_associ(),        com_associ_flip(),
+        // maj_com_equ(),       maj_equ_com(),
+        // associ(),
+        // comm_lm(),  comm_lr(),  comm_mr(),
+        // maj_2_equ(),  maj_2_com(),
+        // xnor_0(),  xnor_0_flip(),
+        // xor_1(),   xor_1_flip(),
     ]
 }
 
@@ -787,12 +785,19 @@ pub fn simplify_depth(s: &str, vars: *const u32, size: usize, first_depth: bool)
     // Create a Runner and initialize with the expression
     let mut runner = egg::Runner::default()
         .with_expr(&bef_expr)
-        .with_iter_limit(30)
-        .with_node_limit(10000)
+        .with_iter_limit(10)
+        .with_node_limit(5000)
         .with_time_limit(std::time::Duration::from_secs(5));
 
     // Run the rewrite rules to saturate or partially simplify the expression
     runner = runner.run(&all_rules);
+    info!(
+        "STOP_REASON depth: {:?}  iter={}  egraph_nodes={}  egraph_classes={}",
+        runner.stop_reason,
+        runner.iterations.len(),
+        runner.egraph.total_size(),
+        runner.egraph.number_of_classes(),
+    );
     let mut roots: Vec<Id> = runner
         .roots
         .iter()
@@ -1066,7 +1071,7 @@ pub fn simplify_size(s: &str, vars: *const u32, size: usize, first_depth: bool) 
     // create an e-graph with the given expression
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(1000)
+        .with_iter_limit(10)
         .with_node_limit(5000)
         .with_time_limit(std::time::Duration::from_secs(10));
     // the Runner knows which e-class the expression given with `with_expr` is in
@@ -1128,12 +1133,19 @@ pub fn simplify_best(s: &str, vars: *const u32, var_len: usize, first_depth: boo
     let expr: egg::RecExpr<MIG> = s.parse().unwrap();
     let mut runner = egg::Runner::default()
         .with_expr(&expr)
-        .with_iter_limit(1000)
+        .with_iter_limit(10)
         .with_node_limit(5000)
         .with_time_limit(std::time::Duration::from_secs(10));
     let root_id = runner.roots[0];
 
     runner = runner.run(&all_rules);
+    info!(
+        "STOP_REASON best:  {:?}  iter={}  egraph_nodes={}  egraph_classes={}",
+        runner.stop_reason,
+        runner.iterations.len(),
+        runner.egraph.total_size(),
+        runner.egraph.number_of_classes(),
+    );
     let saturated_egraph = runner.egraph;
 
     // 3. Convert for ILP/greedy extraction
@@ -1810,5 +1822,70 @@ mod tests {
             "(M (~ 0) (M (~ e) (M 0 e (M 0 a d)) (M (~ 0) e f)) (M (~ e) (M 0 e (M 0 b (~ d))) (M (~ 0) e (M 0 c d))))",
             &vec![0, 0, 0, 0, 0, 5],
         );
+    }
+
+    /// Read prefix expression(s) from a path given by env var IWLS_PREFIX_FILE
+    /// (line format: `<po_idx>\t<prefix_expr>`) and run simplify on each.
+    /// If env unset, fall back to a hardcoded ex275 PO 3 expression so the
+    /// test still runs and exercises the AIG path.
+    #[test]
+    fn iwls_run() {
+        let _ = env_logger::builder()
+            .filter_level(log::LevelFilter::Info)
+            .filter_module("egg", log::LevelFilter::Error)
+            .filter_module("mig_egg::extract::faster_ilp_cbc", log::LevelFilter::Off)
+            .is_test(true)
+            .try_init();
+
+        let empty_vec: Vec<u32> = Vec::new();
+
+        let lines: Vec<(String, String)> = match std::env::var("IWLS_PREFIX_FILE") {
+            Ok(path) => {
+                let content = std::fs::read_to_string(&path)
+                    .unwrap_or_else(|e| panic!("failed to read {}: {}", path, e));
+                content
+                    .lines()
+                    .filter(|l| !l.is_empty() && !l.starts_with('#'))
+                    .map(|l| {
+                        let mut it = l.splitn(2, '\t');
+                        let idx = it.next().unwrap_or("").to_string();
+                        let expr = it.next().unwrap_or("").to_string();
+                        (idx, expr)
+                    })
+                    .collect()
+            }
+            Err(_) => vec![(
+                "ex275_po3_fallback".to_string(),
+                "(~ (& (~ (& h (~ g))) (~ g)))".to_string(),
+            )],
+        };
+
+        for (idx, expr) in &lines {
+            println!(
+                "\n=== iwls case {} | input_len={} chars ===",
+                idx,
+                expr.len()
+            );
+            // Allow per-run choice between depth-priority (default) and
+            // size/area-priority extraction via IWLS_FIRST_DEPTH env var.
+            // first_depth=true  ⇒ minimize depth, then area
+            // first_depth=false ⇒ minimize area,  then depth (good for area-min Pareto endpoint)
+            let first_depth = std::env::var("IWLS_FIRST_DEPTH")
+                .map(|s| s.to_ascii_lowercase() != "false")
+                .unwrap_or(true);
+            let cost = if first_depth {
+                simplify(expr, &empty_vec)
+            } else {
+                let vars_default: [u32; 26] = [0; 26];
+                unsafe { simplify_best(expr, vars_default.as_ptr(), 26, false) }
+            };
+            println!(
+                "iwls case {} after: size={} dep={} invs={}",
+                idx, cost.aft_size, cost.aft_dep, cost.aft_invs
+            );
+            for (i, e) in cost.aft_expr.iter().enumerate() {
+                println!("iwls case {} best_expr[{}] = {}", idx, i, e);
+            }
+        }
     }
 }
