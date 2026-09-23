@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Compare QoR: emapper (bench_rs_emap), mockturtle emap_single, yosys-abc map.
 # Usage: ./scripts/compare_mapping_qor.sh <genlib> <aig> [--resyn2]
+# Example (delay QoR): ./scripts/compare_mapping_qor.sh \
+#   tools/mockturtle/experiments/cell_libraries/asap7.genlib \
+#   tools/mockturtle/experiments/benchmarks/c432.aig
 # Env: COMPARE_RESYN2=1 or third arg --resyn2 → yosys-abc strash; resyn2 on <aig> first.
 #      COMPARE_BUILD=1 → cargo + cmake build first. MOCKTURTLE_EMAP_SINGLE, VERBOSE=1.
 #
@@ -9,6 +12,7 @@
 set -uo pipefail
 
 COMPARE_BUILD=1
+COMPARE_RESYN2=1
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GENLIB="${1:?genlib}"
 AIG="${2:?aig}"
