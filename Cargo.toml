@@ -6,6 +6,7 @@ resolver = "2"
 name = "MIGBalance"
 version = "0.1.0"
 edition = "2024"
+default-run = "MIGBalance"
 
 [dependencies]
 emapper = { path = "emapper" }
