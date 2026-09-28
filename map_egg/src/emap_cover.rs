@@ -276,7 +276,13 @@ fn build_cover_dag(egraph: &GateEGraph, root: egg::Id) -> CoverDag {
                 ("1", []) => CoverDagNodeOp::Const(true),
                 (symbol, []) if symbol.len() == 1 => {
                     let byte = symbol.as_bytes()[0];
-                    if (b'a'..=b'f').contains(&byte) {
+                    /* Cut leaves are `a`..=`i`: `sexp_to_tt9`, `gate_expr_n_inputs` and the
+                       `GateTtFold` analysis all accept nine. Recognizing only `a`..=`f` here made
+                       leaves `g`/`h`/`i` look like library-cell symbols, so every cut wider than six
+                       leaves had unpriced e-classes and the cover extraction failed with
+                       `root_choice_missing` -- which disabled the whole multi-cell path for exactly
+                       the wide cuts it exists for. */
+                    if (b'a'..=b'i').contains(&byte) {
                         CoverDagNodeOp::Input((byte - b'a') as usize)
                     } else {
                         CoverDagNodeOp::Gate(symbol.to_string())
@@ -737,7 +743,11 @@ fn extract_mapped_cover_covers_vec(
 ) -> Result<Vec<MappedCoverChoice>, String> {
     let rec: egg::RecExpr<AIG> = expr.parse().map_err(|_| "expr_parse_failed".to_string())?;
     if rec.as_ref().len() > ps.max_cover_nodes {
-        return Err("expr_too_large".to_string());
+        return Err(format!(
+            "expr_too_large(len={},max={})",
+            rec.as_ref().len(),
+            ps.max_cover_nodes
+        ));
     }
     let (egraph, root, gate_cells) = rewrite_to_gategraph_with_limits(
         expr,
@@ -1002,25 +1012,19 @@ pub fn build_mapped_cover_binding(
     tech: &TechLib,
     wire_delay: f32,
 ) -> crate::binding::NodeBinding {
-    let pin_to_root_delay = if cover.pin_to_root_delay.len() >= leaves.len() && !cover.pin_to_root_delay.is_empty()
-    {
-        cover
-            .used_leaf_indices
-            .iter()
-            .map(|&vi| cover.pin_to_root_delay.get(vi).copied().unwrap_or(0.0))
-            .collect()
-    } else {
-        let dense = compute_pin_to_root_delays(&cover.graph, tech, leaves.len());
-        cover
-            .used_leaf_indices
-            .iter()
-            .map(|&vi| dense.get(vi).copied().unwrap_or(0.0))
-            .collect()
-    };
+    /* Kept **indexed by cut variable** (dense) to match a cover graph's `MappedCoverNode::Input(li)`,
+       which carries a variable index; see the emapper copy of this function for the c7552 abort this
+       used to cause. */
+    let pin_to_root_delay =
+        if cover.pin_to_root_delay.len() == leaves.len() && !cover.pin_to_root_delay.is_empty() {
+            cover.pin_to_root_delay.clone()
+        } else {
+            compute_pin_to_root_delays(&cover.graph, tech, leaves.len())
+        };
     crate::binding::NodeBinding {
         node: cut_output_index,
         cut: cut.clone(),
-        leaves: cover.used_leaf_indices.iter().map(|&i| leaves[i]).collect(),
+        leaves: leaves.to_vec(),
         kind: NodeBindingKind::MappedCover {
             graph: cover.graph.clone(),
             pin_to_root_delay,

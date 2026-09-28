@@ -703,14 +703,25 @@ impl TechLib {
                 area_cost,
             );
 
+            /* `physical_area` (cell + charged input/output inverters) is the final tie-break for
+               **both** objectives. `mapping_area` is the `Flow` proxy by default, which adds the
+               leaves' flow and never an `inv_area` -- so with only `(delay, mapping_area)` as the
+               key, two variants of the same truth table that differ solely in how many inverters
+               they need compare equal and the first one wins. Measured on c432/c5315 that left
+               ~half of the total inversion overhead on `AND2x2` instances that each carry exactly
+               one input inverter, while `emap` on the same AIG instantiates no `AND2` at all. */
+            let cand_key = match objective {
+                MappingObjective::DelayFirst => (delay, mapping_area, physical_area),
+                MappingObjective::AreaFirst => (mapping_area, delay, physical_area),
+            };
             match best {
                 None => best = Some((delay, mapping_area, physical_area, v)),
-                Some((bd, ba_map, _, _)) => {
-                    let better = match objective {
-                        MappingObjective::DelayFirst => (delay, mapping_area) < (bd, ba_map),
-                        MappingObjective::AreaFirst => (mapping_area, delay) < (ba_map, bd),
+                Some((bd, ba_map, bp, _)) => {
+                    let best_key = match objective {
+                        MappingObjective::DelayFirst => (bd, ba_map, bp),
+                        MappingObjective::AreaFirst => (ba_map, bd, bp),
                     };
-                    if better {
+                    if cand_key < best_key {
                         best = Some((delay, mapping_area, physical_area, v));
                     }
                 }
