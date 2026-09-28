@@ -474,20 +474,12 @@ mod ffi {
             limit: u32,
             cost_model: u8,
         ) -> Vec<CCost>;
-        unsafe fn cut_mapping_egg_multi(
-            s: &str,
-            objective: u8,
-            n_inputs: u32,
-            limit: u32,
-        ) -> Vec<CCost>;
         unsafe fn cut_mapping_multi_dc(
             s: &str,
             objective: u8,
             care_mask: u64,
-            use_egg: bool,
             limit: u32,
         ) -> Vec<CCost>;
-        unsafe fn cut_mapping_db_dc(s: &str, objective: u8, care_mask: u64) -> CCost;
         fn mapping_library_hits() -> u64;
         fn mapping_egg_cache_hits() -> u64;
         fn mapping_egg_calls() -> u64;
@@ -777,27 +769,15 @@ pub fn cut_mapping_egg_arr(
     }
 }
 
-pub fn cut_mapping_egg_multi(
-    s: &str,
-    objective: u8,
-    n_inputs: u32,
-    _limit: u32,
-) -> Vec<ffi::CCost> {
-    let result = cut_mapping_egg_dc(s, objective, n_inputs);
-    if result.cell_nodes.is_empty() { Vec::new() } else { vec![result] }
-}
-
 /// Multi-candidate DC entry point: the e-graph cover of the exact function **plus** the best
 /// don't-care aware single cell.
 ///
 /// The mask used to be ignored here; both candidates are legal completions of it, so the caller sees
-/// a superset of the old candidate set. `limit` caps how many candidates are returned (0 =
-/// unlimited); `use_egg` stays unread -- the stage always ran the e-graph.
+/// a superset of the old candidate set. `limit` caps how many candidates are returned (0 = unlimited).
 pub fn cut_mapping_multi_dc(
     s: &str,
     objective: u8,
     care_mask: u64,
-    _use_egg: bool,
     limit: u32,
 ) -> Vec<ffi::CCost> {
     let cap = if limit == 0 { usize::MAX } else { limit as usize };
@@ -820,16 +800,6 @@ pub fn cut_mapping_multi_dc(
     }
     out.truncate(cap);
     out
-}
-
-/// Legacy supergate-database entry point.
-///
-/// The precomputed multi-cell database this used to answer from is no longer part of `map_egg`
-/// (`epmapping/db/*.super` is loaded by the C++ side instead), so this always fails and the
-/// `care_mask` argument is inert: an empty cover here means "no database", **not** "no don't-care
-/// match". Use [`cut_mapping_multi_dc`] or [`cut_mapping_with_objective_dc`].
-pub fn cut_mapping_db_dc(_s: &str, _objective: u8, _care_mask: u64) -> ffi::CCost {
-    failure_cost("database_unavailable")
 }
 
 #[cfg(test)]
@@ -1074,7 +1044,7 @@ mod tests {
     fn multi_dc_honours_mask_and_limit() {
         let f = "(& (~ (& a b)) c)";
         let care = 0xFFu64 & !0x88u64;
-        let out = cut_mapping_multi_dc(f, 1, care, true, 0);
+        let out = cut_mapping_multi_dc(f, 1, care, 0);
         assert!(!out.is_empty(), "multi_dc must offer candidates");
         assert!(
             out.iter().all(|c| !c.cell_nodes.is_empty()),
@@ -1085,7 +1055,7 @@ mod tests {
             "multi_dc must include the don't-care aware single cell: {:?}",
             out.iter().map(|c| c.area).collect::<Vec<_>>()
         );
-        let capped = cut_mapping_multi_dc(f, 1, care, true, 1);
+        let capped = cut_mapping_multi_dc(f, 1, care, 1);
         assert_eq!(capped.len(), 1, "limit must cap the candidate list");
     }
 }
