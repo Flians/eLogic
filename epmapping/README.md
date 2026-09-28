@@ -1179,9 +1179,13 @@ The four bridge functions that carry a `care_mask` used to drop it. They now sha
   it always ran **and** adds the don't-care aware single cells, comparing both with the same
   `(area, delay)` / `(delay, area)` key.
 * `cut_mapping_multi_dc` now returns the e-graph cover of the exact function *plus* the best DC-aware
-  single cell, and finally honours `limit` (0 = unlimited). `cut_mapping_db_dc` stays a stub: the
-  precomputed database it used to answer from now lives in `epmapping/db/*.super` and is loaded by the
-  C++ side, so an empty result there means "no database", *not* "no don't-care match".
+  single cell, and finally honours `limit` (0 = unlimited); its unread `use_egg` argument is gone.
+  `cut_mapping_db_dc` (the old `supergates.jsonl` database bridge, a hard-coded
+  `failure_cost("database_unavailable")` since `map_egg` was split out) and `cut_mapping_egg_multi`
+  were dropped from the bridge: the precomputed multi-cell database now lives in
+  `epmapping/db/*.super`, loaded by the C++ side into `tech_library<9>`, so only that side can answer
+  it -- a stub that carries a `care_mask` but can never return a cover only invites callers to
+  misread "no database" as "no don't-care match".
 
 None of this is on the staged flow's path (`cut_mapping_egg_arr` is the only bridge call the engine
 makes; every staged run reports `library_hits=0`), so the staged tables are unaffected. Unit tests
