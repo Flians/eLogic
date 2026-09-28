@@ -1,6 +1,6 @@
 use egg::Id;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 use crate::techlib::{Cell, Expr, TechLib};
@@ -547,6 +547,29 @@ impl TechLib {
         self.egg_cover_bundle_cache
             .get_or_init(|| Arc::new(EggRewriteBundle::new_cover_only(self)))
     }
+
+    /// Bundle the **mapper** saturates with (distinct from the standalone cut helpers, which pick
+    /// via [`crate::emap_cover`]'s `MAP_EGG_FULL_BUNDLE`).
+    ///
+    /// The full bidirectional bundle adds `cell -> AIG` expansion on top of `AIG -> cell` cover
+    /// rules: strictly more search, because saturation can take a library cell apart and re-cover it
+    /// differently. It also lets the e-graph build `cell -> AIG -> cell'` round trips, which can
+    /// leave e-classes that the extraction DP cannot price (cycles), so it is worth testing both.
+    ///
+    /// `EMAPPER_EGG_BUNDLE=cover` selects the one-way rule set; anything else keeps the full bundle
+    /// (the historical default).
+    #[must_use]
+    pub fn egg_mapping_bundle(&self) -> &Arc<EggRewriteBundle> {
+        static COVER_ONLY: OnceLock<bool> = OnceLock::new();
+        let cover_only = *COVER_ONLY.get_or_init(|| {
+            std::env::var("EMAPPER_EGG_BUNDLE").is_ok_and(|v| v.eq_ignore_ascii_case("cover"))
+        });
+        if cover_only {
+            self.egg_cover_bundle()
+        } else {
+            self.egg_rewrite_bundle()
+        }
+    }
 }
 
 /// Equality-saturation limits for [`egg::Runner`] (defaults match egg 0.11: 30 iters, 10k nodes).
@@ -766,9 +789,25 @@ mod rewrite_to_gategraph_tests {
             "expected asap7.genlib at {} (from repo: tools/mockturtle/experiments/cell_libraries/asap7.genlib)",
             p.display()
         );
-        let tech = TechLib::from_genlib(&p, 6).expect("from_genlib");
+        let tech = TechLib::from_genlib(&p, 9).expect("from_genlib");
         assert!(!tech.cells.is_empty(), "asap7 should define cells");
         assert!(!tech.index.is_empty(), "TT index should be non-empty");
+        /* `max_inputs` bounds the *library cell* width, not the cut width, and the FFI's TechLib now
+           uses the same nine the C++ side reads (`tech_library<9>`). A smaller bound used to drop
+           every wider cell silently (`finalize_cell` returns `None`): of asap7's 47 gates, seven have
+           seven or more pins, and they are exactly the cells that make a wide cut a single instantiation
+           instead of a cover. */
+        assert!(
+            tech.cells
+                .iter()
+                .any(|c| c.name == "OA333x2_ASAP7_75t_R" && c.vars.len() == 9),
+            "nine-input cells must be indexed when max_inputs is 9"
+        );
+        assert!(
+            !tech.cells.iter().any(|c| c.vars.len() > 9),
+            "nine inputs is the hard ceiling"
+        );
+        assert_eq!(tech.cells.len(), 47, "asap7.genlib defines 47 gates");
 
         eprintln!(
             "asap7.genlib: {} cells, {} (n_inputs, tt) index buckets\n",
@@ -794,7 +833,7 @@ mod rewrite_to_gategraph_tests {
     fn asap7_rewrite_to_gategraph_registers_gates() {
         let p = asap7_genlib_path();
         assert!(p.is_file(), "missing {}", p.display());
-        let tech = TechLib::from_genlib(&p, 6).expect("from_genlib");
+        let tech = TechLib::from_genlib(&p, 9).expect("from_genlib");
         let (egraph, root, gate_variants) =
             rewrite_to_gategraph("(& a b)", &tech, 2, None).expect("rewrite");
         assert!(

@@ -1156,6 +1156,53 @@ number of cuts for which a candidate is built dropped by 2.7× on small cuts and
 The `staged` flow never calls this entry point (`library_hits=0`, unchanged results), which is why the
 staged tables are unaffected.
 
+### The legacy DC entry points honour the `care_mask` now (and keep their stage contracts)
+
+The four bridge functions that carry a `care_mask` used to drop it. They now share one implementation,
+`run_extract_library_dc` (`../map_egg/src/lib.rs`):
+
+* **The mask only adds candidates.** A completion copies the care minterms from the cut function and
+  picks arbitrary values on the free ones, so every returned cell agrees with the original on all care
+  minterms. The engine's masks are an *under*-approximation of the true don't-care set (an exhaustive
+  window simulation, see `compute_care_mask`), so no returned mapping can become invalid.
+* **Bounded enumeration.** At most `MAX_COMPLETIONS = 12` free minterms are enumerated (`2^12` library
+  probes worst case); beyond that the exact function -- itself a legal completion -- answers the cut.
+  The engine's own single-cell stage enumerates at most `dc_max_free = 4`, so a wider mask can only
+  come from a direct FFI caller.
+* **Only 64 minterms are addressable.** `compute_care_mask` never asks for don't cares on a cut wider
+  than six leaves (`n < 2 || n > 6` returns the all-ones mask). Minterms a `u64` cannot address are
+  now treated as *care* instead of being read through a wrapped shift: the old `care >> bit` panicked
+  for `bit >= 64` in a debug build and aliased to `bit & 63` in a release one.
+* **The fully specified case keeps each entry point's contract** (`ExactSearch`):
+  `cut_mapping_library_dc` stays *library only* (exactly one cell, never a cover -- the "single-cell
+  matcher" contract restored above), while `cut_mapping_with_objective_dc` keeps the cover extraction
+  it always ran **and** adds the don't-care aware single cells, comparing both with the same
+  `(area, delay)` / `(delay, area)` key.
+* `cut_mapping_multi_dc` now returns the e-graph cover of the exact function *plus* the best DC-aware
+  single cell, and finally honours `limit` (0 = unlimited). `cut_mapping_db_dc` stays a stub: the
+  precomputed database it used to answer from now lives in `epmapping/db/*.super` and is loaded by the
+  C++ side, so an empty result there means "no database", *not* "no don't-care match".
+
+None of this is on the staged flow's path (`cut_mapping_egg_arr` is the only bridge call the engine
+makes; every staged run reports `library_hits=0`), so the staged tables are unaffected. Unit tests
+cover the routing, the mask benefit (`c & !(a&b)`: 0.16 -> 0.09 once minterms 3 and 7 are free), the
+never-worse property and the wide-cut shift guard.
+
+### `map_egg` indexes the full technology library again (nine-input cells)
+
+`techlib_store()` loaded the genlib with `max_inputs = 6`, and `finalize_cell` *silently* drops every
+cell with more variables. `asap7.genlib` defines 47 gates, seven of which have seven or more pins
+(`AO322x2`, `OA331x2`, `AO331x2`, `AO332x2`, `OA332x2`, `AO333x1`, `OA333x2`) -- exactly the cells that
+turn a wide cut into a single instantiation, and exactly the cells the C++ side could already use,
+because it reads the same file with `tech_library<9>`. The bound is now nine, matching
+`EmapParams::max_inputs` (9), `EMAPPER_MAX_INPUTS` (9) and `finalize_cell`'s hard ceiling.
+
+Measured (one round, `EPMAPPING_CUT_SIZE=9`, on the subject graph `(a&b&c)|(d&e&f)|(g&h&i)`): one
+nine-input `AO333x1` (area 0.17, delay 37.11) instead of three cells (area 0.33, delay 51.07). On
+`c1355` and `c2670` the staged flow is **unchanged** (`c2670`: `26.73 -> 26.52`, delay
+`307.96 -> 313.95`, 35 replacements), because the C++ `tech_library<9>` already supplied those cells:
+with `EPMAPPING_EGG=0` the wide cone still maps to the single nine-input cell. The fix removes the
+asymmetry between the two mappers; it does not add a capability the engine lacked.
 
 ### ISCAS subset (the paper's Table II designs)
 

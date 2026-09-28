@@ -32,6 +32,7 @@ pub mod aig {
 // ---- FFI bridge -------------------------------------------------------------------------------
 use egg::Id;
 use crate::techlib::{MappingObjective as EmapObjective, TechLib};
+use crate::tt9::{tt9_bit_get, tt9_bit_set};
 use std::ffi::CString;
 use std::fmt;
 use std::os::raw::c_char;
@@ -141,7 +142,7 @@ fn techlib_store() -> &'static TechLib {
         let candidate = env_path
             .map(PathBuf::from)
             .unwrap_or_else(default_genlib_path);
-        TechLib::from_genlib(&candidate, 6).unwrap_or_default()
+        TechLib::from_genlib(&candidate, 9).unwrap_or_default()
     })
 }
 
@@ -239,27 +240,167 @@ fn run_extract(
     map_cut_to_cover_cover_only(&aig, tech, &arrivals, emap_obj, required_output_delay).ok()
 }
 
-/// Library-only fast path: match the cut function against the technology library and return the best
-/// single-cell variant, without any cover/e-graph search.
+/// Which search answers a cut that has **no don't cares to enumerate**, i.e. either the mask covers
+/// every addressable minterm, or the cut carries more free minterms than [`MAX_COMPLETIONS`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ExactSearch {
+    /// Library only: exactly one cell, never a cover.
+    ///
+    /// This is the contract of the C++ side's *single-cell matcher* (`call_small`), which
+    /// `cut_mapping_library_dc` implements. A full cover exists for almost every cut, so routing the
+    /// fully specified case through [`run_extract`] makes the "small" stage succeed on *every* cut --
+    /// including the cuts with more leaves than the library's widest cell. That is the 8x runtime
+    /// regression `epmapping/README.md` records as fixed (`div`: 909 s -> 111 s once
+    /// `cut_mapping_library_dc` went back to the library-only match).
+    Library,
+    /// Full e-graph cover extraction ([`run_extract`]), *plus* the don't-care aware single cells:
+    /// what `cut_mapping_with_objective_dc` offers.
+    Cover,
+}
+
+/// The lexicographic objective key of an accepted choice: `(area, delay)` when the objective is area
+/// first and `(delay, area)` when it is delay first, i.e. the order the two FFI objectives name.
+fn choice_key(choice: &MappedCoverChoice, objective: MappingObjective) -> (f32, f32) {
+    match objective {
+        MappingObjective::AreaDelay => (choice.area, choice.delay),
+        MappingObjective::DelayArea => (choice.delay, choice.area),
+    }
+}
+
+fn keep_better(
+    best: &mut Option<MappedCoverChoice>,
+    candidate: MappedCoverChoice,
+    objective: MappingObjective,
+) {
+    let better = best.as_ref().map_or(true, |current| {
+        choice_key(&candidate, objective) < choice_key(current, objective)
+    });
+    if better {
+        *best = Some(candidate);
+    }
+}
+
+/// Greatest number of free minterms whose completions are enumerated for a DC-bearing cut.
 ///
-/// This is what `cut_mapping_library_dc` exposes to C++ as the "single-cell matcher": it is cheap and
-/// fails (`None`) whenever no library cell realizes the cut function, which is the common case for
-/// cuts with more leaves than the library's largest cell. The full cover search is reached through
-/// the `cut_mapping_egg_*` entry points instead.
-fn run_extract_library(s: &str, var_dep: &[u32], objective: MappingObjective) -> Option<MappedCoverChoice> {
+/// Worst case `2^12` library probes. The engine's own single-cell stage enumerates at most
+/// `params.dc_max_free` (4) completions, and `compute_care_mask` never marks a cut wider than six
+/// leaves as don't-care, so a wider mask can only come from a direct FFI caller. Above this bound the
+/// exact function is still a legal completion, so the cut falls back to `exact` instead of failing.
+const MAX_COMPLETIONS: u32 = 12;
+
+/// Match a partially specified cut against single-cell implementations.
+///
+/// The FFI legacy DC entry points have no e-graph representation for a partial truth table.
+/// Enumerating completions preserves the DC contract without making wide, highly unspecified cuts
+/// exponential; those cases conservatively fall back to `exact`.
+///
+/// A completion copies the **care** minterms from the original function and picks arbitrary values on
+/// the free ones, so every candidate agrees with the cut on every minterm the caller cares about: the
+/// result is sound for *any* mask. The engine's masks are an under-approximation of the true
+/// don't-care set (`compute_care_mask`), so the mask can only widen the candidate set, never relax
+/// correctness.
+fn run_extract_library_dc(
+    s: &str,
+    var_dep: &[u32],
+    objective: MappingObjective,
+    required_output_delay: Option<f32>,
+    care_mask: u64,
+    exact: ExactSearch,
+) -> Option<MappedCoverChoice> {
     let tech = techlib_store();
-    let aig = emap_egg::gate_expr_to_aig_sexp(s, tech)?;
-    let (n_inputs, tt) = emap_egg::sexp_to_tt9(&aig)?;
-    let arrivals: Vec<f32> = if var_dep.len() == n_inputs as usize {
+    let (n_inputs, original_tt) = {
+        let aig = emap_egg::gate_expr_to_aig_sexp(s, tech)?;
+        emap_egg::sexp_to_tt9(&aig)?
+    };
+    let n = usize::from(n_inputs);
+    let minterms = 1usize << n;
+    /* A `u64` mask addresses 64 minterms, and the engine asks for don't cares only on cuts with two
+       to six leaves (`compute_care_mask` returns the all-ones mask otherwise). Minterms the mask
+       cannot address are therefore treated as *care*: copying them from the original function is
+       always allowed, whereas letting the shift wrap (`bit & 63` in release, a panic in a debug
+       build) would silently read an unrelated minterm's bit. */
+    let addressable = minterms.min(64);
+    let valid_mask = if minterms >= 64 {
+        u64::MAX
+    } else {
+        (1u64 << minterms) - 1
+    };
+    let care = care_mask & valid_mask;
+    let free = valid_mask & !care;
+    let free_count = free.count_ones();
+    let arrivals: Vec<f32> = if var_dep.len() == n {
         var_dep.iter().map(|&d| d as f32).collect()
     } else {
-        vec![0.0; n_inputs as usize]
+        vec![0.0; n]
     };
-    let emap_obj = match objective {
+    let library_only = |tt: Tt9| {
+        map_tt_to_library(
+            tt,
+            n_inputs,
+            tech,
+            &arrivals,
+            objective_to_emap(objective),
+            required_output_delay,
+        )
+        .ok()
+    };
+    if free_count == 0 || free_count > MAX_COMPLETIONS {
+        return match exact {
+            ExactSearch::Library => library_only(original_tt),
+            ExactSearch::Cover => run_extract(s, var_dep, objective, required_output_delay),
+        };
+    }
+
+    /* The exact function is itself a legal completion, so the cover this entry point returned before
+       it honoured the mask stays a candidate; the enumeration can only add to it. */
+    let exact_cover = match exact {
+        ExactSearch::Cover => run_extract(s, var_dep, objective, required_output_delay),
+        ExactSearch::Library => None,
+    };
+
+    let mut free_positions = Vec::with_capacity(free_count as usize);
+    for bit in 0..addressable {
+        if ((free >> bit) & 1) != 0 {
+            free_positions.push(bit);
+        }
+    }
+    /* The care part of every completion is the same, so build it once. */
+    let mut care_tt: Tt9 = [0; 8];
+    for bit in 0..minterms {
+        if (bit >= 64 || ((care >> bit) & 1) != 0) && tt9_bit_get(&original_tt, bit) {
+            tt9_bit_set(&mut care_tt, bit);
+        }
+    }
+    let mut best = None;
+    for completion in 0..(1u32 << free_count) {
+        let mut tt = care_tt;
+        for (free_idx, &bit) in free_positions.iter().enumerate() {
+            if ((completion >> free_idx) & 1) != 0 {
+                tt9_bit_set(&mut tt, bit);
+            }
+        }
+        if let Ok(candidate) = map_tt_to_library(
+            tt,
+            n_inputs,
+            tech,
+            &arrivals,
+            objective_to_emap(objective),
+            required_output_delay,
+        ) {
+            keep_better(&mut best, candidate, objective);
+        }
+    }
+    if let Some(cover) = exact_cover {
+        keep_better(&mut best, cover, objective);
+    }
+    best
+}
+
+fn objective_to_emap(objective: MappingObjective) -> EmapObjective {
+    match objective {
         MappingObjective::AreaDelay => EmapObjective::AreaFirst,
         MappingObjective::DelayArea => EmapObjective::DelayFirst,
-    };
-    map_tt_to_library(tt, n_inputs, tech, &arrivals, emap_obj, None).ok()
+    }
 }
 
 #[cxx::bridge]
@@ -516,15 +657,20 @@ pub fn cut_mapping_with_objective_dc(
     size: usize,
     objective: u8,
     required_output_delay: f32,
-    _care_mask: u64,
+    care_mask: u64,
 ) -> ffi::CCost {
-    cut_mapping_impl(
+    let var_dep = parse_var_dep(vars, size);
+    match run_extract_library_dc(
         s,
-        vars,
-        size,
-        objective,
+        &var_dep,
+        MappingObjective::from_u8(objective),
         required_output_delay.is_finite().then_some(required_output_delay),
-    )
+        care_mask,
+        ExactSearch::Cover,
+    ) {
+        Some(cover) => cover_to_cost(&cover),
+        None => failure_cost(s),
+    }
 }
 
 pub fn mapping_library_hits() -> u64 {
@@ -546,18 +692,29 @@ pub fn reset_mapping_counters() {
 }
 
 /// Single-cell library match for one cut (the C++ caller's "single-cell matcher"): no cover search,
-/// no e-graph, no persistent database. `required_output_delay` is accepted for interface
-/// compatibility but the fast path is area/delay-keyed by the arrivals only.
+/// no e-graph, no persistent database.
+///
+/// `care_mask` is honoured by enumerating the completions of the cut function, but the result is
+/// still exactly one library cell: the fully specified case must **not** fall back to a cover, or the
+/// "small" stage would answer every cut (see [`ExactSearch::Library`]). A finite
+/// `required_output_delay` rejects cells slower than the bound; the legacy caller passes infinity.
 pub fn cut_mapping_library_dc(
     s: &str,
     vars: *const u32,
     size: usize,
     objective: u8,
-    _required_output_delay: f32,
-    _care_mask: u64,
+    required_output_delay: f32,
+    care_mask: u64,
 ) -> ffi::CCost {
     let var_dep = parse_var_dep(vars, size);
-    match run_extract_library(s, &var_dep, MappingObjective::from_u8(objective)) {
+    match run_extract_library_dc(
+        s,
+        &var_dep,
+        MappingObjective::from_u8(objective),
+        required_output_delay.is_finite().then_some(required_output_delay),
+        care_mask,
+        ExactSearch::Library,
+    ) {
         Some(cover) => {
             LIBRARY_HITS.fetch_add(1, Ordering::Relaxed);
             cover_to_cost(&cover)
@@ -630,17 +787,47 @@ pub fn cut_mapping_egg_multi(
     if result.cell_nodes.is_empty() { Vec::new() } else { vec![result] }
 }
 
+/// Multi-candidate DC entry point: the e-graph cover of the exact function **plus** the best
+/// don't-care aware single cell.
+///
+/// The mask used to be ignored here; both candidates are legal completions of it, so the caller sees
+/// a superset of the old candidate set. `limit` caps how many candidates are returned (0 =
+/// unlimited); `use_egg` stays unread -- the stage always ran the e-graph.
 pub fn cut_mapping_multi_dc(
     s: &str,
     objective: u8,
-    _care_mask: u64,
+    care_mask: u64,
     _use_egg: bool,
-    _limit: u32,
+    limit: u32,
 ) -> Vec<ffi::CCost> {
-    let result = cut_mapping_egg_dc(s, objective, 0);
-    if result.cell_nodes.is_empty() { Vec::new() } else { vec![result] }
+    let cap = if limit == 0 { usize::MAX } else { limit as usize };
+    let mut out = Vec::new();
+    let exact = cut_mapping_egg_dc(s, objective, 0);
+    if !exact.cell_nodes.is_empty() {
+        out.push(exact);
+    }
+    if out.len() < cap {
+        if let Some(cell) = run_extract_library_dc(
+            s,
+            &[],
+            MappingObjective::from_u8(objective),
+            None,
+            care_mask,
+            ExactSearch::Library,
+        ) {
+            out.push(cover_to_cost(&cell));
+        }
+    }
+    out.truncate(cap);
+    out
 }
 
+/// Legacy supergate-database entry point.
+///
+/// The precomputed multi-cell database this used to answer from is no longer part of `map_egg`
+/// (`epmapping/db/*.super` is loaded by the C++ side instead), so this always fails and the
+/// `care_mask` argument is inert: an empty cover here means "no database", **not** "no don't-care
+/// match". Use [`cut_mapping_multi_dc`] or [`cut_mapping_with_objective_dc`].
 pub fn cut_mapping_db_dc(_s: &str, _objective: u8, _care_mask: u64) -> ffi::CCost {
     failure_cost("database_unavailable")
 }
@@ -733,5 +920,172 @@ mod tests {
         assert_eq!(out1.aft_dep, out2.aft_dep);
         assert_eq!(out1.aft_size, out2.aft_size);
         assert_eq!(expr_tt_set(&out1.aft_expr), expr_tt_set(&out2.aft_expr));
+    }
+
+    /// Cell instances in a returned cover (`kind == 2`), i.e. everything that is not a cover input.
+    fn cell_count(cost: &ffi::CCost) -> usize {
+        cost.cell_nodes.iter().filter(|n| n.kind == 2).count()
+    }
+
+    /// The fully specified case must keep the single-cell contract of the legacy `library_dc` entry
+    /// point: falling back to a cover there makes the "small" stage answer *every* cut, the 8x
+    /// runtime regression `epmapping/README.md` records as fixed. An exact six-input AND has no
+    /// library cell but is perfectly coverable, so the two searches must disagree on it.
+    #[test]
+    fn library_dc_exact_search_stays_single_cell() {
+        let and6 = "(& (& (& a b) (& c d)) (& e f))";
+        let vars = [0u32; 6];
+        for objective in [MappingObjective::AreaDelay, MappingObjective::DelayArea] {
+            assert!(
+                run_extract_library_dc(and6, &vars, objective, None, u64::MAX, ExactSearch::Library)
+                    .is_none(),
+                "no library cell implements an exact six-input AND, and the library search must \
+                 not build a cover for it"
+            );
+            let cover =
+                run_extract_library_dc(and6, &vars, objective, None, u64::MAX, ExactSearch::Cover)
+                    .expect("the cover search must map an exact six-input AND");
+            assert!(
+                cell_count(&cover_to_cost(&cover)) > 1,
+                "an exact six-input AND needs a multi-cell cover"
+            );
+        }
+    }
+
+    /// A mask that declares minterms free must let the matcher return a cheaper cell than the exact
+    /// function needs, while staying a single cell.
+    #[test]
+    fn dc_mask_lets_the_matcher_pick_a_cheaper_cell() {
+        let vars = [0u32; 3];
+        /* `c & !(a & b)` is 1 on minterms 4..6. Leaving minterms 3 and 7 free (`care = ~0x88`) is
+           what makes the cheap implementation reachable: the exact function needs a 0.16 cell, some
+           completion needs a 0.09 one. */
+        let care = 0xFFu64 & !0x88u64;
+        let f = "(& (~ (& a b)) c)";
+        let exact = run_extract_library_dc(
+            f,
+            &vars,
+            MappingObjective::AreaDelay,
+            None,
+            u64::MAX,
+            ExactSearch::Library,
+        )
+        .expect("the exact function must match a library cell");
+        let dc = run_extract_library_dc(
+            f,
+            &vars,
+            MappingObjective::AreaDelay,
+            None,
+            care,
+            ExactSearch::Library,
+        )
+        .expect("some completion of the masked function must match a cheaper cell");
+        assert!(
+            dc.area < exact.area,
+            "don't cares must buy a cheaper cell: {} vs the exact {}",
+            dc.area,
+            exact.area
+        );
+        assert_eq!(
+            cell_count(&cover_to_cost(&dc)),
+            1,
+            "a DC match must stay a single cell"
+        );
+    }
+
+    /// Every mask keeps the exact completion available (the original function is always one of its
+    /// own completions), so the DC search can never be worse than the plain library search.
+    #[test]
+    fn dc_mask_never_hurts_the_exact_match() {
+        let vars = [0u32; 3];
+        let f = "(& (~ (& a b)) c)";
+        let exact = run_extract_library_dc(
+            f,
+            &vars,
+            MappingObjective::AreaDelay,
+            None,
+            u64::MAX,
+            ExactSearch::Library,
+        )
+        .expect("the exact function must match a library cell");
+        for freed in 0..8u32 {
+            let care = 0xFFu64 & !(1u64 << freed);
+            let dc = run_extract_library_dc(
+                f,
+                &vars,
+                MappingObjective::AreaDelay,
+                None,
+                care,
+                ExactSearch::Library,
+            )
+            .unwrap_or_else(|| panic!("freeing minterm {freed} lost the exact completion"));
+            assert!(
+                dc.area <= exact.area,
+                "freeing minterm {freed} made the match worse: {} vs {}",
+                dc.area,
+                exact.area
+            );
+        }
+    }
+
+    /// A cut wider than the `u64` mask can address must not shift past 64 bits: the unaddressable
+    /// minterms are treated as care (`compute_care_mask` gives such a cut the all-ones mask), while
+    /// the old unconditional `care >> bit` panicked in a debug build and wrapped to `bit & 63` in a
+    /// release one.
+    #[test]
+    fn wide_cut_partial_mask_does_not_panic() {
+        let and7 = "(& (& (& a b) (& c d)) (& e (& f g)))";
+        let vars = [0u32; 7];
+        let dc = run_extract_library_dc(
+            and7,
+            &vars,
+            MappingObjective::AreaDelay,
+            None,
+            u64::MAX & !0x3u64,
+            ExactSearch::Library,
+        );
+        assert!(
+            dc.is_none() || cell_count(&cover_to_cost(&dc.unwrap())) == 1,
+            "a wide cut must still answer with at most one cell"
+        );
+    }
+
+    /// The FFI entry point must apply the mask it is handed (it used to ignore it entirely).
+    #[test]
+    fn library_dc_ffi_honours_the_care_mask() {
+        let vars = [0u32; 3];
+        let f = "(& (~ (& a b)) c)";
+        let care = 0xFFu64 & !0x88u64;
+        let exact = cut_mapping_library_dc(f, vars.as_ptr(), vars.len(), 1, f32::INFINITY, u64::MAX);
+        let dc = cut_mapping_library_dc(f, vars.as_ptr(), vars.len(), 1, f32::INFINITY, care);
+        assert!(exact.failure_reason.is_empty(), "exact: {}", exact.failure_reason);
+        assert!(dc.failure_reason.is_empty(), "dc: {}", dc.failure_reason);
+        assert!(
+            dc.area < exact.area,
+            "the FFI ignored the care mask: {} vs the exact {}",
+            dc.area,
+            exact.area
+        );
+        assert_eq!(cell_count(&dc), 1);
+    }
+
+    /// The multi-candidate entry point must honour the mask and the `limit` that used to be ignored.
+    #[test]
+    fn multi_dc_honours_mask_and_limit() {
+        let f = "(& (~ (& a b)) c)";
+        let care = 0xFFu64 & !0x88u64;
+        let out = cut_mapping_multi_dc(f, 1, care, true, 0);
+        assert!(!out.is_empty(), "multi_dc must offer candidates");
+        assert!(
+            out.iter().all(|c| !c.cell_nodes.is_empty()),
+            "multi_dc must not return empty covers"
+        );
+        assert!(
+            out.iter().any(|c| cell_count(c) == 1 && c.area < 0.16),
+            "multi_dc must include the don't-care aware single cell: {:?}",
+            out.iter().map(|c| c.area).collect::<Vec<_>>()
+        );
+        let capped = cut_mapping_multi_dc(f, 1, care, true, 1);
+        assert_eq!(capped.len(), 1, "limit must cap the candidate list");
     }
 }

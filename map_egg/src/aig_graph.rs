@@ -300,6 +300,15 @@ impl Aig {
         &self.graph
     }
 
+    /// All node indices currently in the graph, in ascending index order.
+    ///
+    /// Includes primary inputs, the constant node and output nodes, so
+    /// `node_indices().map(|n| n.index()).max() + 1` is the dense index bound used by the
+    /// mapper's per-node vectors.
+    pub fn node_indices(&self) -> impl Iterator<Item = NodeIndex> + '_ {
+        self.graph.node_indices()
+    }
+
     pub(crate) fn graph_mut(&mut self) -> &mut StableGraph<AigNode, bool> {
         &mut self.graph
     }
