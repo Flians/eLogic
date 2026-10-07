@@ -1,0 +1,2 @@
+ABC command line: "read_genlib '/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib'; read -m '/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.sqrt/epmapping_mapped.v'; mfs3 -a; print_stats; write_verilog '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_mfs3/abc.sqrt/mapped.v'".
+

@@ -1,0 +1,25 @@
+[i] ABC baseline: custom, script="fraig; compress2rs; resyn2rs; compress2rs"
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/tools/mockturtle/experiments/benchmarks/c7552.aig'; fraig; compress2rs; resyn2rs; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_controls/db/iwls.asap7_4in_3lvl_a060.c7552/abc_10333482286941.aig'; quit".
+
+[i] super library load = 1.42328 s
+[i] super library: 1442977 gates, max_vars=4
+[i] db4 coverage=51860/65536 with_multi_cell=50904 avg_best_area=0.45939 max_best_area=0.68
+[i] emap area=80.37 delay=871.71 gates=720 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=6, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=40348 hits=35376
+[i] map_egg paths library_hits=0 egg_calls=2752 egg_cache_hits=2390
+[i] epmapping rounds=6 replacements_per_round=92,86,60,54,49,46
+[i] epmapping roots=4159 cuts=27141 dc_cuts=6629 dc_cuts_over_free=4438 dc_free_hist=0,182,714,23,1272,55,228,205,3950 rejected=0
+[i] epmapping replacements=387 (egg=267, single=49, multi=47, synth=24, window=0)
+[i] epmapping phase: replacements with input negation=0 with inverted output=3
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=16728 mffc_cut_egg_roots=2752 egg_covers=2752 reject_depth=14878 reject_delay=16636 reject_objective=27680 reject_objective_by_source=0,2472,5348,0,0,3117,0,0,0,0,16743
+[i] epmapping staged_secs cut_enum=0.0967659 care=0.274146 stage1=1.69217 stage2=0.92941 egg=42.0149 mffc=0.00649463 care_cache=0/0 care_mismatch=0 dc_cut=0.00385996 dc_collect=0.00203004 dc_sim=0.0307573 dc_window=0.272604 dc_cone=0 win_calls=3623 win_gates_avg=6 win_gates_max=18 node_windows=3623 node_window_cuts=26270 node_window_no_dc=2834 node_window_pis_max=8
+[i] epmapping window_synth windows=0 applied=0 gain=0 actual=0 gates=0 abandoned=0 delay_rejected=0 secs=0
+[i] epmapping synth roots=20174 covers=40348 wins=24 secs=2.55162
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 80.37 -> 80.01 delay 871.71 -> 871.71
+[i] epmapping_failure_reason =26633
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_controls/db/iwls.asap7_4in_3lvl_a060.c7552/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=0.582673 library=7.41672 mapping=0.0496291 optimizer=47.9355 validation=0.270448 total=56.2551

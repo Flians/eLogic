@@ -1,0 +1,41 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=57247
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.div/abc_9909320357439.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.div/abc_9909320357439_probe.aig'; quit".
+
+[i] ABC round 1: 57247 -> 20449 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.div/abc_9909320357439.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.div/abc_9909320357439_probe.aig'; quit".
+
+[i] ABC round 2: 20449 -> 20409 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.div/abc_9909320357439.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.div/abc_9909320357439_probe.aig'; quit".
+
+[i] ABC round 3: 20409 -> 20404 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.div/abc_9909320357439.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.div/abc_9909320357439_probe.aig'; quit".
+
+[i] ABC round 4: 20404 -> 20358 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.div/abc_9909320357439.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.div/abc_9909320357439_probe.aig'; quit".
+
+[i] ABC round 5: 20358 -> 20351 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.div/abc_9909320357439.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.div/abc_9909320357439_probe.aig'; quit".
+
+[i] ABC round 6: 20351 -> 20351 ands (no reduction); fixpoint after 5 round(s)
+[i] ABC baseline ands=20351
+[i] super library load = 0.479948 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=1184.5 delay=53105.1 gates=8584 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=6, egg=0, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=460692 hits=453438
+[i] map_egg paths library_hits=0 egg_calls=0 egg_cache_hits=0
+[i] epmapping rounds=3 replacements_per_round=945,1035,920
+[i] epmapping roots=25697 cuts=280044 dc_cuts=12003 dc_cuts_over_free=7836 dc_free_hist=0,64,1131,26,2946,18,190,3,7625 rejected=0
+[i] epmapping replacements=2900 (egg=0, single=2848, multi=4, synth=42, window=6)
+[i] epmapping phase: replacements with input negation=0 with inverted output=0
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=95708 mffc_cut_egg_roots=0 egg_covers=0 reject_depth=143093 reject_delay=255706 reject_objective=154616 reject_objective_by_source=0,0,13086,0,0,12112,0,0,0,0,129418
+[i] epmapping staged_secs cut_enum=1.36508 care=4.03514 stage1=7.02834 stage2=4.21348 egg=0 mffc=0.0304387 care_cache=0/0 care_mismatch=0 dc_cut=0.0393049 dc_collect=0.0275551 dc_sim=0.335141 dc_window=4.02 dc_cone=0 win_calls=25471 win_gates_avg=9 win_gates_max=19 node_windows=25471 node_window_cuts=279370 node_window_no_dc=53679 node_window_pis_max=8
+[i] epmapping window_synth windows=794 applied=1 gain=0.12 actual=0.12 gates=6 abandoned=0 delay_rejected=0 secs=56.4939
+[i] epmapping synth roots=230346 covers=460692 wins=42 secs=19.5486
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 1184.5 -> 1184.17 delay 53105.1 -> 52880.9
+[i] epmapping_failure_reason =277117
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.div/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=32.7026 library=2.73776 mapping=0.599267 optimizer=98.8835 validation=4.02558 total=138.949

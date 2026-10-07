@@ -180,6 +180,10 @@ struct params
   /// substituting (at most 64 minterms). Cheap, and it turns any cover-conversion bug into a
   /// rejected candidate instead of a wrong netlist.
   bool validate_candidates{ true };
+  /// Disable all cut don't cares for a genuine fully-specified-function ablation.
+  bool use_dont_cares{ true };
+  /// Memoize context-independent mapped SOP/DSD covers; costs are recomputed on every use.
+  uint32_t synth_cache_entries{ 8192u };
   /// Structural-synthesis candidate stage (`EPMAPPING_SYN`; single gate: `0` = off, any non-zero
   /// value = on, which is the default).
   ///
@@ -321,6 +325,8 @@ struct stats
   uint64_t synth_covers{ 0u };
   uint64_t synth_replacements{ 0u };
   double secs_synth{ 0.0 };
+  uint64_t synth_cache_lookups{ 0u };
+  uint64_t synth_cache_hits{ 0u };
   /* SAT don't-care refinement: cuts refined, SAT calls issued, care minterms cleared to DCs, and
      cuts whose refinement stopped at the call budget (the window mask stays, so it is sound). */
   uint64_t dc_sat_cuts{ 0u };
@@ -1711,7 +1717,7 @@ private:
     auto const full = ( minterms == 64u ) ? ~uint64_t{ 0u } : ( ( uint64_t{ 1u } << minterms ) - 1u );
     context.care_mask = full;
     context.has_dont_cares = false;
-    if ( !force || n < 2u || n > 6u )
+    if ( !ps_.use_dont_cares || !force || n < 2u || n > 6u )
       return;
 
     /* `EPMAPPING_DC_WINDOW=per_node`: one window plus one simulation per **root**, shared by all of its
@@ -2415,8 +2421,8 @@ private:
   /// The cover(s) the e-graph stage offers for `context`.
   ///
   /// `ps_.egg_required` (default on) passes the cut leaves' arrivals and the cut cone's original
-  /// delay as an output-delay bound, so the extraction returns the *minimum-area* cover that cannot
-  /// regress the delay instead of the unconstrained area minimum (usually the slowest cover).
+  /// delay as an output-delay bound, so heuristic extraction filters its retained covers by an
+  /// estimated timing limit rather than simply taking an unconstrained area winner.
   /// The bound carries a small margin because the arrivals handed to `map_egg` are integers while
   /// the acceptance test is exact: a slightly loose bound only wastes a candidate, since `consider`
   /// re-derives the real delay from the netlist's own arrivals before any comparison.
@@ -2550,7 +2556,31 @@ private:
     }
 
     auto const run = [&]( uint32_t mode ) -> std::optional<CCost> {
-      auto built = synthesize_support_nodes( tt, dc, mode );
+      /* Mapping here has zero-arrival PIs and a fixed library/objective. Cache the structure,
+         never the final cost: the same truth table can occur at different live cut arrivals.
+         Exact synthesis is excluded because its conflict-limited search has its own cache. */
+      std::string const key = std::to_string( n ) + ":" + std::to_string( truth_of( context ) ) +
+                              ":" + std::to_string( dc ? dc->_bits[0] : 0u ) + ":" +
+                              std::to_string( mode );
+      bool const cacheable = mode < 2u && ps_.synth_cache_entries != 0u;
+      std::optional<std::pair<rust::Vec<MappedNode>, uint32_t>> built;
+      bool hit = false;
+      if ( cacheable )
+      {
+        ++st.synth_cache_lookups;
+        if ( auto const it = synth_cache_.find( key ); it != synth_cache_.end() )
+        {
+          built = it->second;
+          hit = true;
+          ++st.synth_cache_hits;
+        }
+      }
+      if ( !hit )
+      {
+        built = synthesize_support_nodes( tt, dc, mode );
+        if ( cacheable && synth_cache_.size() < ps_.synth_cache_entries )
+          synth_cache_.emplace( key, built );
+      }
       if ( !built )
         return std::nullopt;
       auto cover = finalize_local_cover( context, std::move( built->first ), built->second );
@@ -4060,6 +4090,8 @@ private:
   network ntk_;
   params ps_;
   tech_library_t const* tech_{ nullptr };
+  // Lifetime is one optimizer with a fixed library and objective; bounded across rounds.
+  std::unordered_map<std::string, std::optional<std::pair<rust::Vec<MappedNode>, uint32_t>>> synth_cache_;
   std::vector<std::vector<uint32_t>> fanouts_;
   std::unordered_map<std::string, cell_info> cells_by_name_;
   uint32_t inv_cell_index_{ UINT32_MAX };

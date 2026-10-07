@@ -1,0 +1,22 @@
+[i] ABC baseline: direct (no ABC preprocessing)
+[i] super library load = 0.480346 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=49.18 delay=214.5 gates=434 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=6, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=12464 hits=11424
+[i] map_egg paths library_hits=0 egg_calls=1055 egg_cache_hits=959
+[i] epmapping rounds=6 replacements_per_round=25,19,16,14,14,14
+[i] epmapping roots=2584 cuts=8382 dc_cuts=1417 dc_cuts_over_free=1067 dc_free_hist=0,13,233,6,98,0,37,0,1030 rejected=0
+[i] epmapping replacements=102 (egg=85, single=6, multi=1, synth=10, window=0)
+[i] epmapping phase: replacements with input negation=0 with inverted output=0
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=5316 mffc_cut_egg_roots=1055 egg_covers=1055 reject_depth=4890 reject_delay=4198 reject_objective=9599 reject_objective_by_source=0,969,1834,0,0,534,0,0,0,0,6262
+[i] epmapping staged_secs cut_enum=0.0198532 care=0.110846 stage1=0.369946 stage2=0.238941 egg=40.5629 mffc=0.00244654 care_cache=0/0 care_mismatch=0 dc_cut=0.00135322 dc_collect=0.000928394 dc_sim=0.023025 dc_window=0.110361 dc_cone=0 win_calls=2358 win_gates_avg=3 win_gates_max=12 node_windows=2358 node_window_cuts=8070 node_window_no_dc=627 node_window_pis_max=8
+[i] epmapping window_synth windows=0 applied=0 gain=0 actual=0 gates=0 abandoned=0 delay_rejected=0 secs=0
+[i] epmapping synth roots=6232 covers=12464 wins=10 secs=0.557538
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 49.18 -> 48.93 delay 214.5 -> 200.75
+[i] epmapping_failure_reason =8258
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ai.simple_spi/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=0.000144284 library=2.68325 mapping=0.0224517 optimizer=41.9536 validation=0.104631 total=44.7642

@@ -1,0 +1,38 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=1166
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.iwls05_i2c/abc_10014814254112.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.iwls05_i2c/abc_10014814254112_probe.aig'; quit".
+
+[i] ABC round 1: 1166 -> 844 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.iwls05_i2c/abc_10014814254112.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.iwls05_i2c/abc_10014814254112_probe.aig'; quit".
+
+[i] ABC round 2: 844 -> 842 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.iwls05_i2c/abc_10014814254112.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.iwls05_i2c/abc_10014814254112_probe.aig'; quit".
+
+[i] ABC round 3: 842 -> 841 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.iwls05_i2c/abc_10014814254112.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.iwls05_i2c/abc_10014814254112_probe.aig'; quit".
+
+[i] ABC round 4: 841 -> 835 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.iwls05_i2c/abc_10014814254112.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.iwls05_i2c/abc_10014814254112_probe.aig'; quit".
+
+[i] ABC round 5: 835 -> 835 ands (no reduction); fixpoint after 4 round(s)
+[i] ABC baseline ands=835
+[i] super library load = 0.504338 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=47.66 delay=303.61 gates=501 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=6, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=26234 hits=24044
+[i] map_egg paths library_hits=0 egg_calls=2036 egg_cache_hits=1835
+[i] epmapping rounds=6 replacements_per_round=24,17,14,14,14,14
+[i] epmapping roots=2985 cuts=16795 dc_cuts=2603 dc_cuts_over_free=1963 dc_free_hist=0,30,174,0,436,0,30,0,1933 rejected=0
+[i] epmapping replacements=97 (egg=85, single=3, multi=1, synth=5, window=3)
+[i] epmapping phase: replacements with input negation=0 with inverted output=0
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=11310 mffc_cut_egg_roots=2036 egg_covers=2036 reject_depth=7430 reject_delay=10642 reject_objective=21405 reject_objective_by_source=0,1950,4738,0,0,1629,0,0,0,0,13088
+[i] epmapping staged_secs cut_enum=0.0297548 care=0.202667 stage1=1.00278 stage2=0.435474 egg=40.4091 mffc=0.00286453 care_cache=0/0 care_mismatch=0 dc_cut=0.00218011 dc_collect=0.00128644 dc_sim=0.018607 dc_window=0.201674 dc_cone=0 win_calls=2465 win_gates_avg=4 win_gates_max=11 node_windows=2465 node_window_cuts=16132 node_window_no_dc=1143 node_window_pis_max=8
+[i] epmapping window_synth windows=2068 applied=1 gain=0.06 actual=0.06 gates=3 abandoned=0 delay_rejected=0 secs=3.75454
+[i] epmapping synth roots=13117 covers=26234 wins=5 secs=1.18904
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 47.66 -> 47.54 delay 303.61 -> 303.61
+[i] epmapping_failure_reason =16698
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.iwls05_i2c/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=1.37177 library=2.71548 mapping=0.0264086 optimizer=47.2103 validation=0.107368 total=51.4315

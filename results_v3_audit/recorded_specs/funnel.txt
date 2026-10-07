@@ -1,0 +1,5 @@
+/home/flynn/workplace/MIGBalance/results_v3_controls/funnel/r1.c7552 c7552 1 high_effort
+/home/flynn/workplace/MIGBalance/results_v3_controls/funnel/r1.sin sin 1 high_effort
+/home/flynn/workplace/MIGBalance/results_v3_controls/funnel/r1.div div 1 high_effort
+/home/flynn/workplace/MIGBalance/results_v3_controls/funnel/r1.multiplier multiplier 1 high_effort
+/home/flynn/workplace/MIGBalance/results_v3_controls/funnel/r1.log2 log2 1 high_effort

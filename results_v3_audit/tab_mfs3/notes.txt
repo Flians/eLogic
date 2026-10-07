@@ -1,0 +1,2 @@
+2026-10-07 14:27:06  engine side only: the 16 A_i baselines (EPMAPPING_WRITE_BASELINE=1) and the 16 one-pass runs; ABC's side of the comparison is the next stage, tab_mfs3_abc.
+2026-10-07 14:37:58  engine side only: the 16 A_i baselines (EPMAPPING_WRITE_BASELINE=1) and the 16 one-pass runs; ABC's side of the comparison is the next stage, tab_mfs3_abc.

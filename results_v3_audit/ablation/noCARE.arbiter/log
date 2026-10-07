@@ -1,0 +1,26 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=11839
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.arbiter/abc_9610587942211.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.arbiter/abc_9610587942211_probe.aig'; quit".
+
+[i] ABC round 1: 11839 -> 11839 ands (no reduction); fixpoint after 0 round(s)
+[i] ABC baseline ands=11839
+[i] super library load = 0.490352 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=557.72 delay=999.87 gates=6163 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=6, egg=1, dc=0, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=121106 hits=120870
+[i] map_egg paths library_hits=0 egg_calls=905 egg_cache_hits=889
+[i] epmapping rounds=1 replacements_per_round=0
+[i] epmapping roots=6163 cuts=66826 dc_cuts=0 dc_cuts_over_free=0 dc_free_hist=0,0,0,0,0,0,0,0,0 rejected=0
+[i] epmapping replacements=0 (egg=0, single=0, multi=0, synth=0, window=0)
+[i] epmapping phase: replacements with input negation=0 with inverted output=0
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=24897 mffc_cut_egg_roots=905 egg_covers=905 reject_depth=121408 reject_delay=13880 reject_objective=11620 reject_objective_by_source=0,905,7188,0,0,673,0,0,0,0,2854
+[i] epmapping staged_secs cut_enum=0.0736096 care=0.00198159 stage1=1.20274 stage2=0.819761 egg=40.0741 mffc=0.177657 care_cache=0/0 care_mismatch=0 dc_cut=0 dc_collect=0 dc_sim=0 dc_window=0 dc_cone=0 win_calls=0 win_gates_avg=0 win_gates_max=0 node_windows=0 node_window_cuts=0 node_window_no_dc=0 node_window_pis_max=0
+[i] epmapping window_synth windows=5778 applied=0 gain=0 actual=0 gates=0 abandoned=0 delay_rejected=0 secs=4.16195
+[i] epmapping synth roots=60553 covers=121106 wins=0 secs=3.36614
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 557.72 -> 557.72 delay 999.87 -> 999.87
+[i] epmapping_failure_reason =66826
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.arbiter/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=3.74077 library=2.68174 mapping=1.01316 optimizer=50.6288 validation=0.117569 total=58.1821

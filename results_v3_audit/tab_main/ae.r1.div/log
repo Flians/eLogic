@@ -1,0 +1,41 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=57247
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.div/abc_7771551342948.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.div/abc_7771551342948_probe.aig'; quit".
+
+[i] ABC round 1: 57247 -> 20449 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.div/abc_7771551342948.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.div/abc_7771551342948_probe.aig'; quit".
+
+[i] ABC round 2: 20449 -> 20409 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.div/abc_7771551342948.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.div/abc_7771551342948_probe.aig'; quit".
+
+[i] ABC round 3: 20409 -> 20404 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.div/abc_7771551342948.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.div/abc_7771551342948_probe.aig'; quit".
+
+[i] ABC round 4: 20404 -> 20358 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.div/abc_7771551342948.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.div/abc_7771551342948_probe.aig'; quit".
+
+[i] ABC round 5: 20358 -> 20351 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.div/abc_7771551342948.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.div/abc_7771551342948_probe.aig'; quit".
+
+[i] ABC round 6: 20351 -> 20351 ands (no reduction); fixpoint after 5 round(s)
+[i] ABC baseline ands=20351
+[i] super library load = 0.502692 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=1184.5 delay=53105.1 gates=8584 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=1, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=153598 hits=147102
+[i] map_egg paths library_hits=0 egg_calls=3706 egg_cache_hits=1514
+[i] epmapping rounds=1 replacements_per_round=942
+[i] epmapping roots=8563 cuts=93390 dc_cuts=4087 dc_cuts_over_free=2669 dc_free_hist=0,28,397,6,987,6,65,1,2597 rejected=0
+[i] epmapping replacements=942 (egg=4, single=918, multi=2, synth=18, window=0)
+[i] epmapping phase: replacements with input negation=0 with inverted output=0
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=31979 mffc_cut_egg_roots=3706 egg_covers=3706 reject_depth=47634 reject_delay=85382 reject_objective=55282 reject_objective_by_source=0,3311,4454,0,0,4070,0,0,0,0,43447
+[i] epmapping staged_secs cut_enum=0.449199 care=1.15503 stage1=2.41412 stage2=1.37213 egg=47.1065 mffc=0.011879 care_cache=0/0 care_mismatch=0 dc_cut=0.0182816 dc_collect=0.00674351 dc_sim=0.10173 dc_window=1.14971 dc_cone=0 win_calls=8489 win_gates_avg=9 win_gates_max=18 node_windows=8489 node_window_cuts=93166 node_window_no_dc=17837 node_window_pis_max=8
+[i] epmapping window_synth windows=0 applied=0 gain=0 actual=0 gates=0 abandoned=0 delay_rejected=0 secs=0
+[i] epmapping synth roots=76799 covers=153598 wins=18 secs=7.86121
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 1184.5 -> 1184.28 delay 53105.1 -> 52985.1
+[i] epmapping_failure_reason =92432
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.div/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=33.3275 library=2.65811 mapping=0.615864 optimizer=62.6592 validation=4.15033 total=103.411

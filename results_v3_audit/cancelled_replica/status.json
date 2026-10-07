@@ -1,0 +1,5 @@
+{
+  "status": "cancelled duplicate batch",
+  "usable_as_complete_ablation": false,
+  "reason": "A separately launched matched configuration batch was ahead; cooperative stop prevented further duplicate jobs. Its four active jobs completed with CEC. The old live shell later exited 2 because the source script had been edited while it was running. This partial stage is excluded from the paper."
+}

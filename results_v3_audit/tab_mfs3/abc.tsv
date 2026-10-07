@@ -1,0 +1,17 @@
+design	area	delay	secs	rc	cec	validation_secs
+aes_core	1083.15	465.20	32	0	1	1
+arbiter	557.72	999.87	96	0	1	0
+ethernet	3715.08	613.80	52	0	1	10
+iwls05_i2c	57.09	233.88	0	0	1	0
+RISC	3491.97	1175.20	92	0	1	14
+sasc	35.19	140.61	0	0	1	0
+simple_spi	48.30	214.50	0	0	1	1
+spi	179.17	496.51	7	0	1	0
+systemcaes	542.80	845.51	18	0	1	1
+systemcdes	139.76	505.00	2	0	1	0
+tv80	430.06	940.55	38	0	1	2
+usb_funct	781.99	420.02	1	0	1	1
+usb_phy	24.53	155.17	1	0	1	0
+div	-	-	1000	142	-	0
+mem_ctrl	-	-	1000	142	-	0
+sqrt	-	-	1000	142	-	0

@@ -1,0 +1,41 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=75613
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.RISC/abc_8401927755734.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.RISC/abc_8401927755734_probe.aig'; quit".
+
+[i] ABC round 1: 75613 -> 60057 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.RISC/abc_8401927755734.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.RISC/abc_8401927755734_probe.aig'; quit".
+
+[i] ABC round 2: 60057 -> 59588 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.RISC/abc_8401927755734.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.RISC/abc_8401927755734_probe.aig'; quit".
+
+[i] ABC round 3: 59588 -> 59501 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.RISC/abc_8401927755734.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.RISC/abc_8401927755734_probe.aig'; quit".
+
+[i] ABC round 4: 59501 -> 59483 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.RISC/abc_8401927755734.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.RISC/abc_8401927755734_probe.aig'; quit".
+
+[i] ABC round 5: 59483 -> 59478 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.RISC/abc_8401927755734.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.RISC/abc_8401927755734_probe.aig'; quit".
+
+[i] ABC round 6: 59478 -> 59478 ands (no reduction); fixpoint after 5 round(s)
+[i] ABC baseline ands=59478
+[i] super library load = 0.520841 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=2927.19 delay=1453.77 gates=25975 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=6, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=1285296 hits=540066
+[i] map_egg paths library_hits=0 egg_calls=79654 egg_cache_hits=73728
+[i] epmapping rounds=6 replacements_per_round=803,624,401,398,383,380
+[i] epmapping roots=154886 cuts=801463 dc_cuts=222421 dc_cuts_over_free=184767 dc_free_hist=0,728,7272,265,29389,240,2276,130,182121 rejected=0
+[i] epmapping replacements=2989 (egg=2367, single=374, multi=39, synth=209, window=0)
+[i] epmapping phase: replacements with input negation=22 with inverted output=4
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=499088 mffc_cut_egg_roots=79654 egg_covers=79653 reject_depth=427921 reject_delay=536455 reject_objective=896200 reject_objective_by_source=0,77251,205508,0,0,56742,0,0,0,0,556699
+[i] epmapping staged_secs cut_enum=3.50429 care=12.8477 stage1=56.3605 stage2=27.8496 egg=62.3909 mffc=0.584403 care_cache=0/0 care_mismatch=0 dc_cut=0.200866 dc_collect=0.121646 dc_sim=1.67382 dc_window=12.796 dc_cone=0 win_calls=139114 win_gates_avg=5 win_gates_max=24 node_windows=139114 node_window_cuts=782267 node_window_no_dc=58214 node_window_pis_max=8
+[i] epmapping window_synth windows=0 applied=0 gain=0 actual=0 gates=0 abandoned=0 delay_rejected=0 secs=0
+[i] epmapping synth roots=642648 covers=1285296 wins=209 secs=264.304
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 2927.19 -> 2920.58 delay 1453.77 -> 1417.86
+[i] epmapping_failure_reason =798292
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.RISC/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=108.645 library=2.78635 mapping=2.11444 optimizer=442.597 validation=35.7648 total=591.932

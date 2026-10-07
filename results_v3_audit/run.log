@@ -1,0 +1,19 @@
+== tab_main: 48 runs (14:01:05)
+   done (14:37:58)
+[i] /home/flynn/workplace/MIGBalance/results_v3_audit/tab_mfs3/asap7_6in.genlib: kept 40 gates, dropped 7 (AO322x2_ASAP7_75t_R(7), OA331x2_ASAP7_75t_R(7), AO331x2_ASAP7_75t_R(7), AO332x2_ASAP7_75t_R(8), OA332x2_ASAP7_75t_R(8), AO333x1_ASAP7_75t_R(9), OA333x2_ASAP7_75t_R(9))
+[=] tab_mfs3 already done (use --force to redo)
+[=] funnel already done (use --force to redo)
+== lever3: 20 runs (14:37:58)
+   done (14:42:08)
+== ablation: 66 runs (14:42:08)
+[i] batch stopped before launching another engine: /home/flynn/workplace/MIGBalance/results_v3_audit
+xargs: bash: exited with status 255; aborting
+   done (14:52:20)
+[=] db already done (use --force to redo)
+== report (14:52:21)
+[i] wrote /home/flynn/workplace/MIGBalance/results_v3_audit/tables.md
+[i] wrote /home/flynn/workplace/MIGBalance/results_v3_audit/tables.tex
+scripts/experiments/run_all.sh: line 399: --latex: command not found
+[w] report.py failed; the raw stage data is still under /home/flynn/workplace/MIGBalance/results_v3_audit
+scripts/experiments/run_all.sh: line 401: syntax error near unexpected token `}'
+scripts/experiments/run_all.sh: line 401: `}'

@@ -1,0 +1,22 @@
+[i] ABC baseline: direct (no ABC preprocessing)
+[i] super library load = 0.490186 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=1113.13 delay=410.49 gates=9686 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=1, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=105008 hits=33472
+[i] map_egg paths library_hits=0 egg_calls=5676 egg_cache_hits=3289
+[i] epmapping rounds=1 replacements_per_round=931
+[i] epmapping roots=9052 cuts=64395 dc_cuts=29660 dc_cuts_over_free=25664 dc_free_hist=0,48,1198,856,1894,20,1394,269,23981 rejected=0
+[i] epmapping replacements=931 (egg=212, single=84, multi=55, synth=255, window=325)
+[i] epmapping phase: replacements with input negation=0 with inverted output=1
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=37004 mffc_cut_egg_roots=5676 egg_covers=5676 reject_depth=30759 reject_delay=40957 reject_objective=75006 reject_objective_by_source=0,5443,17445,0,0,3621,0,0,0,0,48497
+[i] epmapping staged_secs cut_enum=0.287324 care=0.568805 stage1=5.09599 stage2=1.66239 egg=16.0887 mffc=0.0401379 care_cache=0/0 care_mismatch=0 dc_cut=0.011575 dc_collect=0.00507934 dc_sim=0.0807068 dc_window=0.563742 dc_cone=0 win_calls=8823 win_gates_avg=5 win_gates_max=20 node_windows=8823 node_window_cuts=63518 node_window_no_dc=2959 node_window_pis_max=8
+[i] epmapping window_synth windows=5116 applied=49 gain=3.46 actual=3.46 gates=325 abandoned=0 delay_rejected=0 secs=29.7124
+[i] epmapping synth roots=52504 covers=105008 wins=255 secs=18.1918
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 1113.13 -> 1106.87 delay 410.49 -> 409.31
+[i] epmapping_failure_reason =63065
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_parallel/tab_mfs3/ours.aes_core/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=0.000197934 library=2.98421 mapping=1.03347 optimizer=73.0918 validation=1.69144 total=78.8012

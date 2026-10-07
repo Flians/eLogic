@@ -1,0 +1,22 @@
+[i] ABC baseline: direct (no ABC preprocessing)
+[i] super library load = 0.484137 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=792.68 delay=421.38 gates=7267 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=6, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=303426 hits=239736
+[i] map_egg paths library_hits=0 egg_calls=23350 egg_cache_hits=21506
+[i] epmapping rounds=6 replacements_per_round=457,292,185,139,124,122
+[i] epmapping roots=42308 cuts=192890 dc_cuts=33257 dc_cuts_over_free=28172 dc_free_hist=0,651,1285,167,2982,12,394,223,27543 rejected=0
+[i] epmapping replacements=1319 (egg=852, single=208, multi=23, synth=236, window=0)
+[i] epmapping phase: replacements with input negation=3 with inverted output=5
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=118028 mffc_cut_egg_roots=23350 egg_covers=23342 reject_depth=97165 reject_delay=140743 reject_objective=204366 reject_objective_by_source=0,22437,47755,0,0,13366,0,0,0,0,120808
+[i] epmapping staged_secs cut_enum=0.697438 care=2.19084 stage1=10.2833 stage2=5.06422 egg=61.4325 mffc=0.0817499 care_cache=0/0 care_mismatch=0 dc_cut=0.0355837 dc_collect=0.0223394 dc_sim=0.369933 dc_window=2.17992 dc_cone=0 win_calls=35591 win_gates_avg=5 win_gates_max=14 node_windows=35591 node_window_cuts=184564 node_window_no_dc=13573 node_window_pis_max=8
+[i] epmapping window_synth windows=0 applied=0 gain=0 actual=0 gates=0 abandoned=0 delay_rejected=0 secs=0
+[i] epmapping synth roots=151713 covers=303426 wins=236 secs=23.2352
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 792.68 -> 770.14 delay 421.38 -> 394.24
+[i] epmapping_failure_reason =191143
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ai.usb_funct/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=0.000146237 library=2.77909 mapping=0.521826 optimizer=105.981 validation=1.10533 total=110.387

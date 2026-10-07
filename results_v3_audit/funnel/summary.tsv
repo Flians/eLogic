@@ -1,0 +1,6 @@
+stage	design	recipe	rounds	base_a	base_d	out_a	out_d	dA%	dD%	rnd	cec	secs	rc
+r1	c7552	high_effort	1	81.87	657.42	81.7	627.15	-0.21	-4.60	1	1	49	0
+r1	sin	high_effort	1	276.16	2579.41	275.57	2526.4	-0.21	-2.06	1	1	72	0
+r1	multiplier	high_effort	1	1270.83	3221.24	1269.03	3213.02	-0.14	-0.26	1	1	81	0
+r1	div	high_effort	1	1184.5	53105.1	1184.28	52985.1	-0.02	-0.23	1	1	102	0
+r1	log2	high_effort	1	1462	4775.97	1459.74	4680.57	-0.15	-2.00	1	1	230	0

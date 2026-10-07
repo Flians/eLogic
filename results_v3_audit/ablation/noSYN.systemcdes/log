@@ -1,0 +1,41 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=2999
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.systemcdes/abc_11362510665965.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.systemcdes/abc_11362510665965_probe.aig'; quit".
+
+[i] ABC round 1: 2999 -> 2312 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.systemcdes/abc_11362510665965.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.systemcdes/abc_11362510665965_probe.aig'; quit".
+
+[i] ABC round 2: 2312 -> 2290 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.systemcdes/abc_11362510665965.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.systemcdes/abc_11362510665965_probe.aig'; quit".
+
+[i] ABC round 3: 2290 -> 2287 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.systemcdes/abc_11362510665965.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.systemcdes/abc_11362510665965_probe.aig'; quit".
+
+[i] ABC round 4: 2287 -> 2286 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.systemcdes/abc_11362510665965.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.systemcdes/abc_11362510665965_probe.aig'; quit".
+
+[i] ABC round 5: 2286 -> 2284 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.systemcdes/abc_11362510665965.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.systemcdes/abc_11362510665965_probe.aig'; quit".
+
+[i] ABC round 6: 2284 -> 2284 ands (no reduction); fixpoint after 5 round(s)
+[i] ABC baseline ands=2284
+[i] super library load = 0.493727 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=131.06 delay=488.85 gates=1224 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=6, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=0 hits=0
+[i] map_egg paths library_hits=0 egg_calls=4966 egg_cache_hits=4481
+[i] epmapping rounds=6 replacements_per_round=127,102,101,99,99,99
+[i] epmapping roots=7325 cuts=51153 dc_cuts=11113 dc_cuts_over_free=8140 dc_free_hist=0,150,868,240,1715,72,648,102,7318 rejected=0
+[i] epmapping replacements=627 (egg=599, single=25, multi=1, synth=0, window=2)
+[i] epmapping phase: replacements with input negation=0 with inverted output=1
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=29098 mffc_cut_egg_roots=4966 egg_covers=4966 reject_depth=7012 reject_delay=6202 reject_objective=20219 reject_objective_by_source=0,4359,9151,0,0,6709,0,0,0,0,0
+[i] epmapping staged_secs cut_enum=0.432683 care=0.583942 stage1=2.81751 stage2=1.43336 egg=40.8541 mffc=0.0117646 care_cache=0/0 care_mismatch=0 dc_cut=0.00789903 dc_collect=0.00395014 dc_sim=0.0613476 dc_window=0.581075 dc_cone=0 win_calls=6287 win_gates_avg=6 win_gates_max=25 node_windows=6287 node_window_cuts=49530 node_window_no_dc=9003 node_window_pis_max=8
+[i] epmapping window_synth windows=2828 applied=1 gain=0.04 actual=0.04 gates=2 abandoned=0 delay_rejected=0 secs=15.7047
+[i] epmapping synth roots=0 covers=0 wins=0 secs=0
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 131.06 -> 130.98 delay 488.85 -> 488.85
+[i] epmapping_failure_reason =50522
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.systemcdes/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=5.76561 library=2.66835 mapping=0.0879861 optimizer=62.4767 validation=0.341173 total=71.3399

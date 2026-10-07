@@ -1,0 +1,22 @@
+[i] ABC baseline: direct (no ABC preprocessing)
+[i] super library load = 0.482085 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=35.85 delay=140.61 gates=320 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=1, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=1338 hits=880
+[i] map_egg paths library_hits=0 egg_calls=82 egg_cache_hits=49
+[i] epmapping rounds=1 replacements_per_round=18
+[i] epmapping roots=300 cuts=904 dc_cuts=142 dc_cuts_over_free=118 dc_free_hist=0,2,10,0,12,0,4,0,114 rejected=0
+[i] epmapping replacements=18 (egg=7, single=0, multi=0, synth=7, window=4)
+[i] epmapping phase: replacements with input negation=0 with inverted output=0
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=595 mffc_cut_egg_roots=82 egg_covers=82 reject_depth=470 reject_delay=335 reject_objective=1191 reject_objective_by_source=0,75,158,0,0,84,0,0,0,0,874
+[i] epmapping staged_secs cut_enum=0.00111297 care=0.00865439 stage1=0.0409362 stage2=0.0336617 egg=0.770823 mffc=0.000283017 care_cache=0/0 care_mismatch=0 dc_cut=0.000197391 dc_collect=0.000124488 dc_sim=0.00185972 dc_window=0.00859057 dc_cone=0 win_calls=268 win_gates_avg=3 win_gates_max=10 node_windows=268 node_window_cuts=867 node_window_no_dc=76 node_window_pis_max=8
+[i] epmapping window_synth windows=210 applied=1 gain=0.15 actual=0.15 gates=4 abandoned=0 delay_rejected=0 secs=0.253983
+[i] epmapping synth roots=669 covers=1338 wins=7 secs=0.132182
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 35.85 -> 35.37 delay 140.61 -> 140.61
+[i] epmapping_failure_reason =885
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_parallel/tab_mfs3/ours.sasc/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=0.000152613 library=2.66847 mapping=0.00976071 optimizer=1.25353 validation=0.0932089 total=4.0252

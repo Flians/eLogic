@@ -1,3 +1,12 @@
+# Keep the ePMapping library optimization in this repository rather than a fork.
+execute_process(
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/apply_mockturtle_patches.sh"
+  RESULT_VARIABLE EPM_PATCH_RESULT
+)
+if(NOT EPM_PATCH_RESULT EQUAL 0)
+  message(FATAL_ERROR "Could not apply the ePMapping mockturtle patch; resolve the reported conflict first.")
+endif()
+
 add_library(epmapping INTERFACE)
 
 target_include_directories(epmapping INTERFACE

@@ -210,6 +210,10 @@ void debug_po_drivers(Ntk const& ntk, char const* tag)
 
 int main(int argc, char** argv)
 {
+  auto const process_start = std::chrono::steady_clock::now();
+  auto const elapsed = []( auto const& start ) {
+    return std::chrono::duration<double>( std::chrono::steady_clock::now() - start ).count();
+  };
   if (argc < 3)
   {
     std::cerr << "usage: epmapping_check <genlib> <input.aig> [workdir]\n";
@@ -278,6 +282,8 @@ int main(int argc, char** argv)
     return 2;
   }
 
+  double const preprocess_secs = elapsed( process_start );
+  auto const library_start = std::chrono::steady_clock::now();
   std::vector<mockturtle::gate> gates;
   {
     std::ifstream input(genlib_path);
@@ -350,6 +356,8 @@ int main(int argc, char** argv)
               << " max_best_area=" << area_max << std::endl;
   }
 
+  double const library_secs = elapsed( library_start );
+  auto const mapping_start = std::chrono::steady_clock::now();
   mockturtle::aig_network aig;
   if (lorina::read_aiger(subject_path, mockturtle::aiger_reader(aig)) != lorina::return_code::success)
   {
@@ -400,6 +408,7 @@ int main(int argc, char** argv)
             << " multioutput=" << map_stats.multioutput_gates << std::endl;
 
   debug_po_drivers(mapped, "emap");
+  double const mapping_secs = elapsed( mapping_start );
 
   if (env_u32("EPMAPPING_SKIP", 0u) != 0u)
   {
@@ -442,6 +451,8 @@ int main(int argc, char** argv)
   ps.max_rounds = env_u32("EPMAPPING_ROUNDS", ps.max_rounds);
   ps.use_egg = env_u32("EPMAPPING_EGG", ps.use_egg ? 1u : 0u) != 0u;
   ps.validate_candidates = env_u32("EPMAPPING_VALIDATE", ps.validate_candidates ? 1u : 0u) != 0u;
+  ps.use_dont_cares = env_u32("EPMAPPING_DC", ps.use_dont_cares ? 1u : 0u) != 0u;
+  ps.synth_cache_entries = env_u32("EPMAPPING_SYN_CACHE", ps.synth_cache_entries);
   ps.egg_required = env_u32("EPMAPPING_EGG_REQ", ps.egg_required ? 1u : 0u) != 0u;
   if ( char const* min_mffc = std::getenv("EPMAPPING_EGG_MIN_MFFC") )
     ps.egg_min_mffc = std::atof( min_mffc );
@@ -492,6 +503,7 @@ int main(int argc, char** argv)
 
   /* Instantiate up to the 9-input ceiling so `EPMAPPING_CUT_SIZE` can be raised; the default
      `params::cut_size` stays 6, so default behaviour is unchanged. */
+  auto const optimizer_start = std::chrono::steady_clock::now();
   epmapping::optimizer<max_cut_size> optimizer{mapped, ps, tech_lib_super ? tech_lib_super.get() : &tech_lib};
   std::cout << "[i] epmapping running (objective=" << static_cast<unsigned>(ps.objective)
             << ", preserve_depth=" << (ps.preserve_depth ? 1 : 0)
@@ -499,6 +511,8 @@ int main(int argc, char** argv)
             << ", delay_slack=" << ps.delay_slack
             << ", max_rounds=" << ps.max_rounds
             << ", egg=" << (ps.use_egg ? 1 : 0)
+            << ", dc=" << (ps.use_dont_cares ? 1 : 0)
+            << ", synth_cache=" << ps.synth_cache_entries
             << ", dc_window="
             << ( ps.dc_window == epmapping::params::dc_window_mode::per_node ? "per_node" : "per_cut" )
             << ", single_matcher="
@@ -508,6 +522,9 @@ int main(int argc, char** argv)
             << ")" << std::endl;
   reset_mapping_counters();
   auto const result = optimizer.run();
+  double const optimizer_secs = elapsed( optimizer_start );
+  std::cout << "[i] epmapping synth_cache lookups=" << result.synth_cache_lookups
+            << " hits=" << result.synth_cache_hits << std::endl;
   std::cout << "[i] map_egg paths library_hits=" << mapping_library_hits()
             << " egg_calls=" << mapping_egg_calls()
             << " egg_cache_hits=" << mapping_egg_cache_hits() << std::endl;
@@ -589,6 +606,7 @@ int main(int argc, char** argv)
       std::cout << "[i] epmapping_failure_example " << expression << "\n";
   }
 
+  auto const validation_start = std::chrono::steady_clock::now();
   auto const verilog_path = workdir / "epmapping_mapped.v";
   debug_po_drivers(optimizer.ntk(), "opt");
   mockturtle::write_verilog_with_cell(optimizer.ntk(), verilog_path.string());
@@ -597,5 +615,9 @@ int main(int argc, char** argv)
   bool const cec = abc_cec_mapped_cell_unique(optimizer.ntk(), input_path, genlib_path,
                                               workdir / ("cec_" + std::to_string(stamp) + ".v"));
   std::cout << "[i] cec=" << (cec ? "1" : "0") << "\n";
+  std::cout << "[i] epmapping timing preprocess=" << preprocess_secs
+            << " library=" << library_secs << " mapping=" << mapping_secs
+            << " optimizer=" << optimizer_secs << " validation=" << elapsed( validation_start )
+            << " total=" << elapsed( process_start ) << std::endl;
   return cec ? 0 : 3;
 }

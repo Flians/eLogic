@@ -1,5 +1,38 @@
 # epmapping
 
+## Verified audit (2026-10-07)
+
+The revised paper uses `results_v3_audit/` and generated tables from
+`scripts/experiments/export_paper.py`. Earlier measurements below are historical.
+`EPMAPPING_DC=0` disables all cut care-mask computation; `EPMAPPING_SAT_DC=0` only
+turns off SAT refinement and is not a no-care ablation. In the default `per_node`
+window path SAT refinement is bypassed regardless of that flag.
+
+Two performance changes preserve candidate structures: truth-table bucketing for
+library dominance filtering (original within-function comparison order retained),
+and bounded memoization of mapped SOP/DSD structures. `EPMAPPING_SYN_CACHE=0`
+disables the latter for differential checks; the default is 8192 entries per
+optimizer. Current arrivals, costs and care validation are recomputed on reuse.
+
+`epmapping timing` splits process wall time into preprocessing, library setup,
+initial mapping, optimization and validation. Published optimizer time must not be
+compared with the whole-process `secs` column. The extended ablation and matched
+ABC comparison enable whole-window fallback; main/funnel results disable it.
+The care/window effects are signed greedy-path ablations, not additive stage shares.
+ABC and ePMapping receive byte-identical mapped files, but native parsed baseline
+areas can differ through output-buffer accounting. The revised table shows both
+baselines and measures percentages against each tool's own start.
+
+Reproduce and regenerate the numeric paper tables with
+`EPM_ROOT=/path/to/fresh/results bash scripts/experiments/reproduce_paper.sh`.
+The reproduction records the binary and experiment environment before running;
+resuming refuses a changed binary, harness or environment. Completed stages are
+reused; interrupted stages rerun with a fresh summary, preserving the preceding
+summary as `summary.previous.tsv`. A `<EPM_ROOT>/.stop` marker prevents launching
+further jobs and lets active jobs finish; remove it before resuming. The paper's
+default `make` target verifies the data before compiling.
+
+
 `epmapping` is the eLogic-style (`emig/main.cpp`) post-mapping rewrite driver for a
 **gate-level** netlist. It takes the mapped `cell_view<block_network>` produced by
 mockturtle `emap`, walks every gate and every cut of that gate, asks the cell library /

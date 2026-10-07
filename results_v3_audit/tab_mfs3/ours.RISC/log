@@ -1,0 +1,23 @@
+[i] ABC baseline: direct (no ABC preprocessing)
+[i] super library load = 0.494806 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=3586.23 delay=696.43 gates=31225 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=1, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[e] MAP ERROR: technology library is not complete, impossible to perform mapping
+[i] epmapping synth_cache lookups=272630 hits=106816
+[i] map_egg paths library_hits=0 egg_calls=13245 egg_cache_hits=8847
+[i] epmapping rounds=1 replacements_per_round=3161
+[i] epmapping roots=28757 cuts=167456 dc_cuts=55937 dc_cuts_over_free=49315 dc_free_hist=0,225,3346,55,2996,13,2370,41,46891 rejected=0
+[i] epmapping replacements=3161 (egg=806, single=235, multi=59, synth=989, window=1072)
+[i] epmapping phase: replacements with input negation=5 with inverted output=0
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=84439 mffc_cut_egg_roots=13245 egg_covers=13244 reject_depth=82907 reject_delay=94602 reject_objective=188507 reject_objective_by_source=0,12295,31984,0,0,10870,0,0,0,0,133358
+[i] epmapping staged_secs cut_enum=1.05802 care=2.09837 stage1=8.41195 stage2=3.4466 egg=14.7512 mffc=0.194894 care_cache=0/0 care_mismatch=0 dc_cut=0.039527 dc_collect=0.0148361 dc_sim=0.284679 dc_window=2.08554 dc_cone=0 win_calls=26828 win_gates_avg=5 win_gates_max=19 node_windows=26828 node_window_cuts=163760 node_window_no_dc=13432 node_window_pis_max=8
+[i] epmapping window_synth windows=20658 applied=164 gain=20.61 actual=20.61 gates=1072 abandoned=0 delay_rejected=0 secs=34.422
+[i] epmapping synth roots=136315 covers=272621 wins=989 secs=44.8958
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 3586.23 -> 3541.76 delay 696.43 -> 661.19
+[i] epmapping_failure_reason =162675
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_parallel/tab_mfs3/ours.RISC/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=0.000155831 library=2.77975 mapping=2.63977 optimizer=114.243 validation=11.7214 total=131.384

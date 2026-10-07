@@ -1,0 +1,20 @@
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/base.c7552 c7552 1 high_effort
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/iter5.c7552 c7552 1 high_effort MAP_EGG_EGG_ITER_LIMIT=5
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/iter10.c7552 c7552 1 high_effort MAP_EGG_EGG_ITER_LIMIT=10
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/node2000.c7552 c7552 1 high_effort MAP_EGG_EGG_NODE_LIMIT=2000
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/full.c7552 c7552 6 high_effort
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/base.c3540 c3540 1 high_effort
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/iter5.c3540 c3540 1 high_effort MAP_EGG_EGG_ITER_LIMIT=5
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/iter10.c3540 c3540 1 high_effort MAP_EGG_EGG_ITER_LIMIT=10
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/node2000.c3540 c3540 1 high_effort MAP_EGG_EGG_NODE_LIMIT=2000
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/full.c3540 c3540 6 high_effort
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/base.c5315 c5315 1 high_effort
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/iter5.c5315 c5315 1 high_effort MAP_EGG_EGG_ITER_LIMIT=5
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/iter10.c5315 c5315 1 high_effort MAP_EGG_EGG_ITER_LIMIT=10
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/node2000.c5315 c5315 1 high_effort MAP_EGG_EGG_NODE_LIMIT=2000
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/full.c5315 c5315 6 high_effort
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/base.c2670 c2670 1 high_effort
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/iter5.c2670 c2670 1 high_effort MAP_EGG_EGG_ITER_LIMIT=5
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/iter10.c2670 c2670 1 high_effort MAP_EGG_EGG_ITER_LIMIT=10
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/node2000.c2670 c2670 1 high_effort MAP_EGG_EGG_NODE_LIMIT=2000
+/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/full.c2670 c2670 6 high_effort

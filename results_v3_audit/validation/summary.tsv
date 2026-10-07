@@ -1,0 +1,7 @@
+stage	design	recipe	rounds	base_a	base_d	out_a	out_d	dA%	dD%	rnd	cec	secs	rc
+cache_off	tv80	high_effort	6	340.61	846.12	338.63	846.12	-0.58	+0.00	6	1	173	0
+cache_on	tv80	high_effort	6	340.61	846.12	338.63	846.12	-0.58	+0.00	6	1	149	0
+reference	c7552	high_effort	1	81.87	657.42	81.7	627.15	-0.21	-4.60	1	1	204	0
+noCARE	c7552	high_effort	1	81.87	657.42	81.79	647.56	-0.10	-1.50	1	1	49	0
+cache_off	c7552	high_effort	1	81.87	657.42	81.7	627.15	-0.21	-4.60	1	1	50	0
+cache_on	c7552	high_effort	1	81.87	657.42	81.7	627.15	-0.21	-4.60	1	1	50	0

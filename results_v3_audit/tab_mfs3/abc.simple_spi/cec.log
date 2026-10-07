@@ -1,0 +1,4 @@
+ABC command line: "read_genlib '/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib'; read -m '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_mfs3/abc.simple_spi/mapped.v'; cec -n '/home/flynn/workplace/MIGBalance/tools/mockturtle/experiments/benchmarks/simple_spi.aig'".
+
+Entered genlib library with 40 gates from file "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib".
+Networks are equivalent.  Time =     0.03 sec

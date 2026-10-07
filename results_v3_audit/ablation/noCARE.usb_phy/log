@@ -1,0 +1,32 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=460
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.usb_phy/abc_11707054431880.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.usb_phy/abc_11707054431880_probe.aig'; quit".
+
+[i] ABC round 1: 460 -> 349 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.usb_phy/abc_11707054431880.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.usb_phy/abc_11707054431880_probe.aig'; quit".
+
+[i] ABC round 2: 349 -> 347 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.usb_phy/abc_11707054431880.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.usb_phy/abc_11707054431880_probe.aig'; quit".
+
+[i] ABC round 3: 347 -> 347 ands (no reduction); fixpoint after 2 round(s)
+[i] ABC baseline ands=347
+[i] super library load = 0.487254 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=22.54 delay=163.29 gates=251 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=6, egg=1, dc=0, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=8866 hits=7790
+[i] map_egg paths library_hits=0 egg_calls=1214 egg_cache_hits=1103
+[i] epmapping rounds=6 replacements_per_round=64,44,37,37,37,37
+[i] epmapping roots=1534 cuts=6335 dc_cuts=0 dc_cuts_over_free=0 dc_free_hist=0,0,0,0,0,0,0,0,0 rejected=0
+[i] epmapping replacements=256 (egg=222, single=7, multi=0, synth=0, window=27)
+[i] epmapping phase: replacements with input negation=0 with inverted output=0
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=5401 mffc_cut_egg_roots=1214 egg_covers=1214 reject_depth=2900 reject_delay=4474 reject_objective=7878 reject_objective_by_source=0,992,2630,0,0,577,0,0,0,0,3679
+[i] epmapping staged_secs cut_enum=0.00893955 care=0.000180709 stage1=0.285893 stage2=0.158934 egg=40.0695 mffc=0.000869798 care_cache=0/0 care_mismatch=0 dc_cut=0 dc_collect=0 dc_sim=0 dc_window=0 dc_cone=0 win_calls=0 win_gates_avg=0 win_gates_max=0 node_windows=0 node_window_cuts=0 node_window_no_dc=0 node_window_pis_max=0
+[i] epmapping window_synth windows=969 applied=8 gain=0.0999999 actual=0.1 gates=27 abandoned=0 delay_rejected=0 secs=1.01809
+[i] epmapping synth roots=4433 covers=8866 wins=0 secs=0.420969
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 22.54 -> 22.44 delay 163.29 -> 163.29
+[i] epmapping_failure_reason =6101
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.usb_phy/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=0.502504 library=2.6683 mapping=0.00795698 optimizer=42.0289 validation=0.0849911 total=45.2928

@@ -1,0 +1,22 @@
+[i] ABC baseline: direct (no ABC preprocessing)
+[i] super library load = 0.505175 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=3739.33 delay=557.03 gates=30717 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=1, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=310158 hits=293608
+[i] map_egg paths library_hits=0 egg_calls=5890 egg_cache_hits=4457
+[i] epmapping rounds=1 replacements_per_round=1248
+[i] epmapping roots=29882 cuts=172166 dc_cuts=16788 dc_cuts_over_free=14883 dc_free_hist=0,25,199,50,1631,0,70,38,14775 rejected=0
+[i] epmapping replacements=1248 (egg=239, single=109, multi=38, synth=446, window=416)
+[i] epmapping phase: replacements with input negation=2 with inverted output=1
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=55912 mffc_cut_egg_roots=5890 egg_covers=5890 reject_depth=152072 reject_delay=87685 reject_objective=130622 reject_objective_by_source=0,5642,12691,0,0,3044,0,0,0,0,109245
+[i] epmapping staged_secs cut_enum=1.14441 care=2.07675 stage1=7.86614 stage2=3.56215 egg=4.56247 mffc=0.593757 care_cache=0/0 care_mismatch=0 dc_cut=0.0427557 dc_collect=0.016489 dc_sim=0.259296 dc_window=2.06532 dc_cone=0 win_calls=28214 win_gates_avg=5 win_gates_max=16 node_windows=28214 node_window_cuts=170152 node_window_no_dc=40269 node_window_pis_max=8
+[i] epmapping window_synth windows=26292 applied=43 gain=5.02 actual=5.02 gates=416 abandoned=0 delay_rejected=0 secs=55.1544
+[i] epmapping synth roots=155079 covers=310158 wins=446 secs=14.3688
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 3739.33 -> 3714.13 delay 557.03 -> 538.85
+[i] epmapping_failure_reason =170747
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_parallel/tab_mfs3/ours.ethernet/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=0.000158566 library=2.74675 mapping=4.05317 optimizer=93.542 validation=9.0178 total=109.36

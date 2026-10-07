@@ -1,0 +1,22 @@
+[i] ABC baseline: direct (no ABC preprocessing)
+[i] super library load = 0.50154 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=58.77 delay=267.23 gates=569 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=6, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=25002 hits=23266
+[i] map_egg paths library_hits=0 egg_calls=2097 egg_cache_hits=1922
+[i] epmapping rounds=6 replacements_per_round=40,18,16,14,14,14
+[i] epmapping roots=3342 cuts=15967 dc_cuts=3019 dc_cuts_over_free=2675 dc_free_hist=0,12,107,22,203,6,42,13,2614 rejected=0
+[i] epmapping replacements=116 (egg=85, single=4, multi=2, synth=25, window=0)
+[i] epmapping phase: replacements with input negation=0 with inverted output=0
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=11344 mffc_cut_egg_roots=2097 egg_covers=2097 reject_depth=8571 reject_delay=13631 reject_objective=16056 reject_objective_by_source=0,2005,4876,0,0,893,0,0,0,0,8282
+[i] epmapping staged_secs cut_enum=0.049401 care=0.164469 stage1=1.08666 stage2=0.384196 egg=40.5031 mffc=0.00376672 care_cache=0/0 care_mismatch=0 dc_cut=0.00196119 dc_collect=0.00120761 dc_sim=0.0208288 dc_window=0.163585 dc_cone=0 win_calls=2851 win_gates_avg=4 win_gates_max=11 node_windows=2851 node_window_cuts=15393 node_window_no_dc=617 node_window_pis_max=8
+[i] epmapping window_synth windows=0 applied=0 gain=0 actual=0 gates=0 abandoned=0 delay_rejected=0 secs=0
+[i] epmapping synth roots=12501 covers=25002 wins=25 secs=1.08564
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 58.77 -> 57.56 delay 267.23 -> 267.23
+[i] epmapping_failure_reason =15825
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ai.iwls05_i2c/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=0.000285889 library=2.79664 mapping=0.0396045 optimizer=43.4447 validation=0.115976 total=46.3973

@@ -1,0 +1,26 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=11839
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.arbiter/abc_7771551337067.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.arbiter/abc_7771551337067_probe.aig'; quit".
+
+[i] ABC round 1: 11839 -> 11839 ands (no reduction); fixpoint after 0 round(s)
+[i] ABC baseline ands=11839
+[i] super library load = 0.497502 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=557.72 delay=999.87 gates=6163 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=1, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=121106 hits=120834
+[i] map_egg paths library_hits=0 egg_calls=905 egg_cache_hits=889
+[i] epmapping rounds=1 replacements_per_round=0
+[i] epmapping roots=6163 cuts=66826 dc_cuts=20992 dc_cuts_over_free=20736 dc_free_hist=0,0,0,0,256,0,0,0,20736 rejected=0
+[i] epmapping replacements=0 (egg=0, single=0, multi=0, synth=0, window=0)
+[i] epmapping phase: replacements with input negation=0 with inverted output=0
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=24897 mffc_cut_egg_roots=905 egg_covers=905 reject_depth=122292 reject_delay=13395 reject_objective=11221 reject_objective_by_source=0,905,7188,0,0,545,0,0,0,0,2583
+[i] epmapping staged_secs cut_enum=0.0744427 care=0.756548 stage1=1.49034 stage2=0.834357 egg=40.0569 mffc=0.161377 care_cache=0/0 care_mismatch=0 dc_cut=0.0140795 dc_collect=0.00247901 dc_sim=0.0408805 dc_window=0.753081 dc_cone=0 win_calls=6035 win_gates_avg=5 win_gates_max=6 node_windows=6035 node_window_cuts=66697 node_window_no_dc=21895 node_window_pis_max=8
+[i] epmapping window_synth windows=0 applied=0 gain=0 actual=0 gates=0 abandoned=0 delay_rejected=0 secs=0
+[i] epmapping synth roots=60553 covers=121106 wins=0 secs=3.38534
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 557.72 -> 557.72 delay 999.87 -> 999.87
+[i] epmapping_failure_reason =66826
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ae.r1.arbiter/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=3.85702 library=2.77891 mapping=1.01608 optimizer=47.4791 validation=0.122455 total=55.2536

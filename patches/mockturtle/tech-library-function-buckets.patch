@@ -1,0 +1,132 @@
+diff --git a/include/mockturtle/utils/tech_library.hpp b/include/mockturtle/utils/tech_library.hpp
+index 1669555..c38961c 100644
+--- a/include/mockturtle/utils/tech_library.hpp
++++ b/include/mockturtle/utils/tech_library.hpp
+@@ -1084,67 +1084,80 @@ private:
+   void filter_gates( std::deque<composed_gate<NInputs>> const& supergates, std::vector<bool>& skip_gates )
+   {
+     assert( supergates.size() >= skip_gates.size() );
+-    for ( uint32_t i = 0; i < skip_gates.size() - 1; ++i )
++    /* Only equal functions can dominate one another. Retain the original ascending i/j order
++       within each bucket, including skipped entries and null-root inputs: tie handling and the
++       first surviving gate must remain exactly the same as the quadratic reference loop. */
++    using function_t = kitty::dynamic_truth_table;
++    std::unordered_map<function_t, std::vector<uint32_t>, kitty::hash<function_t>> buckets;
++    for ( uint32_t i = 0; i < skip_gates.size(); ++i )
++      buckets[supergates[i].function].push_back( i );
++    for ( auto const& entry : buckets )
+     {
+-      if ( supergates[i].root == nullptr )
+-        continue;
+-
+-      if ( skip_gates[i] )
+-        continue;
+-
+-      auto const& tti = supergates[i].function;
+-      for ( uint32_t j = i + 1; j < skip_gates.size(); ++j )
++      auto const& indices = entry.second;
++      for ( size_t position = 0; position + 1 < indices.size(); ++position )
+       {
+-        auto const& ttj = supergates[j].function;
++        auto const i = indices[position];
++        if ( supergates[i].root == nullptr )
++          continue;
+ 
+-        /* get the same functionality */
+-        if ( skip_gates[j] || tti != ttj )
++        if ( skip_gates[i] )
+           continue;
+ 
+-        if ( _ps.load_minimum_size_only )
++        auto const& tti = supergates[i].function;
++        for ( size_t next = position + 1; next < indices.size(); ++next )
+         {
+-          if ( compare_sizes( supergates[i], supergates[j] ) )
+-          {
+-            skip_gates[j] = true;
++          auto const j = indices[next];
++          auto const& ttj = supergates[j].function;
++
++          /* get the same functionality */
++          if ( skip_gates[j] || tti != ttj )
+             continue;
+-          }
+-          else
++
++          if ( _ps.load_minimum_size_only )
+           {
+-            skip_gates[i] = true;
+-            break;
++            if ( compare_sizes( supergates[i], supergates[j] ) )
++            {
++              skip_gates[j] = true;
++              continue;
++            }
++            else
++            {
++              skip_gates[i] = true;
++              break;
++            }
+           }
+-        }
+ 
+-        /* is i smaller than j */
+-        bool smaller = supergates[i].area <= supergates[j].area;
++          /* is i smaller than j */
++          bool smaller = supergates[i].area <= supergates[j].area;
+ 
+-        /* is i faster for every pin */
+-        bool faster = true;
+-        for ( uint32_t k = 0; k < tti.num_vars(); ++k )
+-        {
+-          if ( supergates[i].tdelay[k] > supergates[j].tdelay[k] )
+-            faster = false;
+-        }
++          /* is i faster for every pin */
++          bool faster = true;
++          for ( uint32_t k = 0; k < tti.num_vars(); ++k )
++          {
++            if ( supergates[i].tdelay[k] > supergates[j].tdelay[k] )
++              faster = false;
++          }
+ 
+-        if ( smaller && faster )
+-        {
+-          skip_gates[j] = true;
+-          continue;
+-        }
++          if ( smaller && faster )
++          {
++            skip_gates[j] = true;
++            continue;
++          }
+ 
+-        /* is j faster for every pin */
+-        smaller = supergates[i].area >= supergates[j].area;
+-        faster = true;
+-        for ( uint32_t k = 0; k < tti.num_vars(); ++k )
+-        {
+-          if ( supergates[j].tdelay[k] > supergates[i].tdelay[k] )
+-            faster = false;
+-        }
++          /* is j faster for every pin */
++          smaller = supergates[i].area >= supergates[j].area;
++          faster = true;
++          for ( uint32_t k = 0; k < tti.num_vars(); ++k )
++          {
++            if ( supergates[j].tdelay[k] > supergates[i].tdelay[k] )
++              faster = false;
++          }
+ 
+-        if ( smaller && faster )
+-        {
+-          skip_gates[i] = true;
+-          break;
++          if ( smaller && faster )
++          {
++            skip_gates[i] = true;
++            break;
++          }
+         }
+       }
+     }

@@ -1,0 +1,8 @@
+[i] ABC baseline: custom, script="fraig; compress2rs; resyn2rs; compress2rs"
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/tools/mockturtle/experiments/benchmarks/c7552.aig'; fraig; compress2rs; resyn2rs; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_controls/db/iwls.none.stats.c7552/abc_10195857869453.aig'; quit".
+
+[i] super library load = 0.512058 s
+[i] super library: 505598 gates, max_vars=4
+[i] db4 coverage=29256/65536 with_multi_cell=28296 avg_best_area=0.390129 max_best_area=0.52
+[i] emap area=80.37 delay=871.71 gates=720 area_oriented=1 multioutput=0
+[i] EPMAPPING_SKIP set; skipping optimizer

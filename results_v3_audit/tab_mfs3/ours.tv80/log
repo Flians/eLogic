@@ -1,0 +1,22 @@
+[i] ABC baseline: direct (no ABC preprocessing)
+[i] super library load = 0.490992 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=462.39 delay=799.99 gates=4162 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=1, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=41544 hits=18392
+[i] map_egg paths library_hits=0 egg_calls=1831 egg_cache_hits=561
+[i] epmapping rounds=1 replacements_per_round=725
+[i] epmapping roots=3624 cuts=24772 dc_cuts=6913 dc_cuts_over_free=5274 dc_free_hist=0,42,615,44,938,7,313,17,4937 rejected=0
+[i] epmapping replacements=725 (egg=72, single=53, multi=7, synth=241, window=352)
+[i] epmapping phase: replacements with input negation=0 with inverted output=1
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=12935 mffc_cut_egg_roots=1831 egg_covers=1831 reject_depth=11601 reject_delay=17553 reject_objective=26387 reject_objective_by_source=0,1749,4980,0,0,2046,0,0,0,0,17612
+[i] epmapping staged_secs cut_enum=0.170371 care=0.331345 stage1=1.9468 stage2=0.596315 egg=4.14093 mffc=0.0156688 care_cache=0/0 care_mismatch=0 dc_cut=0.0064336 dc_collect=0.00214927 dc_sim=0.0355479 dc_window=0.329551 dc_cone=0 win_calls=3492 win_gates_avg=6 win_gates_max=21 node_windows=3492 node_window_cuts=24298 node_window_no_dc=2826 node_window_pis_max=8
+[i] epmapping window_synth windows=1935 applied=43 gain=3.05 actual=3.05 gates=352 abandoned=0 delay_rejected=0 secs=7.99887
+[i] epmapping synth roots=20772 covers=41544 wins=241 secs=6.18379
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 462.39 -> 450.35 delay 799.99 -> 765.67
+[i] epmapping_failure_reason =24038
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_parallel/tab_mfs3/ours.tv80/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=0.000150663 library=2.71327 mapping=0.465805 optimizer=22.1375 validation=1.27971 total=26.5966

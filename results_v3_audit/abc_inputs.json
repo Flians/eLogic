@@ -1,0 +1,194 @@
+{
+  "div": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.div/epmapping_mapped.v",
+      "archived_path": "inputs/abc/div.v",
+      "sha256": "b34d573d1281d0250d2838c2933555928c7857c23d0057f45909851560607732"
+    }
+  },
+  "mem_ctrl": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.mem_ctrl/epmapping_mapped.v",
+      "archived_path": "inputs/abc/mem_ctrl.v",
+      "sha256": "c600ac3976d81be446dcca833d086b9557a52d7280104681aa3162e05e2c6d1a"
+    }
+  },
+  "sqrt": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.sqrt/epmapping_mapped.v",
+      "archived_path": "inputs/abc/sqrt.v",
+      "sha256": "465210878eddf8c804cea9db872112d835717bc31e89c49391cfeb8ef0345f5e"
+    }
+  },
+  "aes_core": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.aes_core/epmapping_mapped.v",
+      "archived_path": "inputs/abc/aes_core.v",
+      "sha256": "fdbf2339888d2b0153093390c667e943bc9ee07d163eb270aba80aa1413bc34b"
+    }
+  },
+  "arbiter": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.arbiter/epmapping_mapped.v",
+      "archived_path": "inputs/abc/arbiter.v",
+      "sha256": "a257b33bc241278cb0a8a2d3fac3747ce301b43bc92506e5ebae594b3ae212a6"
+    }
+  },
+  "ethernet": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.ethernet/epmapping_mapped.v",
+      "archived_path": "inputs/abc/ethernet.v",
+      "sha256": "d26a28feb197ce14477b1103db7e3c9683ffb4edab919fe3a0d8fa320201f655"
+    }
+  },
+  "iwls05_i2c": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.iwls05_i2c/epmapping_mapped.v",
+      "archived_path": "inputs/abc/iwls05_i2c.v",
+      "sha256": "515286e382c639ed2e087a3194e1acee0adf72b9b41b14e59359dc4bc0ac89c7"
+    }
+  },
+  "RISC": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.RISC/epmapping_mapped.v",
+      "archived_path": "inputs/abc/RISC.v",
+      "sha256": "57a7724c67bda53eb855b07ec24a8ad2e5df826f6cdd1bbb833673a259215bad"
+    }
+  },
+  "sasc": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.sasc/epmapping_mapped.v",
+      "archived_path": "inputs/abc/sasc.v",
+      "sha256": "c287786db123660816d5e8de5584c6d589ca3ee15dd3a622b7bee3b48b18eea0"
+    }
+  },
+  "simple_spi": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.simple_spi/epmapping_mapped.v",
+      "archived_path": "inputs/abc/simple_spi.v",
+      "sha256": "9e5f6bf48075ee03e0e51bb8296eb4ef20d234b9b4174a188378d5931ab3b0d8"
+    }
+  },
+  "spi": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.spi/epmapping_mapped.v",
+      "archived_path": "inputs/abc/spi.v",
+      "sha256": "9480cddacbcc295abbe28920d5e0f6b7a70fbc0c6d75229b3c464f55af6410ec"
+    }
+  },
+  "systemcaes": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.systemcaes/epmapping_mapped.v",
+      "archived_path": "inputs/abc/systemcaes.v",
+      "sha256": "42d999db31aee9057b37ad868141d51dd8e65f7a80ceb1fa6bd7eaba2c8fc106"
+    }
+  },
+  "systemcdes": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.systemcdes/epmapping_mapped.v",
+      "archived_path": "inputs/abc/systemcdes.v",
+      "sha256": "34ca11a2cb68a9300e9017404853ecc5158beedea394979df74901929a6710eb"
+    }
+  },
+  "tv80": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.tv80/epmapping_mapped.v",
+      "archived_path": "inputs/abc/tv80.v",
+      "sha256": "364ad23ddab18b9106f960c265486e35038adac332252eb3e12c88e30762827e"
+    }
+  },
+  "usb_funct": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.usb_funct/epmapping_mapped.v",
+      "archived_path": "inputs/abc/usb_funct.v",
+      "sha256": "09827c1f24c6d6908ad76868c99957c89614bc8243e3fd321b7d25cd4250cdf9"
+    }
+  },
+  "usb_phy": {
+    "library": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/asap7_6in.genlib",
+      "archived_path": "inputs/abc/asap7_6in.genlib",
+      "sha256": "01427dde255892e5a6a1e6786cd3807b190a4d59e79bfa9e0e31866b939e6c55"
+    },
+    "baseline": {
+      "original_path": "/home/flynn/workplace/MIGBalance/results_v2/tab_mfs3/base.usb_phy/epmapping_mapped.v",
+      "archived_path": "inputs/abc/usb_phy.v",
+      "sha256": "c497a8bd4b91c6bc7fea7859e78fdb0265e45cc3444c55d86b7977c96453dd47"
+    }
+  }
+}

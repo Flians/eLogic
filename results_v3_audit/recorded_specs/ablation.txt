@@ -1,0 +1,66 @@
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.aes_core aes_core 6 high_effort EPMAPPING_WINDOW_SYN=1
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.aes_core aes_core 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noWINDOW.aes_core aes_core 6 high_effort EPMAPPING_WINDOW_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.aes_core aes_core 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_EGG=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.aes_core aes_core 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_DC=0 EPMAPPING_SAT_DC=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noDB.aes_core aes_core 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SUPER=off
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.arbiter arbiter 6 high_effort EPMAPPING_WINDOW_SYN=1
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.arbiter arbiter 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noWINDOW.arbiter arbiter 6 high_effort EPMAPPING_WINDOW_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.arbiter arbiter 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_EGG=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.arbiter arbiter 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_DC=0 EPMAPPING_SAT_DC=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noDB.arbiter arbiter 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SUPER=off
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.div div 6 high_effort EPMAPPING_WINDOW_SYN=1
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.div div 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noWINDOW.div div 6 high_effort EPMAPPING_WINDOW_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.div div 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_EGG=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.div div 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_DC=0 EPMAPPING_SAT_DC=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noDB.div div 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SUPER=off
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.iwls05_i2c iwls05_i2c 6 high_effort EPMAPPING_WINDOW_SYN=1
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.iwls05_i2c iwls05_i2c 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noWINDOW.iwls05_i2c iwls05_i2c 6 high_effort EPMAPPING_WINDOW_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.iwls05_i2c iwls05_i2c 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_EGG=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.iwls05_i2c iwls05_i2c 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_DC=0 EPMAPPING_SAT_DC=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noDB.iwls05_i2c iwls05_i2c 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SUPER=off
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.mem_ctrl mem_ctrl 6 high_effort EPMAPPING_WINDOW_SYN=1
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.mem_ctrl mem_ctrl 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noWINDOW.mem_ctrl mem_ctrl 6 high_effort EPMAPPING_WINDOW_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.mem_ctrl mem_ctrl 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_EGG=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.mem_ctrl mem_ctrl 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_DC=0 EPMAPPING_SAT_DC=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noDB.mem_ctrl mem_ctrl 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SUPER=off
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.sasc sasc 6 high_effort EPMAPPING_WINDOW_SYN=1
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.sasc sasc 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noWINDOW.sasc sasc 6 high_effort EPMAPPING_WINDOW_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.sasc sasc 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_EGG=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.sasc sasc 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_DC=0 EPMAPPING_SAT_DC=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noDB.sasc sasc 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SUPER=off
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.simple_spi simple_spi 6 high_effort EPMAPPING_WINDOW_SYN=1
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.simple_spi simple_spi 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noWINDOW.simple_spi simple_spi 6 high_effort EPMAPPING_WINDOW_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.simple_spi simple_spi 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_EGG=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.simple_spi simple_spi 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_DC=0 EPMAPPING_SAT_DC=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noDB.simple_spi simple_spi 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SUPER=off
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.spi spi 6 high_effort EPMAPPING_WINDOW_SYN=1
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.spi spi 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noWINDOW.spi spi 6 high_effort EPMAPPING_WINDOW_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.spi spi 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_EGG=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.spi spi 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_DC=0 EPMAPPING_SAT_DC=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noDB.spi spi 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SUPER=off
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.systemcdes systemcdes 6 high_effort EPMAPPING_WINDOW_SYN=1
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.systemcdes systemcdes 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noWINDOW.systemcdes systemcdes 6 high_effort EPMAPPING_WINDOW_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.systemcdes systemcdes 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_EGG=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.systemcdes systemcdes 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_DC=0 EPMAPPING_SAT_DC=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noDB.systemcdes systemcdes 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SUPER=off
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.tv80 tv80 6 high_effort EPMAPPING_WINDOW_SYN=1
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.tv80 tv80 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noWINDOW.tv80 tv80 6 high_effort EPMAPPING_WINDOW_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.tv80 tv80 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_EGG=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.tv80 tv80 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_DC=0 EPMAPPING_SAT_DC=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noDB.tv80 tv80 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SUPER=off
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/full.usb_phy usb_phy 6 high_effort EPMAPPING_WINDOW_SYN=1
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noSYN.usb_phy usb_phy 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noWINDOW.usb_phy usb_phy 6 high_effort EPMAPPING_WINDOW_SYN=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noEGG.usb_phy usb_phy 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_EGG=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noCARE.usb_phy usb_phy 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_DC=0 EPMAPPING_SAT_DC=0
+/home/flynn/workplace/MIGBalance/results_v3_parallel/ablation/noDB.usb_phy usb_phy 6 high_effort EPMAPPING_WINDOW_SYN=1 EPMAPPING_SUPER=off

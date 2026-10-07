@@ -1,0 +1,22 @@
+[i] ABC baseline: direct (no ABC preprocessing)
+[i] super library load = 0.489165 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=27.15 delay=155.17 gates=294 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=1, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=1190 hits=340
+[i] map_egg paths library_hits=0 egg_calls=137 egg_cache_hits=73
+[i] epmapping rounds=1 replacements_per_round=104
+[i] epmapping roots=232 cuts=881 dc_cuts=159 dc_cuts_over_free=135 dc_free_hist=0,0,9,5,10,0,9,1,125 rejected=0
+[i] epmapping replacements=104 (egg=35, single=1, multi=0, synth=8, window=60)
+[i] epmapping phase: replacements with input negation=0 with inverted output=0
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=683 mffc_cut_egg_roots=137 egg_covers=137 reject_depth=383 reject_delay=567 reject_objective=999 reject_objective_by_source=0,102,302,0,0,100,0,0,0,0,495
+[i] epmapping staged_secs cut_enum=0.00181528 care=0.00791586 stage1=0.0464779 stage2=0.0228147 egg=0.85989 mffc=0.000176547 care_cache=0/0 care_mismatch=0 dc_cut=0.000131405 dc_collect=8.3651e-05 dc_sim=0.00118006 dc_window=0.00785278 dc_cone=0 win_calls=173 win_gates_avg=4 win_gates_max=12 node_windows=173 node_window_cuts=796 node_window_no_dc=11 node_window_pis_max=8
+[i] epmapping window_synth windows=149 applied=8 gain=0.42 actual=0.42 gates=60 abandoned=0 delay_rejected=0 secs=0.201487
+[i] epmapping synth roots=595 covers=1190 wins=8 secs=0.200686
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 27.15 -> 26.26 delay 155.17 -> 146.32
+[i] epmapping_failure_reason =814
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_parallel/tab_mfs3/ours.usb_phy/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=0.000124537 library=2.69687 mapping=0.0111421 optimizer=1.35343 validation=0.0850051 total=4.14666

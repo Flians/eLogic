@@ -1,0 +1,32 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=1024
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/full.c3540/abc_10081118370577.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/full.c3540/abc_10081118370577_probe.aig'; quit".
+
+[i] ABC round 1: 1024 -> 802 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/full.c3540/abc_10081118370577.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/full.c3540/abc_10081118370577_probe.aig'; quit".
+
+[i] ABC round 2: 802 -> 793 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/full.c3540/abc_10081118370577.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/full.c3540/abc_10081118370577_probe.aig'; quit".
+
+[i] ABC round 3: 793 -> 793 ands (no reduction); fixpoint after 2 round(s)
+[i] ABC baseline ands=793
+[i] super library load = 0.531449 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=41.88 delay=595.04 gates=404 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=6, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=12850 hits=7482
+[i] map_egg paths library_hits=0 egg_calls=884 egg_cache_hits=534
+[i] epmapping rounds=3 replacements_per_round=11,6,1
+[i] epmapping roots=1197 cuts=8095 dc_cuts=2368 dc_cuts_over_free=1812 dc_free_hist=0,24,158,9,365,0,81,0,1731 rejected=0
+[i] epmapping replacements=18 (egg=4, single=8, multi=2, synth=4, window=0)
+[i] epmapping phase: replacements with input negation=1 with inverted output=0
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=5121 mffc_cut_egg_roots=884 egg_covers=884 reject_depth=3914 reject_delay=5168 reject_objective=9742 reject_objective_by_source=0,879,2187,0,0,871,0,0,0,0,5805
+[i] epmapping staged_secs cut_enum=0.0323284 care=0.0955977 stage1=0.524197 stage2=0.221501 egg=41.0394 mffc=0.0018172 care_cache=0/0 care_mismatch=0 dc_cut=0.00147107 dc_collect=0.000607959 dc_sim=0.011071 dc_window=0.0950428 dc_cone=0 win_calls=1122 win_gates_avg=6 win_gates_max=17 node_windows=1122 node_window_cuts=7915 node_window_no_dc=922 node_window_pis_max=8
+[i] epmapping window_synth windows=0 applied=0 gain=0 actual=0 gates=0 abandoned=0 delay_rejected=0 secs=0
+[i] epmapping synth roots=6425 covers=12850 wins=4 secs=1.61761
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 41.88 -> 41.66 delay 595.04 -> 577.55
+[i] epmapping_failure_reason =8072
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_audit/lever3/full.c3540/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=0.858921 library=2.72879 mapping=0.0301504 optimizer=43.6273 validation=0.216424 total=47.4617

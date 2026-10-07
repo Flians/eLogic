@@ -1,0 +1,4 @@
+ABC command line: "read_genlib '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_mfs3/asap7_6in.genlib'; read -m '/home/flynn/workplace/MIGBalance/results_v3_audit/tab_mfs3/base.ethernet/epmapping_mapped.v'; print_stats".
+
+Entered genlib library with 40 gates from file "/home/flynn/workplace/MIGBalance/results_v3_audit/tab_mfs3/asap7_6in.genlib".
+[1;37mtop                           :[0m i/o =21216/10698  lat =    0  nd = 30722  edge = 128587  area =3739.47  delay =557.03  lev = 22

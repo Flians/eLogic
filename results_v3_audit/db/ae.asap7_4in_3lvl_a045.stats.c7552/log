@@ -1,0 +1,19 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=1469
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_controls/db/ae.asap7_4in_3lvl_a045.stats.c7552/abc_10247645066621.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_controls/db/ae.asap7_4in_3lvl_a045.stats.c7552/abc_10247645066621_probe.aig'; quit".
+
+[i] ABC round 1: 1469 -> 1349 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_controls/db/ae.asap7_4in_3lvl_a045.stats.c7552/abc_10247645066621.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_controls/db/ae.asap7_4in_3lvl_a045.stats.c7552/abc_10247645066621_probe.aig'; quit".
+
+[i] ABC round 2: 1349 -> 1339 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_controls/db/ae.asap7_4in_3lvl_a045.stats.c7552/abc_10247645066621.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_controls/db/ae.asap7_4in_3lvl_a045.stats.c7552/abc_10247645066621_probe.aig'; quit".
+
+[i] ABC round 3: 1339 -> 1338 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_controls/db/ae.asap7_4in_3lvl_a045.stats.c7552/abc_10247645066621.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_controls/db/ae.asap7_4in_3lvl_a045.stats.c7552/abc_10247645066621_probe.aig'; quit".
+
+[i] ABC round 4: 1338 -> 1338 ands (no reduction); fixpoint after 3 round(s)
+[i] ABC baseline ands=1338
+[i] super library load = 1.46029 s
+[i] super library: 228163 gates, max_vars=4
+[i] db4 coverage=22378/65536 with_multi_cell=21416 avg_best_area=0.362691 max_best_area=0.45
+[i] emap area=81.87 delay=657.42 gates=728 area_oriented=1 multioutput=0
+[i] EPMAPPING_SKIP set; skipping optimizer

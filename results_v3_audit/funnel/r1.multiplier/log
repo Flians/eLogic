@@ -1,0 +1,29 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=27062
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_controls/funnel/r1.multiplier/abc_9618556762295.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_controls/funnel/r1.multiplier/abc_9618556762295_probe.aig'; quit".
+
+[i] ABC round 1: 27062 -> 24315 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v3_controls/funnel/r1.multiplier/abc_9618556762295.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v3_controls/funnel/r1.multiplier/abc_9618556762295_probe.aig'; quit".
+
+[i] ABC round 2: 24315 -> 24315 ands (no reduction); fixpoint after 1 round(s)
+[i] ABC baseline ands=24315
+[i] super library load = 0.51337 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=1270.83 delay=3221.24 gates=9024 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=1, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=142302 hits=139210
+[i] map_egg paths library_hits=0 egg_calls=3783 egg_cache_hits=2508
+[i] epmapping rounds=1 replacements_per_round=1665
+[i] epmapping roots=8797 cuts=83088 dc_cuts=3216 dc_cuts_over_free=2830 dc_free_hist=0,5,162,6,213,0,14,0,2816 rejected=0
+[i] epmapping replacements=1665 (egg=175, single=1476, multi=13, synth=1, window=0)
+[i] epmapping phase: replacements with input negation=1 with inverted output=0
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=27776 mffc_cut_egg_roots=3783 egg_covers=3783 reject_depth=73587 reject_delay=47957 reject_objective=50435 reject_objective_by_source=0,3421,5363,0,0,5428,0,0,0,0,36223
+[i] epmapping staged_secs cut_enum=0.601945 care=0.863362 stage1=1.80325 stage2=1.27608 egg=42.3424 mffc=0.017088 care_cache=0/0 care_mismatch=0 dc_cut=0.0129286 dc_collect=0.0054861 dc_sim=0.0801011 dc_window=0.858801 dc_cone=0 win_calls=8711 win_gates_avg=6 win_gates_max=18 node_windows=8711 node_window_cuts=82889 node_window_no_dc=24052 node_window_pis_max=8
+[i] epmapping window_synth windows=0 applied=0 gain=0 actual=0 gates=0 abandoned=0 delay_rejected=0 secs=0
+[i] epmapping synth roots=71151 covers=142302 wins=1 secs=6.73507
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 1270.83 -> 1269.03 delay 3221.24 -> 3213.02
+[i] epmapping_failure_reason =81206
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_controls/funnel/r1.multiplier/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=18.1969 library=2.72498 mapping=0.842883 optimizer=55.2968 validation=3.7892 total=80.8509

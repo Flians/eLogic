@@ -1,0 +1,22 @@
+[i] ABC baseline: direct (no ABC preprocessing)
+[i] super library load = 0.480941 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=2278.85 delay=1706.2 gates=21063 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=6, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=1534300 hits=365914
+[i] map_egg paths library_hits=0 egg_calls=70418 egg_cache_hits=60023
+[i] epmapping rounds=6 replacements_per_round=1019,659,340,291,277,270
+[i] epmapping roots=124522 cuts=923810 dc_cuts=288077 dc_cuts_over_free=226154 dc_free_hist=0,2382,22278,1190,36073,1183,7402,1070,216499 rejected=0
+[i] epmapping replacements=2856 (egg=1619, single=464, multi=50, synth=723, window=0)
+[i] epmapping phase: replacements with input negation=21 with inverted output=11
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=524092 mffc_cut_egg_roots=70418 egg_covers=70413 reject_depth=513836 reject_delay=655445 reject_objective=954970 reject_objective_by_source=0,68703,193246,0,0,86804,0,0,0,0,606217
+[i] epmapping staged_secs cut_enum=4.30102 care=13.4369 stage1=63.05 stage2=25.749 egg=115.681 mffc=1.09018 care_cache=0/0 care_mismatch=0 dc_cut=0.202627 dc_collect=0.102485 dc_sim=1.42937 dc_window=13.3723 dc_cone=0 win_calls=117151 win_gates_avg=6 win_gates_max=22 node_windows=117151 node_window_cuts=909744 node_window_no_dc=94992 node_window_pis_max=8
+[i] epmapping window_synth windows=0 applied=0 gain=0 actual=0 gates=0 abandoned=0 delay_rejected=0 secs=0
+[i] epmapping synth roots=767150 covers=1534300 wins=723 secs=281.644
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 2278.85 -> 2253.51 delay 1706.2 -> 1675.54
+[i] epmapping_failure_reason =920092
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_audit/tab_main/ai.mem_ctrl/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=0.000107516 library=2.69001 mapping=1.84062 optimizer=523.58 validation=5.61051 total=533.722

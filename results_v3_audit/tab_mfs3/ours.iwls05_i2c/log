@@ -1,0 +1,22 @@
+[i] ABC baseline: direct (no ABC preprocessing)
+[i] super library load = 0.48956 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=59.39 delay=237.61 gates=574 area_oriented=1 multioutput=0
+[i] epmapping running (objective=1, preserve_depth=1, preserve_delay=1, delay_slack=0, max_rounds=1, egg=1, dc=1, synth_cache=8192, dc_window=per_node, single_matcher=index)
+[i] epmapping synth_cache lookups=3938 hits=2270
+[i] map_egg paths library_hits=0 egg_calls=298 egg_cache_hits=142
+[i] epmapping rounds=1 replacements_per_round=58
+[i] epmapping roots=516 cuts=2498 dc_cuts=596 dc_cuts_over_free=513 dc_free_hist=0,1,20,8,54,0,10,7,496 rejected=0
+[i] epmapping replacements=58 (egg=15, single=3, multi=1, synth=31, window=8)
+[i] epmapping phase: replacements with input negation=0 with inverted output=0
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=1600 mffc_cut_egg_roots=298 egg_covers=298 reject_depth=1371 reject_delay=1825 reject_objective=2514 reject_objective_by_source=0,282,742,0,0,126,0,0,0,0,1364
+[i] epmapping staged_secs cut_enum=0.00608449 care=0.0276419 stage1=0.188495 stage2=0.056154 egg=1.27268 mffc=0.000702808 care_cache=0/0 care_mismatch=0 dc_cut=0.000448854 dc_collect=0.000207818 dc_sim=0.00368498 dc_window=0.0274531 dc_cone=0 win_calls=449 win_gates_avg=4 win_gates_max=11 node_windows=449 node_window_cuts=2414 node_window_no_dc=83 node_window_pis_max=8
+[i] epmapping window_synth windows=338 applied=2 gain=0.19 actual=0.19 gates=8 abandoned=0 delay_rejected=0 secs=0.363336
+[i] epmapping synth roots=1969 covers=3938 wins=31 secs=0.452899
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 59.39 -> 57.95 delay 237.61 -> 237.61
+[i] epmapping_failure_reason =2421
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v3_parallel/tab_mfs3/ours.iwls05_i2c/epmapping_mapped.v"
+[i] cec=1
+[i] epmapping timing preprocess=0.000155126 library=2.77055 mapping=0.038629 optimizer=2.40044 validation=0.109728 total=5.3196
