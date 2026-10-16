@@ -24,6 +24,15 @@ if git(['diff','--cached','--name-only','--','DATE27-ePMapping-sub'],cwd=paper,o
 manifest['paper_commit']=git(['rev-parse','HEAD'],cwd=paper,output=True)
 (root/'delivery_manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 git(['add','--',*paths])
+# Frozen generated headers and the historical lockfile can match global ignores.
+references=json.loads((research/'original_inputs_verified.json').read_text())
+for mode in ['cold','warm']:
+ base=root/mode
+ frozen=json.loads((base/'manifest.json').read_text())['frozen_sha256']
+ references.update({str((base/rel).relative_to(project)):h for rel,h in frozen.items()})
+tracked=set(git(['ls-files','-z'],output=True).split('\0'))
+missing=[p for p in references if p not in tracked]
+if missing:git(['add','-f','--',*missing])
 # Keep the archived genlib fixture byte-identical; its aligned GATE records are data.
 git(['diff','--cached','--check','--','epmapping','map_egg','scripts/experiments','scripts/apply_mockturtle_patches.sh','scripts/compare_with_aspdac25.sh',':(exclude)map_egg/tests/data'])
 git(['commit','--only','-m','Archive complete paired ePMapping experiments and query-budget ablations','--',*paths])
