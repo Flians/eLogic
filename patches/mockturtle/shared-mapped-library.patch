@@ -1,0 +1,129 @@
+--- a/include/mockturtle/algorithms/emap.hpp
++++ b/include/mockturtle/algorithms/emap.hpp
+@@ -35,6 +35,7 @@
+ #include <chrono>
+ #include <cstdint>
+ #include <limits>
++#include <memory>
+ #include <string>
+ #include <unordered_map>
+ #include <vector>
+@@ -73,6 +74,9 @@
+  */
+ struct emap_params
+ {
++  // If supplied, must preserve the technology library's cell order and values.
++  // The mapped result keeps shared ownership; a temporary caller is safe.
++  std::shared_ptr<std::vector<standard_cell> const> cell_library;
+   emap_params()
+   {
+     cut_enumeration_ps.cut_limit = 16;
+@@ -4123,7 +4127,8 @@
+ 
+   std::pair<cell_view<block_network>, block_map> initialize_block_network()
+   {
+-    cell_view<block_network> dest( library.get_cells() );
++    cell_view<block_network> dest = ps.cell_library ? cell_view<block_network>( ps.cell_library )
++                                                       : cell_view<block_network>( library.get_cells() );
+     block_map old2new;
+ 
+     old2new[ntk.node_to_index( ntk.get_node( ntk.get_constant( false ) ) )][0] = dest.get_constant( false );
+--- a/include/mockturtle/views/cell_view.hpp
++++ b/include/mockturtle/views/cell_view.hpp
+@@ -38,6 +38,7 @@
+ 
+ #include <iostream>
+ #include <map>
++#include <memory>
+ 
+ namespace mockturtle
+ {
+@@ -100,6 +101,13 @@
+     static_assert( has_is_pi_v<Ntk>, "Ntk does not implement the is_pi method" );
+   }
+ 
++  // Optional owned immutable library: transient mapped networks can share it.
++  explicit cell_view( std::shared_ptr<std::vector<standard_cell> const> library )
++      : Ntk(), _shared_library( std::move( library ) ), _cells( *this )
++  {
++    assert( _shared_library );
++  }
++
+   explicit cell_view( Ntk const& ntk, std::vector<standard_cell> const& library )
+       : Ntk( ntk ), _library{ library }, _cells( *this )
+   {
+@@ -114,21 +122,22 @@
+   {
+     Ntk::operator=( cell_ntk );
+     _library = cell_ntk._library;
++    _shared_library = cell_ntk._shared_library;
+     _cells = cell_ntk._cells;
+     return *this;
+   }
+ 
+   void add_cell( node const& n, uint32_t cell_id )
+   {
+-    assert( cell_id < _library.size() );
++    assert( cell_id < get_library().size() );
+     _cells[n] = cell_id;
+   }
+ 
+   bool add_cell_with_check( node const& n, uint32_t cell_id )
+   {
+-    assert( cell_id < _library.size() );
+-
+-    auto const& cell = _library[cell_id];
++    assert( cell_id < get_library().size() );
++
++    auto const& cell = get_library()[cell_id];
+ 
+     if constexpr ( has_num_outputs_v<Ntk> && has_node_function_v<Ntk> )
+     {
+@@ -166,7 +175,7 @@
+ 
+   const standard_cell& get_cell( node const& n ) const
+   {
+-    return _library[_cells[n]];
++    return get_library()[_cells[n]];
+   }
+ 
+   bool has_cell( node const& n ) const
+@@ -181,7 +190,7 @@
+ 
+   const std::vector<standard_cell>& get_library() const
+   {
+-    return _library;
++    return _shared_library ? *_shared_library : _library;
+   }
+ 
+   double compute_area() const
+@@ -251,7 +260,7 @@
+ 
+   void report_cells_usage( std::ostream& os = std::cout ) const
+   {
+-    std::vector<uint32_t> cells_profile( _library.size(), 0u );
++    std::vector<uint32_t> cells_profile( get_library().size(), 0u );
+ 
+     double area = 0;
+     Ntk::foreach_node( [&]( node const& n, auto ) {
+@@ -270,9 +279,9 @@
+     {
+       if ( cells_profile[i] > 0u )
+       {
+-        float tot_cell_area = cells_profile[i] * _library[i].area;
+-
+-        os << fmt::format( "[i] {:<25}", _library[i].name )
++        float tot_cell_area = cells_profile[i] * get_library()[i].area;
++
++        os << fmt::format( "[i] {:<25}", get_library()[i].name )
+            << fmt::format( "\t Instance = {:>10d}", cells_profile[i] )
+            << fmt::format( "\t Area = {:>12.2f}", tot_cell_area )
+            << fmt::format( " {:>8.2f} %\n", tot_cell_area / area * 100 );
+@@ -288,6 +297,7 @@
+ 
+ private:
+   std::vector<standard_cell> _library;
++  std::shared_ptr<std::vector<standard_cell> const> _shared_library;
+   node_map<uint32_t, Ntk, std::unordered_map<node, uint32_t>> _cells;
+ }; /* cell_view */
+ 

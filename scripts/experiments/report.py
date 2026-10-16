@@ -14,9 +14,11 @@ any time without re-running the experiments.
 """
 import argparse
 import csv
+import json
 import os
 import re
 import sys
+from pathlib import Path
 
 DES27 = ("adder bar max sin log2 div cavlc multiplier sqrt ctrl dec arbiter int2float i2c priority router "
          "sasc iwls05_i2c simple_spi voter usb_phy c6288 systemcaes square systemcdes spi mem_ctrl").split()
@@ -135,10 +137,18 @@ _STAGE_KEYS = ("cut_enum", "care", "stage1", "stage2", "egg", "mffc", "synth", "
 
 def read_counters(log):
     """Parse one engine log into the counters the paper's figures quote."""
-    out = {}
+    out = {"secs_chain":0.0,"chain_wins":0,"secs_cofactor":0.0,"cofactor_wins":0}
     if not os.path.exists(log):
         return out
     txt = open(log, errors='replace').read()
+    selection=Path(log).parent/'timeout_selection.json'
+    if selection.exists():
+        meta=json.loads(selection.read_text())
+        assert meta['status']=='optimizer_timeout' and meta['post_seconds']==1000
+        out.update({f'secs_{k}':0.0 for k in _STAGE_KEYS})
+        out.update(secs_synth=0.0,secs_window=0.0,time_optimizer=1000.0,phase_timing_complete=False)
+        return out
+    out['phase_timing_complete']=True
 
     def last(pat):
         m = re.findall(pat, txt)
@@ -148,6 +158,9 @@ def read_counters(log):
     if m:
         e, si, mu, sy, wi = (int(x) for x in m[-1])
         out.update(egg_wins=e, single_wins=si, multi_wins=mu, synth_wins=sy, window_wins=wi)
+    m = re.findall(r"chain_factor attempts=\d+ roots=(\d+) rejected=\d+ product_hits=\d+ segment_hits=\d+ secs=([0-9.eE+-]+)",txt)
+    if m:
+        out["chain_wins"]=int(m[-1][0]); out["secs_chain"]=float(m[-1][1])
     m = re.findall(r"mffc_cut_egg_roots=(\d+)", txt)
     if m:
         out['egg_admitted'] = int(m[-1])
@@ -165,6 +178,11 @@ def read_counters(log):
     m = re.findall(r"synth roots=\d+ covers=\d+ wins=\d+ secs=([0-9.eE+-]+)", txt)
     if m:
         out['secs_synth'] = float(m[-1])
+    m = re.findall(r"cofactor cuts=(\d+) builds=(\d+) hits=(\d+) covers=(\d+) replacements=(\d+) secs=([0-9.eE+-]+)",txt)
+    if m:
+        cuts,builds,hits,covers,wins,secs=m[-1]
+        out.update(cofactor_cuts=int(cuts),cofactor_builds=int(builds),cofactor_hits=int(hits),
+                   cofactor_covers=int(covers),cofactor_wins=int(wins),secs_cofactor=float(secs))
     m = re.findall(r"window_synth windows=\d+ applied=\d+ gain=[0-9.eE+-]+ actual=[0-9.eE+-]+ "
                    r"gates=\d+ abandoned=\d+ delay_rejected=\d+ secs=([0-9.eE+-]+)", txt)
     if m:

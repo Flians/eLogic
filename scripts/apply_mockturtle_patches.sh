@@ -3,13 +3,16 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SUBMODULE="$ROOT/tools/mockturtle"
-PATCH="$ROOT/patches/mockturtle/tech-library-function-buckets.patch"
+for PATCH in "$ROOT/patches/mockturtle/tech-library-function-buckets.patch" \
+             "$ROOT/patches/mockturtle/shared-mapped-library.patch" \
+             "$ROOT/patches/mockturtle/cut-prefix-enumeration.patch"; do
 if git -C "$SUBMODULE" apply --reverse --check "$PATCH" 2>/dev/null; then
-  echo "[epmapping] mockturtle patch already applied"
+  echo "[epmapping] ${PATCH##*/} already applied"
 elif git -C "$SUBMODULE" apply --check "$PATCH"; then
   git -C "$SUBMODULE" apply "$PATCH"
-  echo "[epmapping] applied mockturtle function-bucket filtering"
+  echo "[epmapping] applied ${PATCH##*/}"
 else
   echo "[epmapping] mockturtle patch conflicts with the current checkout; existing edits were preserved." >&2
   exit 1
 fi
+done

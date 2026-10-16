@@ -2,6 +2,7 @@
 // These modules were the separate `emapper` crate, of which this bridge needed six of them plus two
 // types. They stay at the crate root so that their internal `crate::…` paths are unchanged.
 
+mod profile_cache;
 mod tt9;
 pub use tt9::Tt9;
 
@@ -143,6 +144,14 @@ fn techlib_store() -> &'static TechLib {
             .map(PathBuf::from)
             .unwrap_or_else(default_genlib_path);
         TechLib::from_genlib(&candidate, 9).unwrap_or_default()
+    })
+}
+
+fn profile_techlib_store() -> &'static TechLib {
+    static TECH: OnceLock<TechLib> = OnceLock::new();
+    TECH.get_or_init(|| {
+        let path=std::env::var_os("MAP_EGG_TECHLIB_PATH").map(PathBuf::from).unwrap_or_else(default_genlib_path);
+        TechLib::from_genlib_unindexed(path, 9).unwrap_or_default()
     })
 }
 
@@ -480,6 +489,7 @@ mod ffi {
             care_mask: u64,
             limit: u32,
         ) -> Vec<CCost>;
+        fn mapping_profile_stats() -> String;
         fn mapping_library_hits() -> u64;
         fn mapping_egg_cache_hits() -> u64;
         fn mapping_egg_calls() -> u64;
@@ -731,6 +741,31 @@ pub fn cut_mapping_egg_arr(
     _cost_model: u8,
 ) -> Vec<ffi::CCost> {
     EGG_CALLS.fetch_add(1, Ordering::Relaxed);
+    if std::env::var("MAP_EGG_PROFILE").is_ok_and(|v| v == "1") {
+        let tech = profile_techlib_store();
+        if let Some(aig) = emap_egg::gate_expr_to_aig_sexp(s, tech) {
+            if let Some((n, _)) = emap_egg::sexp_to_tt9(&aig) {
+                if n as usize <= size && size <= 9 {
+                    let mut covers = profile_cache::pool(&aig, tech, size);
+                    if !covers.is_empty() {
+                        let arrivals = parse_var_dep(vars, size);
+                        for cover in &mut covers {
+                            cover.delay = cover.used_leaf_indices.iter().map(|&i| arrivals[i] as f32 + cover.pin_to_root_delay[i]).fold(0., f32::max);
+                        }
+                        // Return the bounded pool: C++ checks unrounded live arrivals and
+                        // required times, rather than pruning on rounded FFI arrivals here.
+                        if !required_output_delay.is_finite() || covers.iter().any(|c| c.delay <= required_output_delay + 1.0) {
+                            return covers.iter().map(cover_to_cost).collect();
+                        }
+                        // No profile is feasible even allowing for rounded leaf arrivals.
+                        // Retry the legacy timing-aware extraction rather than caching this
+                        // context-specific failure in the context-independent pool.
+                    }
+                }
+            }
+        }
+        profile_cache::fallback();
+    }
     let required = required_output_delay.is_finite().then_some(required_output_delay);
     if limit <= 1 {
         let result = cached_cut_mapping(s, vars, size, objective, required);
@@ -1059,3 +1094,5 @@ mod tests {
         assert_eq!(capped.len(), 1, "limit must cap the candidate list");
     }
 }
+
+pub fn mapping_profile_stats() -> String { profile_cache::stats() }

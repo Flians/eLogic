@@ -25,7 +25,7 @@ PROJECT_ROOT="$(cd "$SELF_DIR/../.." && pwd)"
 
 # Paper tables first (all built on the same 16 circuits of ASPDAC'25's Table 1), then the README's
 # extended 27-design tables (not part of the paper), then the aggregation.
-STAGES=(db_build tab_main tab_mfs3 tab_mfs3_abc iscas_ae iscas_iwls funnel lever1 lever1_micro lever3 runtime ablation oracle db \
+STAGES=(db_build tab_main tab_mfs3 tab_mfs3_abc objectives iscas_ae iscas_iwls funnel lever1 lever1_micro lever3 runtime ablation oracle db \
         report ext27_ae ext27_iwls ext27_ai)
 
 usage() { sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; }
@@ -50,7 +50,7 @@ done
 source "$COMMON"
 mkdir -p "$EPM_ROOT"
 # children (xargs workers) must see the same paths and knobs
-export PROJECT_ROOT EPM_ROOT EPM_JOBS RAYON_NUM_THREADS EPM_TIMEOUT EPM_DC_BUDGET EPM_ROUNDS EPM_RETRIES EPM_BIN
+export PROJECT_ROOT EPM_ROOT EPM_JOBS RAYON_NUM_THREADS EPM_TIMEOUT EPM_DC_BUDGET EPM_ROUNDS EPM_RETRIES EPM_BIN EPM_OBJECTIVE_DESIGNS EPM_OBJECTIVE_ROUNDS
 
 # stage names must be real, so a typo fails loudly instead of running nothing
 is_stage() { local x; for x in "${STAGES[@]}"; do [ "$x" = "$1" ] && return 0; done; return 1; }
@@ -174,12 +174,8 @@ stage_tab_mfs3() {
   fi
   local d
   for d in $PAPER16; do spec tab_mfs3 base "$d" 0 direct "EPMAPPING_SKIP=1 EPMAPPING_WRITE_BASELINE=1 EPM_GENLIB=$lib" >> "$s"; done
-  # The DATE'27 `tab:mfs3` numbers were measured with the whole-window (MFFW) rewrite ON, while
-  # EPM_BASE_ENV switches it off for the paper's other stages.  Re-running the identical arm on
-  # 2026-09-28 reproduced all 16 rows to two decimals only with `EPMAPPING_WINDOW_SYN=1`, so the
-  # `ours` arm of this stage turns it back on (see epmapping/README.md "口径 differences" and
-  # results/paper_data_check.md).
-  for d in $PAPER16; do spec tab_mfs3 ours "$d" 1 direct "EPM_GENLIB=$lib EPMAPPING_WINDOW_SYN=1 EPM_TIMEOUT=${EPM_MFS3_TIMEOUT:-1000}" >> "$s"; done
+  # All DATE comparisons use cut rewriting only.
+  for d in $PAPER16; do spec tab_mfs3 ours "$d" 1 direct "EPM_GENLIB=$lib EPMAPPING_WINDOW_SYN=0 EPM_TIMEOUT=${EPM_MFS3_TIMEOUT:-1000}" >> "$s"; done
   run_stage tab_mfs3 "$s"
   stage_note tab_mfs3 "engine side only: the 16 A_i baselines (EPMAPPING_WRITE_BASELINE=1) and the 16 \
 one-pass runs; ABC's side of the comparison is the next stage, tab_mfs3_abc."
@@ -236,7 +232,7 @@ runtime in abc.tsv, full logs in abc.<design>.log."
   mark_done tab_mfs3_abc
 }
 
-# tab:oracle: the cut stages alone, with synthesis, and with the window fallback, on both recipes.
+# Cut-stage controls with and without synthesis, on both recipes; no window synthesis.
 stage_oracle() {
   local s="$EPM_ROOT/.specs_oracle"; : > "$s"
   local rec tag d
@@ -245,7 +241,6 @@ stage_oracle() {
     for d in c432 c3540 c5315 c2670; do
       spec oracle "$tag.cuts" "$d" 1 "$rec" "EPMAPPING_SYN=0 EPMAPPING_EGG=0 EPMAPPING_WINDOW_SYN=0" >> "$s"
       spec oracle "$tag.syn"  "$d" 1 "$rec" "EPMAPPING_SYN=1 EPMAPPING_EGG=0 EPMAPPING_WINDOW_SYN=0" >> "$s"
-      spec oracle "$tag.win"  "$d" 1 "$rec" "EPMAPPING_SYN=1 EPMAPPING_EGG=0 EPMAPPING_WINDOW_SYN=1" >> "$s"
     done
   done
   run_stage oracle "$s"
@@ -375,17 +370,32 @@ stage_ablation() {
   local s="$EPM_ROOT/.specs_abl"; : > "$s"
   local d
   for d in $ABL11; do
-    # The ablation studies the window as one of the removable stages, so its arms set the window on
-    # again (`EPM_BASE_ENV` runs the paper's stages with it off): without the explicit `=1` here the
-    # `noWINDOW` arm would measure nothing.
-    spec ablation full     "$d" "$EPM_ROUNDS" high_effort "EPMAPPING_WINDOW_SYN=1" >> "$s"
-    spec ablation noSYN    "$d" "$EPM_ROUNDS" high_effort "EPMAPPING_WINDOW_SYN=1 EPMAPPING_SYN=0" >> "$s"
-    spec ablation noWINDOW "$d" "$EPM_ROUNDS" high_effort "EPMAPPING_WINDOW_SYN=0" >> "$s"
-    spec ablation noEGG    "$d" "$EPM_ROUNDS" high_effort "EPMAPPING_WINDOW_SYN=1 EPMAPPING_EGG=0" >> "$s"
-    spec ablation noCARE   "$d" "$EPM_ROUNDS" high_effort "EPMAPPING_WINDOW_SYN=1 EPMAPPING_DC=0 EPMAPPING_SAT_DC=0" >> "$s"
-    spec ablation noDB     "$d" "$EPM_ROUNDS" high_effort "EPMAPPING_WINDOW_SYN=1 EPMAPPING_SUPER=off" >> "$s"
+    spec ablation full   "$d" "$EPM_ROUNDS" high_effort "EPMAPPING_WINDOW_SYN=0" >> "$s"
+    spec ablation noSYN  "$d" "$EPM_ROUNDS" high_effort "EPMAPPING_WINDOW_SYN=0 EPMAPPING_SYN=0" >> "$s"
+    spec ablation noEGG  "$d" "$EPM_ROUNDS" high_effort "EPMAPPING_WINDOW_SYN=0 EPMAPPING_EGG=0" >> "$s"
+    spec ablation noCARE "$d" "$EPM_ROUNDS" high_effort "EPMAPPING_WINDOW_SYN=0 EPMAPPING_DC=0 EPMAPPING_SAT_DC=0" >> "$s"
+    spec ablation noDB   "$d" "$EPM_ROUNDS" high_effort "EPMAPPING_WINDOW_SYN=0 EPMAPPING_SUPER=off" >> "$s"
   done
   run_stage ablation "$s"
+}
+
+# True lexicographic goals, from the same area-oriented direct input mapping.
+# Secondary regression is permitted only when the primary measured network metric improves.
+stage_objectives() {
+  local s="$EPM_ROOT/.specs_objectives"; : > "$s"
+  local lib="$EPM_ROOT/objectives/asap7_6in.genlib"
+  mkdir -p "$(dirname "$lib")"
+  if [ "${EPM_DRY_RUN:-0}" != 1 ]; then
+    python3 "$SELF_DIR/restrict_genlib.py" --in "$GENLIB" --max-pins 6 --out "$lib"
+  fi
+  local d mode
+  for d in ${EPM_OBJECTIVE_DESIGNS:-$PAPER16}; do
+    for mode in delay_area area_delay; do
+      spec objectives "$mode" "$d" "${EPM_OBJECTIVE_ROUNDS:-1}" direct \
+        "EPM_GENLIB=$lib EPMAPPING_OBJECTIVE=$mode EPMAPPING_WINDOW_SYN=0 EPMAPPING_PRESERVE_DEPTH=0 EPMAPPING_PRESERVE_DELAY=0 EPMAPPING_NO_DELAY_REGRESSION=0 EPMAPPING_EGG_REQ=0 EPMAPPING_GLOBAL_OBJECTIVE_GUARD=1 EPMAPPING_WRITE_BASELINE=1" >> "$s"
+    done
+  done
+  run_stage objectives "$s"
 }
 
 stage_report() {

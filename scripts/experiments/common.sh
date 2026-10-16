@@ -47,9 +47,8 @@ EPM_ROUNDS="${EPM_ROUNDS:-6}"
 EPM_RETRIES="${EPM_RETRIES:-3}"
 
 # The settings every DATE'27 number uses on top of the engine defaults.
-# `EPMAPPING_WINDOW_SYN=0`: main and funnel runs study cut rewriting alone. The matched-start
-# comparison and extended ablations explicitly enable whole-window (MFFW) rewriting. This belongs
-# in the driver rather than in the engine default.
+# `EPMAPPING_WINDOW_SYN=0`: every DATE paper run studies cut rewriting alone.
+# Whole-window synthesis is excluded from comparisons, ablations and implementation controls.
 # `EPMAPPING_CUT_LIMIT=12`: the paper's §Setup reports "cut size 6 and at most 12 cuts per node", but
 # the engine's default is now 15 (`epmapping/epmapping.hpp`; README knob table calls 12 "the runtime
 # knee"). Without this the paper's stages silently run at 15 and `systemcdes` no longer converges:
@@ -127,7 +126,13 @@ run_engine() {
   for e in "$@"; do
     [ -z "$e" ] && continue
     case "$e" in
-      EPMAPPING_SUPER=off) unset_env+=( -u EPMAPPING_SUPER ) ;;   # unset the database for this run
+      EPMAPPING_WINDOW_SYN=*)
+        if [ "$e" != EPMAPPING_WINDOW_SYN=0 ]; then
+          echo "[e] DATE experiments require EPMAPPING_WINDOW_SYN=0" >&2
+          return 2
+        fi
+        extra+=( "$e" ) ;;
+      EPMAPPING_SUPER=off) extra+=( "EPMAPPING_SUPER=" ) ;;   # override the default after EPM_BASE_ENV
       EPM_TIMEOUT=*)       alarm="${e#EPM_TIMEOUT=}" ;;            # per-run wall-clock budget
       EPM_GENLIB=*)        genlib_run="${e#EPM_GENLIB=}" ;;        # per-run technology library
       *)                   extra+=( "$e" ) ;;
@@ -136,6 +141,7 @@ run_engine() {
   recipe_set "$recipe"
   local -a round_env=()
   [ -n "$rounds" ] && round_env=( "EPMAPPING_ROUNDS=$rounds" )
+  printf '%s\n' "${EPM_BASE_ENV[@]}" "${RECIPE_ENV[@]}" ${round_env[@]+"${round_env[@]}"} ${extra[@]+"${extra[@]}"} > "$wd/experiment_env.txt"
   local log="$wd/log" try=0 rc=0 st
   st=$(date +%s)
   while :; do
@@ -170,7 +176,7 @@ sweep() {
   fi
   mkdir -p "$out"
   ( cd "$PROJECT_ROOT" && env EPM_OUT="$out" EPM_JOBS="$EPM_JOBS" RAYON_NUM_THREADS="$RAYON_NUM_THREADS" \
-      EPMAPPING_DSE=0 EPMAPPING_NO_DELAY_REGRESSION=1 EPMAPPING_DC_TIME_BUDGET="$EPM_DC_BUDGET" \
+      EPMAPPING_WINDOW_SYN=0 EPMAPPING_DSE=0 EPMAPPING_NO_DELAY_REGRESSION=1 EPMAPPING_DC_TIME_BUDGET="$EPM_DC_BUDGET" \
       EPMAPPING_RN_ROUNDS="$EPM_ROUNDS" "${RECIPE_ENV[@]}" \
       ./scripts/compare_with_paper.sh "$tmo" "$@" ) > "$out.table" 2>&1
   local rc=$?
