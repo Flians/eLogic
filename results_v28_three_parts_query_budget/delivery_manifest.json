@@ -1,9 +1,9 @@
 {
   "campaign": "results_v28_three_parts_query_budget",
   "paper_repository": "epmapping_paper",
-  "paper_commit": "cf099fb18dcbf36b6d1c90595eff81c65e5a955e",
+  "paper_commit": "97d0a508264b290f80056f5b8b4be09f7a57ef88",
   "pdf": "output/pdf/DATE27-ePMapping.pdf",
-  "pdf_sha256": "9ed86b0984d62b02475104838f92c841270ac20cb866e7514999140aa08c0355",
+  "pdf_sha256": "62dc2780ed3c2425dfbdbe23cf37b5b6b2635acb53d94f6cfff7fffe7e7eab67",
   "constraints": {
     "original_inputs_unchanged": true,
     "delay_bound": "fixed initial mapping, 0.001 ps native comparison tolerance",
@@ -19,7 +19,7 @@
     "QUERY_BUDGET_ANALYSIS.txt": "de95779e7e9d9f15efc0e860beeaaabf71ecfde160eca50374908049ca48a257",
     "RESULTS.txt": "de64ff2a7fd3042d3998e2202fb763a8953d4f368b468d0ba91192637b8381e2",
     "construction_comparisons.json": "0a1a467d647c0a97e79b39b223993a2331efaa453a28c58153b748685a6213f4",
-    "build_ready.json": "eb0551aa10301179b1d3ad990c4475987b17503ced49cb16979927669534b942"
+    "build_ready.json": "488c3367a86cdea780a20efb5b8240074f5db1198979e0c5c33a2a15c43c83a8"
   },
   "original_reference_manifest_sha256": "577299af01b580755a420c0f6a5d371b0687673eeb9b9e5ec2919eacdcc80334",
   "native_source_certificate_sha256": "bc72ba9c984b672f13668bcdd255f209a0e0eb34eb2f502cebc64c8cd06f6983",

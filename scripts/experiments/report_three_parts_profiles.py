@@ -194,15 +194,16 @@ def main():
     for d in DESIGNS:
         r=data['cold']['tab_mfs3']['ours',d];b=abc[d]
         abcval=['TO','TO','1000']
-        if b['rc']==0:abcval=[fmt(pct(b['area'],b['baseline']['area'])),fmt(pct(b['delay'],b['baseline']['delay']))+(r'$^{\dagger}$' if b['delay']>b['baseline']['delay']+.001 else ''),f"{b['secs']:.1f}"]
-        mfsbody.append([d.replace('_',r'\_'),f"{float(r['base_a']):.2f}",f"{float(r['base_d']):.2f}",*abcval,*[duo(pct(data['cold']['tab_mfs3']['ours',d]['out_'+k],r['base_'+k]),pct(data['warm']['tab_mfs3']['ours',d]['out_'+k],r['base_'+k]),fmt) for k in ['a','d']],native_time('tab_mfs3','ours',d)])
+        if b['rc']==0:
+            abcval=[f"{b['area']/b['baseline']['area']:.4f}",f"{b['delay']/b['baseline']['delay']:.4f}"+(r'$^{\dagger}$' if b['delay']>b['baseline']['delay']+.001 else ''),f"{b['secs']:.1f}"]
+        ownval=[duo(float(data['cold']['tab_mfs3']['ours',d]['out_'+k])/float(r['base_'+k]),float(data['warm']['tab_mfs3']['ours',d]['out_'+k])/float(r['base_'+k]),lambda x:f'{x:.4f}') for k in ['a','d']]
+        mfsbody.append([d.replace('_',r'\_'),*abcval,*ownval,native_time('tab_mfs3','ours',d)])
     abcrat=[mean(abc[d][k]/abc[d]['baseline'][k] for d in paired) for k in ['area','delay']]
     ownrat=[mean(float(data['cold']['tab_mfs3']['ours',d][f'out_{k}'])/float(data['cold']['tab_mfs3']['ours',d][f'base_{k}']) for d in paired) for k in ['a','d']]
     warmownrat=[mean(float(data['warm']['tab_mfs3']['ours',d][f'out_{k}'])/float(data['warm']['tab_mfs3']['ours',d][f'base_{k}']) for d in paired) for k in ['a','d']]
-    mfsbody+=[[r'\midrule'],['Ave. Ratio','1.0000','1.0000',*[f'{v:.4f}' for v in abcrat],f"{mean(abc[d]['secs'] for d in paired):.1f}",*[duo(a,b,lambda x:f'{x:.4f}') for a,b in zip(ownrat,warmownrat)],pair(*[mean(time_of(cohorts[m],'tab_mfs3','ours',d) for d in paired) for m in cohorts])]]
-    mfsbody=[mfsbody[-1]]
-    mfs=table(r'One-round comparison on identical mappings and the same six-input sublibrary. Ave. Ratio averages native-start-normalized costs over the '+str(len(paired))+r' ABC-completed designs; ABC columns use raw outputs; ours uses independently validated selections. Times are means in seconds, excluding CEC; ours gives cold/warm. Full per-design results are archived.','tab:mfs3',['','$A/A_0$','$D/D_0$','$A/A_0$','$D/D_0$','$t$','$A/A_0$','$D/D_0$','$t_c/t_w$'],mfsbody,'lrrrrrrrr',[r'Statistic & \multicolumn{2}{c}{Initial} & \multicolumn{3}{c}{ABC mfs3} & \multicolumn{3}{c}{Ours} \\',r'\cmidrule(lr){2-3}\cmidrule(lr){4-6}\cmidrule(lr){7-9}'])
-    mfs=mfs.replace(r'\setlength{\tabcolsep}{1.5pt}',r'\setlength{\tabcolsep}{3pt}')
+    mfsbody+=[[r'\midrule'],['Ave. Ratio',*[f'{v:.4f}' for v in abcrat],f"{mean(abc[d]['secs'] for d in paired):.1f}",*[duo(a,b,lambda x:f'{x:.4f}') for a,b in zip(ownrat,warmownrat)],pair(*[mean(time_of(cohorts[m],'tab_mfs3','ours',d) for d in paired) for m in cohorts])]]
+    mfs=table(r'One round on byte-identical initial netlists and the same six-input sublibrary. Costs are normalized to the native initial costs of each tool; ABC uses raw outputs. $\dagger$: delay exceeds its initial bound; TO: 1000\,s. Times in seconds exclude CEC; ours gives cold/warm. Ave. Ratio reports mean ratios and times over the '+str(len(paired))+r' ABC-completed designs.','tab:mfs3',['','$A/A_0$','$D/D_0$','$t$','$A/A_0$','$D/D_0$','$t_c/t_w$'],mfsbody,'lrrrrrr',[r'Circuit & \multicolumn{3}{c}{ABC mfs3} & \multicolumn{3}{c}{Ours} \\',r'\cmidrule(lr){2-4}\cmidrule(lr){5-7}'])
+    mfs=mfs.replace(r'\centering\scriptsize',r'\centering\footnotesize').replace(r'\setlength{\tabcolsep}{1.5pt}',r'\setlength{\tabcolsep}{2.5pt}')
     for name,t in [('MainResultTable',main),('AblationResultTable',abl)]:generated+=f'\\newcommand{{\\{name}}}{{%\n{t}\n}}\n'
     (root/'generated_profiles.tex').write_text(generated)
     mfs_text='% GENERATED from paired CEC/PPA/cache audits.\n'+f'\\newcommand{{\\MfsComparisonTable}}{{%\n{mfs}\n}}\n'

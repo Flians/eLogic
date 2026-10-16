@@ -1,5 +1,5 @@
 {
-  "pdf_sha256": "9ed86b0984d62b02475104838f92c841270ac20cb866e7514999140aa08c0355",
+  "pdf_sha256": "62dc2780ed3c2425dfbdbe23cf37b5b6b2635acb53d94f6cfff7fffe7e7eab67",
   "pages": [
     1,
     2,
@@ -12,7 +12,7 @@
   "checks": [
     "6 body pages and one reference page",
     "all pages visually inspected at 1600-pixel height",
-    "Table II single column with one shared initial mapping and Ave. Ratio",
+    "Table II single column: sixteen circuits, normalized area/delay, ABC runtime and cold/warm ours runtime, TO/delay-violation marks, paired Ave. Ratio",
     "Table III initial area and delay plus cold/warm runtime",
     "19 ablation arms and new runtime figure legible",
     "no overlapping text, clipped figures, overfull boxes, or unresolved references"
