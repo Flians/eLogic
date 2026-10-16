@@ -1,0 +1,19 @@
+{
+  "pdf": "/home/flynn/workplace/MIGBalance/epmapping_paper/DATE27-ePMapping-sub/DATE27-ePMapping.pdf",
+  "sha256": "9ed86b0984d62b02475104838f92c841270ac20cb866e7514999140aa08c0355",
+  "pages": 7,
+  "body_pages": 6,
+  "reference_pages": 1,
+  "visual_QA_pending": false,
+  "visually_checked_pages": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "overfull_boxes": false,
+  "unresolved_references": false
+}

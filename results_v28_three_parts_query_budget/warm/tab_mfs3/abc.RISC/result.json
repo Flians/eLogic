@@ -1,0 +1,14 @@
+{
+  "design": "RISC",
+  "rc": 0,
+  "secs": 91.93938929299998,
+  "cec": 1,
+  "validation_secs": 11.903429712999923,
+  "baseline": {
+    "area": 3594.28,
+    "delay": 696.43
+  },
+  "baseline_sha256": "57a7724c67bda53eb855b07ec24a8ad2e5df826f6cdd1bbb833673a259215bad",
+  "area": 3491.97,
+  "delay": 1175.2
+}

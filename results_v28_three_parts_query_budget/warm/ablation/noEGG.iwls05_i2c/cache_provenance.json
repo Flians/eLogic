@@ -1,0 +1,10 @@
+{
+  "mode": "warm",
+  "cache_directory": "/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cache/ablation/noEGG.iwls05_i2c",
+  "cache_record_sha256": {},
+  "initial_sha256": "d019d10b6d4344b236506c9f6bbc78422bca35fb47166d7a1265c91a8cb9c553",
+  "profile": [
+    "memory_hits=0 disk_hits=0 builds=0 corrupt=0 write_failures=0 legacy_fallbacks=0"
+  ],
+  "returncode": "0"
+}

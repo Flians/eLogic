@@ -1,0 +1,15 @@
+\section{Introduction}
+Logic synthesis commonly optimizes an and-inverter graph (AIG)~\cite{AIG} or majority-inverter graph (MIG)~\cite{MIG,MIG_TCAD} before technology mapping~\cite{calvino2022mapping}. Graph size is only a proxy for cell area: equivalent graphs can map differently because library functions, pin delays and inversion costs differ.
+
+Post-mapping resubstitution uses dependency cuts and mapped-subnetwork databases~\cite{iwls24,aspdac25}; equality saturation explores equivalent implementations~\cite{ustun2022impress,cheng2024seer,coward2024rover,chen2024esyn}. We combine local cover diversity with sharing across roots.
+
+For a structural cut, compact factorizations can miss library-friendly Shannon or Davio forms. Their usefulness depends on leaf arrivals and existing phases. Retaining more covers cannot introduce missing decompositions and can exhaust a Cartesian budget early. Across roots, constructing a factor may increase local area yet reduce total area through reuse. Small cuts see only fragments of such repeated structure.
+
+\textbf{ePMapping} addresses both scopes (\Cref{fig_layers}). Each round composes AO21 chain blocks and evaluates shared factors jointly. Local rewriting combines cell matching, database lookup and structural synthesis; a bounded e-graph search follows when they provide no admissible proposal. Live required times allow use of noncritical slack under the initial delay bound. Rebuilt netlists determine whether a round is retained.
+
+The contributions are:
+\begin{itemize}
+ \item a staged cut search combining Shannon/Davio alternatives, progressive arrival-independent e-graph pools, and live phase-reuse pricing under timing constraints;
+ \item joint AO21 chain-block composition and cross-root reuse, with acceptance based on total mapped area rather than isolated root costs;
+ \item a three-part evaluation of common-input optimization, area recovery after extensive preprocessing, and the area and runtime sensitivity to each evaluated component.
+\end{itemize}

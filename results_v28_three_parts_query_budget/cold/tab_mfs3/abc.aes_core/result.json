@@ -1,0 +1,14 @@
+{
+  "design": "aes_core",
+  "rc": 0,
+  "secs": 32.533760058984626,
+  "cec": 1,
+  "validation_secs": 1.775790485960897,
+  "baseline": {
+    "area": 1113.13,
+    "delay": 410.49
+  },
+  "baseline_sha256": "fdbf2339888d2b0153093390c667e943bc9ee07d163eb270aba80aa1413bc34b",
+  "area": 1083.15,
+  "delay": 465.2
+}

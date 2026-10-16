@@ -1,0 +1,5 @@
+ABC command line: "read_genlib /home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/inputs/asap7_6in.genlib; read -m /home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_mfs3/base.iwls05_i2c/epmapping_mapped.v; mfs3 -a; print_stats; write_verilog /home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_mfs3/abc.iwls05_i2c/mapped.v".
+
+Entered genlib library with 40 gates from file "/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/inputs/asap7_6in.genlib".
+[1;37mtop                           :[0m i/o =  275/  144  lat =    0  nd =   553  edge =   1730  area =57.09  delay =233.88  lev = 9
+Abc_NtkLogicToNetlist() warning: The network is converted to have simple COs.

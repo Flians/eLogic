@@ -1,0 +1,14 @@
+{
+  "design": "tv80",
+  "rc": 0,
+  "secs": 38.360106879,
+  "cec": 1,
+  "validation_secs": 1.2193388990000358,
+  "baseline": {
+    "area": 462.39,
+    "delay": 799.99
+  },
+  "baseline_sha256": "364ad23ddab18b9106f960c265486e35038adac332252eb3e12c88e30762827e",
+  "area": 430.06,
+  "delay": 940.55
+}

@@ -1,0 +1,24 @@
+[package]
+name = "map_egg"
+version = "0.1.0"
+edition = "2024"
+
+[build-dependencies]
+cxx-build = "1.0"
+
+[lib]
+name = "map_egg"
+crate-type = ["staticlib"]
+
+[dependencies]
+# The cxx bridge, plus what the cover generators, the library model, the e-graph helpers and the
+# AIG/truth-table types use. The upstream crate's ILP extractors, Python bindings, serialization
+# crates and logging helpers are gone (see epmapping/README.md).
+cxx = "1.0"
+egg = { version = "0.11.0", features = ["deterministic"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+aiger = "0.2"
+itertools = "0.14"
+petgraph = "0.8"
+thiserror = "2.0"

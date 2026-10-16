@@ -1,0 +1,14 @@
+{
+  "design": "systemcaes",
+  "rc": 0,
+  "secs": 17.584053346014116,
+  "cec": 1,
+  "validation_secs": 0.8701622239896096,
+  "baseline": {
+    "area": 559.33,
+    "delay": 775.42
+  },
+  "baseline_sha256": "42d999db31aee9057b37ad868141d51dd8e65f7a80ceb1fa6bd7eaba2c8fc106",
+  "area": 542.8,
+  "delay": 845.51
+}

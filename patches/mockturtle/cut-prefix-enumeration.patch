@@ -1,0 +1,101 @@
+diff --git a/include/mockturtle/algorithms/cut_enumeration.hpp b/include/mockturtle/algorithms/cut_enumeration.hpp
+index 2faaf69..7630355 100644
+--- a/include/mockturtle/algorithms/cut_enumeration.hpp
++++ b/include/mockturtle/algorithms/cut_enumeration.hpp
+@@ -1498,49 +1498,62 @@ private:
+     {
+       rcuts.clear();
+ 
+-      cut_t new_cut, tmp_cut;
++      cut_t new_cut;
+ 
+       std::vector<cut_t const*> vcuts( fanin );
+ 
+       cuts._total_tuples += pairs;
+-      foreach_mixed_radix_tuple( cut_sizes.begin(), cut_sizes.end(), [&]( auto begin, auto end ) {
+-        auto it = vcuts.begin();
+-        auto i = 0u;
+-        while ( begin != end )
+-        {
+-          *it++ = &( ( *lcuts[i++] )[*begin++] );
+-        }
+-
+-        if ( !vcuts[0]->merge( *vcuts[1], new_cut, NumVars ) )
+-        {
+-          return true; /* continue */
+-        }
+-
+-        for ( i = 2; i < fanin; ++i )
+-        {
+-          tmp_cut = new_cut;
+-          if ( !vcuts[i]->merge( tmp_cut, new_cut, NumVars ) )
++      /* Enumerate the same tuples in the same (odometer) order, but as a tree rather than as a flat
++         product: a prefix whose merge already exceeds the cut size cannot be rescued by any choice
++         of the remaining fanins, so the recursion prunes that whole sub-tree.  The flat
++         `foreach_mixed_radix_tuple` form re-ran the prefix merges once per suffix combination,
++         which made the per-node cost grow with the product of the children's cut-list sizes
++         (`cut_limit^k` for a k-input cell) instead of with the number of surviving prefixes.
++         Dimension 0 is the outermost loop here as well, so `rcuts` sees exactly the candidates the
++         flat enumeration produced, in the same order. */
++      {
++        auto dfs = [&]( auto&& self, uint32_t dim, cut_t const* acc ) -> void {
++          if ( dim == fanin )
+           {
+-            return true; /* continue */
+-          }
+-        }
++            new_cut = *acc;
++            if ( rcuts.is_dominated( new_cut ) )
++            {
++              return;
++            }
+ 
+-        if ( rcuts.is_dominated( new_cut ) )
+-        {
+-          return true; /* continue */
+-        }
++            if constexpr ( ComputeTruth )
++            {
++              new_cut->func_id = compute_truth_table( index, vcuts, new_cut );
++            }
+ 
+-        if constexpr ( ComputeTruth )
+-        {
+-          new_cut->func_id = compute_truth_table( index, vcuts, new_cut );
+-        }
++            cut_enumeration_update_cut<CutData>::apply( new_cut, cuts, ntk, ntk.index_to_node( index ) );
+ 
+-        cut_enumeration_update_cut<CutData>::apply( new_cut, cuts, ntk, ntk.index_to_node( index ) );
+-
+-        rcuts.insert( new_cut );
++            rcuts.insert( new_cut );
++            return;
++          }
+ 
+-        return true;
+-      } );
++          auto const& list = *lcuts[dim];
++          for ( uint32_t j = 0; j < list.size(); ++j )
++          {
++            cut_t const* child_cut = &list[j];
++            vcuts[dim] = child_cut;
++
++            if ( acc == nullptr )
++            {
++              self( self, dim + 1u, child_cut );
++            }
++            else
++            {
++              cut_t merged;
++              if ( acc->merge( *child_cut, merged, NumVars ) )
++              {
++                self( self, dim + 1u, &merged );
++              }
++            }
++          }
++        };
++        dfs( dfs, 0u, nullptr );
++      }
+ 
+       /* limit the maximum number of cuts */
+       rcuts.limit( ps.cut_limit );

@@ -1,0 +1,24 @@
+{
+  "status": "optimizer_timeout",
+  "raw_returncode": 142,
+  "cec": 1,
+  "selection": "checkpoint",
+  "checkpoint": {
+    "version": 1,
+    "pid": 7299,
+    "round": 1,
+    "partial_round": true,
+    "area": 1183.1000000000522,
+    "delay": 53062.719999999346,
+    "optimizer_seconds": 921.893039171,
+    "cec": null,
+    "netlist": "checkpoint_7299_17.v"
+  },
+  "area": 1183.1000000000522,
+  "delay": 53062.719999999346,
+  "netlist_sha256": "2ff6b058244194de63d3a9e9bfd354b9e6fec102a8b59e80faa643dec5958f6a",
+  "initial_sha256": "e608cf494f0bd5280f6221990762f0363316ccfac8e987e1d16c9d656c55c937",
+  "input_sha256": "e65955ae0931e5c7ed91a6210f0f6e6b7bd95eaeef1ffddcfb3e7ec633ed5d82",
+  "library_sha256": "a49947a67b2d2a2432e16aa4a697a18cec5fbd90adf71243f3dc44ae8288d7fb",
+  "proof_sha256": "1e3ee13c44d113f01eb4bfae8767eafe64bbe50bb7a253196f5521eeed9f4c36"
+}

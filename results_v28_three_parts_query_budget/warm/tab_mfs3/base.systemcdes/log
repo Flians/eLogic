@@ -1,0 +1,7 @@
+[i] ABC baseline: direct (no ABC preprocessing)
+[i] super library load = 0.503883673 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=151.07 delay=416.79 gates=1400 area_oriented=1 multioutput=0
+[i] EPMAPPING_SKIP set; skipping optimizer
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/tab_mfs3/base.systemcdes/epmapping_mapped.v"
+[i] baseline_cec=1

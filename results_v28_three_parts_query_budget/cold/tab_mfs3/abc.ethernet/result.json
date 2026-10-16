@@ -1,0 +1,14 @@
+{
+  "design": "ethernet",
+  "rc": 0,
+  "secs": 52.59781512897462,
+  "cec": 1,
+  "validation_secs": 11.948191879026126,
+  "baseline": {
+    "area": 3739.47,
+    "delay": 557.03
+  },
+  "baseline_sha256": "d26a28feb197ce14477b1103db7e3c9683ffb4edab919fe3a0d8fa320201f655",
+  "area": 3715.08,
+  "delay": 613.8
+}

@@ -1,0 +1,14 @@
+{
+  "design": "iwls05_i2c",
+  "rc": 0,
+  "secs": 0.8700002480181865,
+  "cec": 1,
+  "validation_secs": 0.15523721900535747,
+  "baseline": {
+    "area": 59.46,
+    "delay": 237.61
+  },
+  "baseline_sha256": "515286e382c639ed2e087a3194e1acee0adf72b9b41b14e59359dc4bc0ac89c7",
+  "area": 57.09,
+  "delay": 233.88
+}

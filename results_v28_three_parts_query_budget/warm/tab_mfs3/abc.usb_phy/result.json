@@ -1,0 +1,14 @@
+{
+  "design": "usb_phy",
+  "rc": 0,
+  "secs": 0.11531676800223067,
+  "cec": 1,
+  "validation_secs": 0.11538393702358007,
+  "baseline": {
+    "area": 27.15,
+    "delay": 155.17
+  },
+  "baseline_sha256": "c497a8bd4b91c6bc7fea7859e78fdb0265e45cc3444c55d86b7977c96453dd47",
+  "area": 24.53,
+  "delay": 155.17
+}

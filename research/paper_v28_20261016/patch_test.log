@@ -1,0 +1,7 @@
+[epmapping] applied tech-library-function-buckets.patch
+[epmapping] applied shared-mapped-library.patch
+[epmapping] applied cut-prefix-enumeration.patch
+[epmapping] tech-library-function-buckets.patch already applied
+[epmapping] shared-mapped-library.patch already applied
+[epmapping] cut-prefix-enumeration.patch already applied
+patch application, idempotence and conflict preservation passed

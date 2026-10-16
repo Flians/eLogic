@@ -1,12 +1,15 @@
 #include "epmapping.hpp"
 
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <string>
 #include <vector>
+#include <unistd.h>
 
 #include <experiments.hpp>
 #include <lorina/aiger.hpp>
@@ -211,6 +214,7 @@ void debug_po_drivers(Ntk const& ntk, char const* tag)
 int main(int argc, char** argv)
 {
   auto const process_start = std::chrono::steady_clock::now();
+  std::cout.precision(10);
   auto const elapsed = []( auto const& start ) {
     return std::chrono::duration<double>( std::chrono::steady_clock::now() - start ).count();
   };
@@ -222,6 +226,15 @@ int main(int argc, char** argv)
 
   std::filesystem::path const genlib_path = argv[1];
   std::filesystem::path const input_path = argv[2];
+  auto const* objective_env = std::getenv("EPMAPPING_OBJECTIVE");
+  auto const requested_objective = epmapping::parse_objective( objective_env ? objective_env : "area_delay_bound" );
+  bool const bounded_area_goal = !objective_env || std::string{objective_env} == "area_delay_bound";
+  bool const named_objective = objective_env && std::string{objective_env} != "0" && std::string{objective_env} != "1";
+  if (!requested_objective)
+  {
+    std::cerr << "[e] EPMAPPING_OBJECTIVE must be area_delay_bound, delay_area (0) or area_delay (1)\n";
+    return 2;
+  }
   std::filesystem::path workdir = argc >= 4
                                       ? std::filesystem::path{argv[3]}
                                       : std::filesystem::temp_directory_path() / "epmapping";
@@ -432,6 +445,9 @@ int main(int argc, char** argv)
     return 0;
   }
 
+  if ( env_u32("EPMAPPING_WRITE_BASELINE", 0u) != 0u )
+    mockturtle::write_verilog_with_cell( mapped, (workdir / "epmapping_baseline.v").string() );
+
   epmapping::params ps;
   ps.cut_size = env_u32("EPMAPPING_CUT_SIZE", ps.cut_size);
   /* `map_egg` represents a cut function as a 9-input truth table (`Tt9`) and names cut leaves
@@ -444,20 +460,57 @@ int main(int argc, char** argv)
     ps.cut_size = max_cut_size;
   }
   ps.cut_limit = env_u32("EPMAPPING_CUT_LIMIT", ps.cut_limit);
-  ps.objective = static_cast<uint8_t>(env_u32("EPMAPPING_OBJECTIVE", ps.objective));
-  ps.preserve_depth = env_u32("EPMAPPING_PRESERVE_DEPTH", ps.preserve_depth ? 1u : 0u) != 0u;
-  ps.preserve_delay = env_u32("EPMAPPING_PRESERVE_DELAY", ps.preserve_delay ? 1u : 0u) != 0u;
+  ps.objective = *requested_objective;
+  ps.global_objective_guard = env_u32("EPMAPPING_GLOBAL_OBJECTIVE_GUARD", named_objective ? 1u : 0u) != 0u;
+  ps.rank_area_gain = env_u32("EPMAPPING_RANK_AREA_GAIN", 0u) != 0u;
+  ps.use_required_times = env_u32("EPMAPPING_USE_REQUIRED_TIMES", 0u) != 0u;
+  ps.area_under_delay = bounded_area_goal || env_u32("EPMAPPING_AREA_UNDER_DELAY", 0u) != 0u;
+  ps.path_objective = env_u32("EPMAPPING_PATH_OBJECTIVE", 0u) != 0u;
+  ps.critical_slack = std::max( 0.0, env_f64("EPMAPPING_CRITICAL_SLACK", 1e-3) );
+  ps.max_area_growth = env_f64("EPMAPPING_MAX_AREA_GROWTH", -1.0);
+  ps.max_delay_growth = env_f64("EPMAPPING_MAX_DELAY_GROWTH", -1.0);
+  ps.local_area_growth = env_f64("EPMAPPING_LOCAL_AREA_GROWTH", -1.0);
+  ps.preserve_depth = env_u32("EPMAPPING_PRESERVE_DEPTH", !named_objective && ps.preserve_depth ? 1u : 0u) != 0u;
+  ps.preserve_delay = env_u32("EPMAPPING_PRESERVE_DELAY", !named_objective && ps.preserve_delay ? 1u : 0u) != 0u;
   ps.delay_slack = env_f64("EPMAPPING_DELAY_SLACK", ps.delay_slack);
   ps.max_rounds = env_u32("EPMAPPING_ROUNDS", ps.max_rounds);
   ps.use_egg = env_u32("EPMAPPING_EGG", ps.use_egg ? 1u : 0u) != 0u;
   ps.validate_candidates = env_u32("EPMAPPING_VALIDATE", ps.validate_candidates ? 1u : 0u) != 0u;
   ps.use_dont_cares = env_u32("EPMAPPING_DC", ps.use_dont_cares ? 1u : 0u) != 0u;
   ps.synth_cache_entries = env_u32("EPMAPPING_SYN_CACHE", ps.synth_cache_entries);
-  ps.egg_required = env_u32("EPMAPPING_EGG_REQ", ps.egg_required ? 1u : 0u) != 0u;
+  ps.synth_cache_replace = env_u32("EPMAPPING_CACHE_REPLACE", 1u) != 0u;
+  ps.cofactor_dedup = env_u32("EPMAPPING_COFAC_DEDUP", 1u) != 0u;
+  ps.cofactor_proof_cache = env_u32("EPMAPPING_COFAC_PROOF_CACHE", 1u) != 0u;
+  ps.live_query_memo=env_u32("EPMAPPING_LIVE_QUERY_CACHE",ps.live_query_memo);
+  ps.cofactor_pivots = env_u32("EPMAPPING_COFAC_PIVOTS", ps.cofactor_pivots);
+  ps.shared_mapped_library=env_u32("EPMAPPING_SHARED_MAPPED_LIBRARY",0u)!=0;
+  ps.build_reuse=std::min(2u,env_u32("EPMAPPING_BUILD_REUSE",0u));
+  ps.operator_policy_mode = std::min(3u,env_u32("EPMAPPING_OPERATOR_POLICY",0u));
+  ps.checkpoint_interval = std::max(0.0,env_f64("EPMAPPING_CHECKPOINT_INTERVAL",30.0));
+  ps.egg_required = env_u32("EPMAPPING_EGG_REQ", !named_objective && ps.egg_required ? 1u : 0u) != 0u;
   if ( char const* min_mffc = std::getenv("EPMAPPING_EGG_MIN_MFFC") )
     ps.egg_min_mffc = std::atof( min_mffc );
   /* Structural-synthesis candidate source and the SAT don't-care refinement (see epmapping.hpp). */
   ps.synth = env_u32("EPMAPPING_SYN", ps.synth);
+  ps.dependency_cuts = env_u32("EPMAPPING_DEPENDENCY_CUTS", 0u) != 0u;
+  ps.dependency_internal_divisors = env_u32("EPMAPPING_DEPENDENCY_INTERNAL",0u)!=0u;
+  ps.dependency_min_removed=env_u32("EPMAPPING_DEPENDENCY_MIN_REMOVED",1u);
+  ps.chain_factor=env_u32("EPMAPPING_CHAIN_FACTOR",1u)!=0u;
+  ps.chain_share=env_u32("EPMAPPING_CHAIN_SHARE",1u)!=0u;
+  ps.phase_reuse=env_u32("EPMAPPING_PHASE_REUSE",1u)!=0u;
+  ps.phase_cost=env_u32("EPMAPPING_PHASE_COST",0u)!=0u;
+  ps.phase_fanout=env_u32("EPMAPPING_PHASE_FANOUT",0u)!=0u;
+  ps.cofactor_modes=env_u32("EPMAPPING_COFAC",0u)&7u;
+  ps.cofactor_min_leaves=std::clamp(env_u32("EPMAPPING_COFAC_MIN_LEAVES",3u),2u,6u);
+  ps.chain_min_length=env_u32("EPMAPPING_CHAIN_MIN_LENGTH",6u);
+  ps.chain_block=env_u32("EPMAPPING_CHAIN_BLOCK",2u);
+  ps.observability_care=env_u32("EPMAPPING_OBSERVABILITY_CARE",0u)!=0u;
+  ps.observability_min_depth=env_u32("EPMAPPING_OBSERVABILITY_MIN_DEPTH",0u);
+  ps.observability_budget=env_f64("EPMAPPING_OBSERVABILITY_BUDGET",200.0);
+  ps.global_divisors=env_u32("EPMAPPING_GLOBAL_DIVISORS",0u)!=0u;
+  ps.global_sat_conflicts=env_u32("EPMAPPING_GLOBAL_SAT_CONFLICTS",2000u);
+  ps.feasible_covers = env_u32("EPMAPPING_FEASIBLE_COVERS",1u)!=0u;
+  ps.dependency_window_pis = env_u32("EPMAPPING_DEPENDENCY_PIS", 10u);
   ps.synth_min_leaves = env_u32("EPMAPPING_SYN_MIN_LEAVES", ps.synth_min_leaves);
   ps.synth_modes = env_u32("EPMAPPING_SYN_MODE", ps.synth_modes);
   ps.synth_exact_leaves = env_u32("EPMAPPING_SYN_EXACT_LEAVES", ps.synth_exact_leaves);
@@ -500,19 +553,126 @@ int main(int argc, char** argv)
   if ( char const* dc_budget = std::getenv("EPMAPPING_DC_TIME_BUDGET") )
     ps.dc_time_budget = std::atof(dc_budget);
   ps.verbose = env_u32("EPMAPPING_VERBOSE", 0u) != 0u;
+  if ( ps.area_under_delay )
+  {
+    ps.path_objective = false;
+    ps.objective = 1u;
+    ps.global_objective_guard = true;
+    ps.use_required_times = true;
+    ps.rank_area_gain = true;
+    ps.preserve_depth = false;
+    ps.preserve_delay = false;
+    ps.egg_required = true;
+    ps.window_synth = 0u;
+    ps.max_area_growth = 0.0;
+    ps.max_delay_growth = 0.0;
+    ps.local_area_growth = 0.0;
+  }
+  if ( ps.path_objective )
+  {
+    ps.objective = 0u;
+    ps.global_objective_guard = true;
+    ps.use_required_times = true;
+    ps.rank_area_gain = true;
+    ps.preserve_depth = false;
+    ps.preserve_delay = false;
+    ps.egg_required = true;
+    ps.window_synth = 0u;
+    ps.max_delay_growth = 0.0;
+  }
 
   /* Instantiate up to the 9-input ceiling so `EPMAPPING_CUT_SIZE` can be raised; the default
      `params::cut_size` stays 6, so default behaviour is unchanged. */
   auto const optimizer_start = std::chrono::steady_clock::now();
+  auto const post_timeout = env_u32("EPMAPPING_POST_TIMEOUT", 0u);
+  unsigned previous_alarm = 0u;
+  if (post_timeout != 0u)
+  {
+    previous_alarm = alarm(post_timeout);
+    std::cout << "[i] post_mapping_timeout=" << post_timeout
+              << " seconds (optimizer preparation and rebuilding included)" << std::endl;
+  }
+  std::optional<std::pair<int64_t,int64_t>> saved_metric;
+  uint64_t checkpoint_serial=0;
+  if (env_u32("EPMAPPING_CHECKPOINT", 1u) != 0u)
+  {
+    // The manifest is the commit record. Never publish one before its immutable
+    // netlist is complete, and never write from a signal handler. CEC is separate.
+    std::error_code checkpoint_error;
+    std::filesystem::remove(workdir / "epmapping_checkpoint.json", checkpoint_error);
+    auto const initial_area = mapped.compute_area();
+    auto const initial_delay = mapped.compute_worst_delay();
+    ps.checkpoint = [&, initial_area, initial_delay](epmapping::ep_network const& network, uint32_t round, bool partial) {
+      auto const area = network.compute_area(), delay = network.compute_worst_delay();
+      auto const metric = epmapping::objective_key(ps.objective,area,delay);
+      if (area > initial_area + 1e-4 || delay > initial_delay + 1e-3 ||
+          (saved_metric && metric >= *saved_metric)) return;
+      auto const name = "checkpoint_" + std::to_string(getpid()) + "_" + std::to_string(checkpoint_serial++) + ".v";
+      auto const pending = workdir / (name + ".tmp");
+      mockturtle::write_verilog_with_cell(network, pending.string());
+      std::error_code error;
+      std::filesystem::rename(pending, workdir / name, error);
+      if (error) { std::cerr << "[w] checkpoint netlist: " << error.message() << '\n'; return; }
+      auto const metadata = workdir / "epmapping_checkpoint.json.tmp";
+      std::ofstream record(metadata);
+      record << std::setprecision(17) << "{\"version\":1,\"pid\":" << getpid()
+             << ",\"round\":" << round << ",\"partial_round\":" << (partial ? "true":"false")
+             << ",\"area\":" << area << ",\"delay\":" << delay
+             << ",\"optimizer_seconds\":" << elapsed(optimizer_start)
+             << ",\"cec\":null,\"netlist\":\"" << name << "\"}\n";
+      record.close();
+      if (!record) { std::cerr << "[w] checkpoint manifest write failed\n"; return; }
+      std::filesystem::rename(metadata, workdir / "epmapping_checkpoint.json", error);
+      if (error) { std::cerr << "[w] checkpoint manifest: " << error.message() << '\n'; return; }
+      saved_metric = metric;
+      std::cout << "[i] epmapping checkpoint round=" << round << " area=" << area
+                << " delay=" << delay << " partial_round=" << partial << " netlist=" << name << std::endl;
+    };
+  }
   epmapping::optimizer<max_cut_size> optimizer{mapped, ps, tech_lib_super ? tech_lib_super.get() : &tech_lib};
   std::cout << "[i] epmapping running (objective=" << static_cast<unsigned>(ps.objective)
+            << ", objective_order=" << epmapping::objective_name(ps.objective)
+            << ", global_objective_guard=" << (ps.global_objective_guard ? 1 : 0)
             << ", preserve_depth=" << (ps.preserve_depth ? 1 : 0)
             << ", preserve_delay=" << (ps.preserve_delay ? 1 : 0)
             << ", delay_slack=" << ps.delay_slack
+            << ", rank_area_gain=" << ps.rank_area_gain
+            << ", required_times=" << ps.use_required_times
+            << ", area_under_delay=" << ps.area_under_delay
+            << ", path_objective=" << ps.path_objective
+            << ", critical_slack=" << ps.critical_slack
+            << ", max_area_growth=" << ps.max_area_growth
+            << ", max_delay_growth=" << ps.max_delay_growth
+            << ", local_area_growth=" << ps.local_area_growth
             << ", max_rounds=" << ps.max_rounds
             << ", egg=" << (ps.use_egg ? 1 : 0)
             << ", dc=" << (ps.use_dont_cares ? 1 : 0)
+            << ", dependency_cuts=" << ps.dependency_cuts
+            << ", chain_factor=" << ps.chain_factor
+            << ", chain_share=" << ps.chain_share
+            << ", phase_reuse=" << ps.phase_reuse
+            << ", phase_cost=" << ps.phase_cost
+            << ", phase_fanout=" << ps.phase_fanout
+            << ", cofactor_modes=" << ps.cofactor_modes
+            << ", chain_block=" << ps.chain_block
+            << ", observability_care=" << ps.observability_care
+            << ", observability_min_depth=" << ps.observability_min_depth
+            << ", observability_budget=" << ps.observability_budget
+            << ", global_divisors=" << ps.global_divisors
+            << ", global_conflicts=" << ps.global_sat_conflicts
+            << ", dependency_min_removed=" << ps.dependency_min_removed
+            << ", dependency_internal=" << ps.dependency_internal_divisors
+            << ", feasible_covers=" << ps.feasible_covers
+            << ", dependency_pis=" << ps.dependency_window_pis
             << ", synth_cache=" << ps.synth_cache_entries
+            << ", cache_replace=" << ps.synth_cache_replace
+            << ", cofactor_dedup=" << ps.cofactor_dedup
+            << ", cofactor_proof_cache=" << ps.cofactor_proof_cache
+            << ", cofactor_pivots=" << ps.cofactor_pivots
+            << ", live_query_memo=" << ps.live_query_memo
+            << ", shared_mapped_library=" << ps.shared_mapped_library
+            << ", build_reuse=" << ps.build_reuse
+            << ", operator_policy=" << ps.operator_policy_mode
             << ", dc_window="
             << ( ps.dc_window == epmapping::params::dc_window_mode::per_node ? "per_node" : "per_cut" )
             << ", single_matcher="
@@ -523,8 +683,35 @@ int main(int argc, char** argv)
   reset_mapping_counters();
   auto const result = optimizer.run();
   double const optimizer_secs = elapsed( optimizer_start );
+  if (post_timeout != 0u)
+  {
+    alarm(0u);
+    if (previous_alarm != 0u)
+    {
+      auto const spent = static_cast<unsigned>(std::ceil(optimizer_secs));
+      alarm(previous_alarm > spent ? previous_alarm - spent : 1u);
+    }
+  }
+  optimizer.print_live_queries();
   std::cout << "[i] epmapping synth_cache lookups=" << result.synth_cache_lookups
             << " hits=" << result.synth_cache_hits << std::endl;
+  std::cout << "[i] epmapping cofactor_duplicates=" << result.cofactor_duplicates << std::endl;
+  std::cout << "[i] epmapping cofactor_proofs=" << result.cofactor_proofs << std::endl;
+  if(ps.operator_policy_mode) {
+    static char const* names[]={"SOP_DSD","output_phase","Shannon","Davio_pos","Davio_neg","egraph"};
+    auto const& records=optimizer.operator_records();
+    for(uint32_t op=0;op<epmapping::operator_policy::sources;++op)
+      for(uint32_t bucket=0;bucket<epmapping::operator_policy::buckets;++bucket) {
+        auto const& r=records[op*epmapping::operator_policy::buckets+bucket];
+        if(!r.calls && r.seconds==0)continue;
+        std::cout << "[i] operator_policy source=" << names[op] << " bucket=" << bucket
+                  << " calls=" << r.calls << " build_requests=" << r.builds << " cache_hits=" << r.cache_hits
+                  << " deferred=" << r.deferred << " rechecked=" << r.rechecked << " dominated=" << r.dominated
+                  << " skipped=" << r.skipped << " seconds=" << r.seconds << " build_seconds=" << r.build_seconds << " proposals=" << r.proposals
+                  << " committed=" << r.committed << " credited_area=" << r.credited_area
+                  << " delay_rejects=" << r.delay_rejects << " area_rejects=" << r.area_rejects << '\n';
+      }
+  }
   std::cout << "[i] map_egg paths library_hits=" << mapping_library_hits()
             << " egg_calls=" << mapping_egg_calls()
             << " egg_cache_hits=" << mapping_egg_cache_hits() << std::endl;
@@ -541,6 +728,12 @@ int main(int argc, char** argv)
   for ( size_t i = 0u; i < result.dc_free_hist.size(); ++i )
     std::cout << ( i == 0u ? "" : "," ) << result.dc_free_hist[i];
   std::cout << " rejected=" << result.rejected_expressions << "\n";
+  std::cout << "[i] epmapping objective_guard rollbacks=" << result.objective_round_rollbacks
+            << " discarded_replacements=" << result.objective_discarded_replacements << "\n";
+  std::cout << "[i] epmapping path_objective critical_roots=" << result.critical_roots
+            << " noncritical_roots=" << result.noncritical_roots
+            << " critical_replacements=" << result.critical_replacements
+            << " noncritical_replacements=" << result.noncritical_replacements << "\n";
   std::cout << "[i] epmapping replacements=" << result.replacements
             << " (egg=" << result.large_replacements
             << ", single=" << result.local_replacements
@@ -548,6 +741,16 @@ int main(int argc, char** argv)
             << ", synth=" << result.synth_replacements
             << ", window=" << result.window_synth_replacements
             << ")\n";
+  std::cout << "[i] epmapping experimental_replacements dependency=" << result.dependency_replacements
+            << " divisor=" << result.divisor_replacements << " global=" << result.global_replacements
+            << " chain=" << result.chain_roots << "\n";
+  std::cout << "[i] epmapping cofactor cuts=" << result.cofactor_cuts << " builds=" << result.cofactor_builds
+            << " hits=" << result.cofactor_hits << " covers=" << result.cofactor_covers
+            << " replacements=" << result.cofactor_replacements << " secs=" << result.secs_cofactor << '\n';
+  std::cout << "[i] epmapping build_reuse mapping_calls=" << result.mapping_calls
+            << " alias_hits=" << result.aig_alias_hits << " reused=" << result.aig_reused
+            << " factor_seconds=" << result.secs_factor << " mapping_seconds=" << result.secs_mapping
+            << " proof_seconds=" << result.secs_proof << " key_seconds=" << result.secs_aig_key << '\n';
   std::cout << "[i] epmapping phase: replacements with input negation="
             << result.replacements_with_input_negation << " with inverted output="
             << result.replacements_with_output_inversion << "\n";
@@ -592,6 +795,10 @@ int main(int argc, char** argv)
             << " secs=" << result.secs_window_synth << "\n";
   std::cout << "[i] epmapping synth roots=" << result.synth_roots << " covers=" << result.synth_covers
             << " wins=" << result.synth_replacements << " secs=" << result.secs_synth << "\n";
+  std::cout << "[i] dependency cuts=" << result.dependency_cuts << " wins=" << result.dependency_replacements << " reuse=" << result.divisor_replacements << " secs=" << result.secs_dependency << "\n";
+  std::cout << "[i] global_divisors sampled=" << result.global_sampled << " sat_queries=" << result.global_sat_queries << " proved=" << result.global_proved << " unknown=" << result.global_unknown << " wins=" << result.global_replacements << " secs=" << result.secs_global << "\n";
+  std::cout << "[i] observability cuts=" << result.odc_cuts << " queries=" << result.odc_queries << " cleared=" << result.odc_cleared << " projected=" << result.odc_projected << " unknown=" << result.odc_unknown << " wins=" << result.odc_wins << " secs=" << result.secs_odc << "\n";
+  std::cout << "[i] chain_factor attempts=" << result.chain_attempts << " roots=" << result.chain_roots << " rejected=" << result.chain_rejected << " product_hits=" << result.chain_product_hits << " segment_hits=" << result.chain_segment_hits << " secs=" << result.secs_chain << "\n";
   std::cout << "[i] epmapping sat_dc cuts=" << result.dc_sat_cuts << " calls=" << result.dc_sat_calls
             << " cleared=" << result.dc_sat_cleared << " budget_hits=" << result.dc_sat_budget_hits
             << " secs=" << result.secs_dc_sat
@@ -612,6 +819,7 @@ int main(int argc, char** argv)
   mockturtle::write_verilog_with_cell(optimizer.ntk(), verilog_path.string());
   std::cout << "[i] wrote " << verilog_path << "\n";
 
+  std::cout << "[i] egraph_profile " << std::string(mapping_profile_stats()) << "\n";
   bool const cec = abc_cec_mapped_cell_unique(optimizer.ntk(), input_path, genlib_path,
                                               workdir / ("cec_" + std::to_string(stamp) + ".v"));
   std::cout << "[i] cec=" << (cec ? "1" : "0") << "\n";

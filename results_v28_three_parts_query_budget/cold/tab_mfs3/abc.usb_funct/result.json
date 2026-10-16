@@ -1,0 +1,14 @@
+{
+  "design": "usb_funct",
+  "rc": 0,
+  "secs": 3.5370732289738953,
+  "cec": 1,
+  "validation_secs": 1.1719544740044512,
+  "baseline": {
+    "area": 802.42,
+    "delay": 421.38
+  },
+  "baseline_sha256": "09827c1f24c6d6908ad76868c99957c89614bc8243e3fd321b7d25cd4250cdf9",
+  "area": 781.99,
+  "delay": 420.02
+}

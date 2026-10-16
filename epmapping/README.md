@@ -1,8 +1,292 @@
 # epmapping
 
-## Verified audit (2026-10-07)
+## Current goal: minimum area with no output-delay regression
 
-The revised paper uses `results_v3_audit/` and generated tables from
+The executable defaults to `EPMAPPING_OBJECTIVE=area_delay_bound` when the
+objective is omitted. This is constrained area minimization: minimize cell area
+subject to worst output arrival not exceeding the initial mapped delay, within
+the existing 0.001 ps timing comparison tolerance. Delay breaks area ties.
+It does not prioritize timing improvements at the expense of area.
+
+This mode fixes the output-delay budget to the initial mapping, uses live backward
+required times and net-area-gain ranking, and enables a transactional whole-network
+`(area, delay)` guard. A round violating the delay budget or worsening the area-first
+pair is restored. Local and global area-growth allowances are zero. Structural
+depth is not constrained; candidate timing is checked in the library pin-delay
+model. Noncritical local arrivals can increase within their output timing slack.
+Whole-window synthesis is forced off. Every cut oracle uses the area-first goal.
+
+The mode supersedes an inherited `EPMAPPING_PATH_OBJECTIVE=1`. It can also be
+selected by `EPMAPPING_AREA_UNDER_DELAY=1`. Numeric objectives and the previously
+named unbounded objectives remain explicit historical controls; the defaults of
+the reusable C++ parameter struct remain backward compatible.
+
+```sh
+python3 scripts/experiments/explore_cut_only.py --root results_area_bound --phase all --profiles bounded
+python3 scripts/experiments/explore_cut_only.py --root results_area_bound --phase converged --profiles bounded --rounds 6 --jobs 6
+python3 scripts/experiments/report_cut_search.py --root results_area_bound
+```
+
+This is bounded greedy search, not a proof of a global minimum area.
+
+## Runtime and recoverable checkpoints
+
+Native SOP/DSD and cofactor memos now replace the least recently used entry when
+their configured capacity is full, instead of permanently refusing new entries.
+`EPMAPPING_CACHE_REPLACE=0` restores the historical insertion policy. The default
+capacity remains `EPMAPPING_SYN_CACHE=8192` per memo, and zero disables storage.
+These are process-local structural caches; they are not part of the persistent
+e-graph pool and restart in a warm-cache process too.
+
+Cofactor memo entries own immutable mapped DAGs. `EPMAPPING_COFAC_DEDUP=1` (default)
+suppresses exact duplicate DAG/pin/polarity structures within a cut before copying
+and live pricing. `EPMAPPING_COFAC_PROOF_CACHE=1` (default) proves the full ordered
+cut function once when building a structural entry. This proof is valid only in
+the fixed-library optimizer that owns the memo. Every use still recomputes live
+area/timing, and accepted replacements retain their functional/cycle checks.
+The proof-cache switch can restore per-use full-function checking for comparison.
+Logs expose duplicate and structural-proof counts.
+
+`EPMAPPING_COFAC_PIVOTS=N` keeps N pivots per decomposition family,
+ranked by cofactor and Boolean-difference support sizes. The current default is
+two; zero restores all pivots. This is a heuristic search restriction and can
+lose area gains. Earlier unrestricted-pivot campaigns and their runtime pilots
+retain their recorded settings; the current campaign includes an `allPIVOTS`
+control to measure the tradeoff on unchanged inputs.
+
+`EPMAPPING_CHECKPOINT=1` (default) saves the initial mapping and strictly improving,
+globally legal canonical snapshots. Round boundaries are checked, and bounded-area
+search also checks progress inside a round every 30 seconds after a replacement.
+`EPMAPPING_CHECKPOINT_INTERVAL` controls that interval; zero disables only in-round
+snapshots. Snapshots are deep independent networks and obey the original global
+area/delay bounds. On normal completion, bounded-area search returns its best
+checked snapshot, using the same quantized objective as round acceptance.
+
+The manifest `epmapping_checkpoint.json` is published atomically after an immutable
+netlist file has been written. Writes and snapshot checks count toward the native
+post-mapping budget. No signal handler writes files; SIGALRM remains a timeout.
+After a deadline, `scripts/experiments/recover_checkpoint.py` independently audits
+the selected physical netlist and runs ABC CEC, recording hashes and timeout status
+in `checkpoint_selection.json`. Validation is outside the search budget. Recovery
+must not be reported as optimizer completion. Historical paper experiments retain
+their original initial-fallback policy until explicitly rerun with the new policy.
+For a new three-part campaign, select `run_three_parts.py --timeout-selection
+checkpoint`; the policy is frozen in its manifest. The selection preparer and
+auditors preserve the raw timeout row, separately verify the recovered netlist,
+and keep it classified as a deadline. The default `initial` policy preserves
+historical reporting. Reusing a campaign directory with a different policy is
+rejected.
+
+## Experimental operator triggers
+
+`EPMAPPING_OPERATOR_POLICY=0` is the default. Mode 1 records per-feature-group
+costs with full candidate coverage. Mode 2 additionally defers expensive new
+SOP/DSD, Shannon and positive/negative Davio builds after an unproductive warm-up.
+Cached native structures remain eligible. Strong cofactor signatures bypass the
+filter; every sixteenth **uncached** request explores a deferred operator.
+Cache-hit traffic cannot suppress that exploration. Single-cell/database matching,
+chain sharing and the existing e-graph fallback retain their structural triggers.
+
+Groups use leaf count, small/large cone size and don't-care availability. Records
+separate total work from build time, attempted proposals from globally confirmed
+round commits, and timing/area rejections. Area credits are bounded allocations of
+measured legal round reduction using predicted net gains as weights; they are
+scheduling proxies, not causal ablation measurements. Failed rounds get no credit.
+SOP and DSD currently share a group; the cofactor families are recorded separately.
+
+This scheduler remains experimental. The runtime pilot retained `usb_phy` PPA,
+but its `tv80` cold run traded area 328.16 for 328.40 while reducing runtime.
+Historical zero reward is not a proof that later candidates cannot help, and
+operator throttling can also change downstream fallback work and greedy choices.
+See `research/runtime_budget_20261015/POLICY.txt` for the exact trigger and controls.
+
+## Experimental arrival-independent e-graph profile pools
+
+`MAP_EGG_PROFILE=1` enables bounded multi-realization extraction; the default remains
+legacy extraction. Saturation and extraction do not use the current leaf arrivals,
+required time, or objective. Each candidate stores a cell DAG, intrinsic area,
+used-input indices, and a delay vector from each input to the root. At use time,
+arrival is recomputed as `max(arrival[i] + pin_to_root_delay[i])` over used inputs.
+C++ checks the candidates using unrounded live arrivals, Boolean equivalence,
+actual network area, and the existing delay/area guards.
+
+Intermediate e-classes retain multiple physical structures to preserve alternative
+pin assignments and sharing. The root is pruned using area and the entire delay
+vector, rather than scalar zero-arrival delay. The bounded fronts and enumeration
+budgets make this a heuristic candidate pool, not a complete Pareto set or a
+proof of optimal extraction. Intrinsic area is a selection estimate; the actual
+transactional network check remains authoritative, including reuse and inversions.
+
+Extraction now establishes one area-oriented realization per e-class first,
+then expands the same fronts to the configured width. The narrow pass may use
+up to one quarter of the combination allowance and half the visit allowance;
+the wide pass receives all unused work. Both passes together obey the configured
+20,000-combination / 4,000-visit limits. The wide pass starts from the narrow
+fronts, so early Cartesian products cannot prevent their initial construction.
+The bounded fronts can still discard structures; coverage is not complete.
+Neither pass uses current leaf arrivals. This addresses the `usb_phy` regression
+diagnosed in `research/profile_qor_20261014`. The paired three-part campaign in
+`results_v25_three_parts_progressive_phase` includes `noNARROW` and `noPHASE`
+ablations alongside the original component ablations.
+
+Candidate instantiation also reuses a physical inverter's input when the
+opposite phase of its output is requested. This works across cut boundaries
+for explicit INV cover nodes as well as `neg_mask`/`out_neg`, and does not
+rebind the reused input to an inverter cell. Standalone costs do not credit this
+reuse; final network area/timing and CEC are checked as before. On the
+unchanged `usb_phy` input this removes the physical `INV(INV(x197))` left by
+the older implementation. This is a post-mapping candidate operation, with no
+change to AIG preprocessing, initial mapping, or whole-window synthesis.
+
+Set `MAP_EGG_PROFILE_CACHE_DIR` to persist pools. SHA-256 keys include the AIG seed
+with its variable order, the parsed complete library, relevant extraction sources,
+and search budgets. Arrivals and required times are deliberately excluded.
+Records have payload checksums and are written through an atomic rename. Invalid
+records are rebuilt; write failures leave in-memory operation available. There are
+at most 1024 in-memory entries, 2048 persisted entries, 4 MiB per persisted record,
+and 64 MiB of persisted records in a dedicated cache directory. These limits are
+per process/cache directory; use a private directory for concurrent experiments.
+
+The complete library is read without eagerly constructing its whole NP index.
+Cell variants are enumerated only for cells in the bounded cover DAG, in the same
+order as the legacy index. A disk hit skips saturation, extraction, and NP index
+construction. Empty pools or pools with no feasible rounded-arrival candidate
+retry the legacy timing-aware extraction; its full-library startup can still
+contribute to runtime. Logs report hits, builds, corruption, write failures, and
+legacy fallbacks as `egraph_profile`.
+
+Optional bounded-search controls:
+
+| Setting | Default | Meaning |
+|---|---:|---|
+| `MAP_EGG_PROFILE_FRONTIER` | 8 | Maximum realizations per e-class and root |
+| `MAP_EGG_PROFILE_COMBINATIONS` | 20000 | Candidate variant/child combinations |
+| `MAP_EGG_PROFILE_VISITS` | 4000 | Work-queue visits |
+| `MAP_EGG_PROFILE_NARROW` | 1 | Set to 0 to skip narrow initialization, preserving the profile work caps |
+| `MAP_EGG_PROFILE_PHASE_KEEP` | 0 | Experimental boundary-phase credit diversity during bounded profile retention; included in the cache key |
+| `EPMAPPING_PHASE_COST` | 0 | Experimental live symbolic pricing after physical inverter cancellation; cached pools remain context independent |
+| `EPMAPPING_PHASE_FANOUT` | 0 | Experimental reuse of live INV fanouts, including shared gates in the root's fanin; cycle checks and retained-gate pricing apply |
+| `EPMAPPING_COFAC` | 0 | Cut-only candidate mask: 1 = independent output-phase factoring; 2 = Shannon pivots; 4 = positive/negative Davio pivots |
+| `EPMAPPING_COFAC_MIN_LEAVES` | 3 | Minimum cut leaves for the cofactor source (clamped to 2–6) |
+| `MAP_EGG_EGG_ITER_LIMIT` | 2 | Saturation iteration limit |
+| `MAP_EGG_EGG_NODE_LIMIT` | 500 | Saturation node limit |
+
+`EPMAPPING_PHASE_REUSE=0` disables physical opposite-phase reuse during candidate
+instantiation; polarity-aware matching stays enabled. The narrow setting is part
+of the persistent pool key. Phase reuse affects contextual materialization, not
+the intrinsic cached pool. The experiment runner gives every arm/design its own
+empty cold cache and reuses only that cache for its warm counterpart.
+
+Reproduce the method-only probe with unchanged v20 inputs:
+
+```sh
+python scripts/experiments/run_profile_cache.py --root results_profile_probe \
+  --designs sasc simple_spi arbiter --rounds 6
+python scripts/experiments/tests/test_profile_cache.py
+python scripts/experiments/tests/test_phase_boundary_reuse.py
+```
+
+Each design runs legacy, cold, and warm extraction sequentially with the same
+1000-second post-mapping budget, area under the initial delay bound, whole-window
+synthesis off, and the original preprocessing. The runner checks byte-identical
+initial mappings, CEC, bounds, and identical cold/warm output netlists. Runtime
+includes cache construction and I/O. Cold and warm costs must be reported
+separately; warm speed is not an area/delay improvement. Probe results are separate
+from the published three-part campaign until that campaign is rerun.
+
+## Critical timing, noncritical area
+
+Set `EPMAPPING_PATH_OBJECTIVE=1` to use the path-dependent policy. The initial
+mapping is unchanged. At the start of each round, initially critical gates are
+visited first (reverse topological order within each group). Before each root's
+cut search, live backward required time minus arrival classifies its criticality.
+The default critical-slack tolerance is 0.001 ps, matching the timing quantum;
+`EPMAPPING_CRITICAL_SLACK` can set a nonnegative absolute tolerance.
+
+- Critical cones rank by `(delay, net area change)` and may grow in area to improve timing.
+- Noncritical cones rank by `(net area change, delay)` and may consume available
+  timing slack to save area, without exceeding the current output-delay target.
+- After every substitution, arrivals and required-time caches are refreshed.
+  The output target follows the live critical delay, so area recovery cannot
+  deliberately undo a timing improvement. Criticality is not frozen at the input.
+- Every round is checked on the rebuilt network against `(delay, area)`: worse
+  delay, or worse area at a quantized delay tie, rolls the round back. Secondary
+  area growth is permitted when the global delay decreases.
+
+The flag enables required times and net-gain ranking, disables the depth constraint,
+forces zero output-delay growth and **disables whole-window synthesis**. L3 mapping
+and L4 extraction use each cone's local objective. The structural cache includes
+the objective, preventing a delay-oriented cover from masquerading as an
+area-oriented cover. Cut invalidation traverses processed fanouts when needed,
+because critical-first scheduling can leave unprocessed nodes beyond them.
+
+```sh
+python3 scripts/experiments/explore_cut_only.py --root results_path --phase all --profiles path,required
+python3 scripts/experiments/report_cut_search.py --root results_path
+```
+
+## Cut-only search exploration
+
+Whole-window synthesis remains disabled. The opt-in search controls are:
+
+| Environment | Default | Meaning |
+|---|---:|---|
+| `EPMAPPING_RANK_AREA_GAIN` | 0 | Rank competing cuts by replacement area minus removable MFFC area. Within the same cut this preserves area ordering. |
+| `EPMAPPING_USE_REQUIRED_TIMES` | 0 | Replace the original-node arrival bound with live backward required times from a fixed output budget. Physical pin delays and inversion edges are included; the cache is invalidated after every substitution. |
+| `EPMAPPING_MAX_DELAY_GROWTH` | -1 | Relative whole-network delay budget from the initial mapping; 0 forbids output delay growth. Required-time mode defaults to this zero-growth budget when omitted. |
+| `EPMAPPING_MAX_AREA_GROWTH` | -1 | Relative whole-network area budget from the initial mapping; 0 forbids area growth. |
+| `EPMAPPING_LOCAL_AREA_GROWTH` | -1 | Relative per-MFFC area-growth limit; 0 only permits non-increasing replacement area. |
+
+Negative growth budgets disable that bound. Whole-network budgets are checked on
+the rebuilt network transactionally at the end of each round; a violating round
+is discarded. Required-time mode overrides the local original-arrival bound and
+feeds its output budget to E-graph extraction. It can spend noncritical timing
+slack without increasing the initial worst output arrival, but it may consume
+some delay improvement achieved by strict local constraints. The search is greedy;
+none of these settings guarantees a global Pareto optimum.
+
+`scripts/experiments/explore_cut_only.py` freezes the engine and inputs, declares
+six tuning and ten validation designs, and applies fixed profiles across each
+cohort. `report_cut_search.py` checks CEC, raw metrics, budgets, disabled window
+synthesis and byte-identical starts before comparing the results. The historical
+paper archive remains separate from `results_v6_cut_search/`.
+
+## Lexicographic objectives
+
+Named goals `EPMAPPING_OBJECTIVE=delay_area` and `area_delay` select `(delay, area)`
+and `(area, delay)`, respectively. The primary metric wins first; the secondary
+metric breaks primary ties. Comparisons retain the existing area resolution of
+1e-4 and delay resolution of 1e-3. Structural depth is only a tertiary tie-break.
+Rounds continue when only the secondary network metric improves.
+
+Named goals default to a transactional whole-network round guard and disable
+structural-depth/local-delay constraints and the e-graph output bound. Both still
+pass the real leaf arrivals to the e-graph. A primary improvement may increase
+the secondary metric. Explicit constraint flags override these defaults. Numeric
+`0`/`1` retain the previous constraint defaults for compatibility. Invalid goals
+fail before input processing. A guarded round that worsens the measured network
+pair is rolled back; discarded substitutions are reported separately. This is
+still a local search, not a globally optimal lexicographic solver.
+
+Run both modes on the same direct, area-oriented 40-cell input mapping with
+whole-window synthesis disabled:
+
+```
+EPM_ROOT=results_objectives EPM_JOBS=4 RAYON_NUM_THREADS=1 \
+  bash scripts/experiments/run_all.sh --no-build --only objectives
+python3 scripts/experiments/report_objectives.py --root results_objectives
+```
+
+The stage defaults to one round and the paper's sixteen designs. Set
+`EPM_OBJECTIVE_ROUNDS` or `EPM_OBJECTIVE_DESIGNS` to change those limits. Each mode
+writes its initial mapped netlist; paired starts must be byte-identical, results
+must pass CEC, and the full network objective must not regress. The earlier
+`results_v4_cut_only` paper results are historical constrained-area experiments
+with a frozen engine; they are not silently replaced by these new modes.
+
+## Cut-only verified audit (2026-10-12)
+
+The revised paper uses `results_v4_cut_only/` and generated tables from
 `scripts/experiments/export_paper.py`. Earlier measurements below are historical.
 `EPMAPPING_DC=0` disables all cut care-mask computation; `EPMAPPING_SAT_DC=0` only
 turns off SAT refinement and is not a no-care ablation. In the default `per_node`
@@ -16,9 +300,10 @@ optimizer. Current arrivals, costs and care validation are recomputed on reuse.
 
 `epmapping timing` splits process wall time into preprocessing, library setup,
 initial mapping, optimization and validation. Published optimizer time must not be
-compared with the whole-process `secs` column. The extended ablation and matched
-ABC comparison enable whole-window fallback; main/funnel results disable it.
-The care/window effects are signed greedy-path ablations, not additive stage shares.
+compared with the whole-process `secs` column. Every paper comparison, ablation and implementation control disables whole-window
+synthesis (`EPMAPPING_WINDOW_SYN=0`). The older `results_v3_audit/` archive includes
+window-enabled experiments and is retained only as historical evidence.
+The care and cover-generator effects are signed greedy-path ablations, not additive stage shares.
 ABC and ePMapping receive byte-identical mapped files, but native parsed baseline
 areas can differ through output-buffer accounting. The revised table shows both
 baselines and measures percentages against each tool's own start.
@@ -30,7 +315,16 @@ resuming refuses a changed binary, harness or environment. Completed stages are
 reused; interrupted stages rerun with a fresh summary, preserving the preceding
 summary as `summary.previous.tsv`. A `<EPM_ROOT>/.stop` marker prevents launching
 further jobs and lets active jobs finish; remove it before resuming. The paper's
-default `make` target verifies the data before compiling.
+default `make` target verifies the data and regenerates the vector figures before
+compiling. The paper is arranged as six body pages plus one reference page.
+`plot_paper.py` requires NumPy and Matplotlib, emits PDF figures and a numeric
+`plot_data.json` sidecar, and checks the archived raw-file hashes first. The
+runtime ring chart shows additive stage-time shares, not area contributions. The exporter rejects any
+nonzero whole-window synthesis activity, and the paper harness rejects attempts to
+enable it. Care-window simulation remains enabled except in the noCARE arm. The noDB flag
+now overrides the default database assignment with an empty value; raw logs must
+confirm that no supergate database was loaded. The earlier apparent zero database
+effect was an invalid ablation caused by the old environment-assignment order.
 
 
 `epmapping` is the eLogic-style (`emig/main.cpp`) post-mapping rewrite driver for a
@@ -2363,3 +2657,122 @@ egg — which already buys ≈0 at 5–6 leaves. On the designs where egg is the
 multiplier, >900 s already at `CUT_SIZE=6`) it would only make the wall taller. The structural
 frontier is exhausted; the paper's remaining area needs different cuts (non-local/dependency), not
 bigger ones.
+
+### Experimental dependency cuts and divisor reuse
+
+`EPMAPPING_DEPENDENCY_CUTS=1` enables an optional post-mapping candidate stage
+(default: off). `EPMAPPING_DEPENDENCY_PIS=10` sets its common simulation boundary
+(cap: 12 inputs). The stage collects existing side-branch nodes whose fanins are
+covered by this boundary, excludes the root MFFC and all nodes depending on the
+root, and selects up to six divisors by reducing conflicting output partitions.
+Each selected support is proved over every boundary assignment. Reachable support
+patterns become care minterms; unreachable patterns are don't cares. It offers
+identity reuse, single-cell and database covers, and cut SOP/DSD synthesis using
+the existing physical area/timing acceptance checks and round guard. This stage
+replaces only one root and does not invoke whole-window synthesis.
+
+For the constrained experiment use `EPMAPPING_AREA_UNDER_DELAY=1`,
+`EPMAPPING_WINDOW_SYN=0`, and `EPMAPPING_POST_TIMEOUT=1000`. The feature does not
+change AIG preprocessing or initial mapping. Reproduce the method-only arbiter
+comparison with `python scripts/experiments/run_nonlocal_arbiter.py`; the runner
+freezes inputs/tools, verifies byte equality of the original mapped starting
+netlist, and checks CEC plus the initial area/delay bounds on completed runs.
+This bounded window search does not prove dependency between arbitrary nodes
+whose fanins extend beyond the shared simulation boundary.
+
+### AO21 chain factoring (original mapped input)
+
+`EPMAPPING_CHAIN_FACTOR=1` enables an optional analytic post-mapping operator
+(default off). An AO21 step is `T(x) = p*x + q`, with Boolean AND/OR. The operator
+composes chain segments using `(P,Q) o (p,q) = (P*p, Q + P*q)`, memoizes identical
+segments across roots, and shares products of control signals. It maps products
+with the existing 2–5 input AND cells. No AIG preprocessing or initial mapping
+parameters change. The existing whole-window synthesis stage remains disabled.
+
+`EPMAPPING_CHAIN_BLOCK=2` uses two-step blocks; `4`/`8` use larger blocks, and `0`
+uses balanced splits. `EPMAPPING_CHAIN_MIN_LENGTH=6` is the eligibility threshold.
+Every complete factoring transaction is rebuilt and measured; it commits only
+when total area strictly falls and delay remains within the original output
+bound. An area-increasing proposal is fully restored. Ordinary cut optimization
+then runs on the shared network.
+
+On the unchanged arbiter start (557.72 area / 999.87 delay), block 2 reaches
+223.64 / 261.39 with CEC, window synthesis off and the 1000-second post deadline.
+With e-graphs enabled optimizer time is 50.98 seconds. Disabling e-graphs in this
+arbiter control preserves the exact final Verilog and takes 11.27 seconds. This
+is an arbiter result; keep the feature optional until the full suite is evaluated.
+Reproduce the four block controls with
+`python scripts/experiments/run_chain_factor.py`, and the one-round/no-synthesis/
+no-e-graph controls with `python scripts/experiments/run_chain_controls.py`.
+
+Other exploratory flags remain off by default:
+`EPMAPPING_FEASIBLE_COVERS=1` filters infeasible library entries before selecting
+minimum area; `EPMAPPING_DEPENDENCY_INTERNAL=1` allows retained internal divisors
+with correct removable-area accounting; `EPMAPPING_DEPENDENCY_MIN_REMOVED=2`
+forces at least two removable cells; `EPMAPPING_GLOBAL_DIVISORS=1` adds sampled
+candidate filtering followed by bounded SAT proof; and
+`EPMAPPING_OBSERVABILITY_CARE=1` refines cut care on a unique fanout path using SAT.
+The latter has a cumulative 200-second proof budget, supports an optional
+`EPMAPPING_OBSERVABILITY_MIN_DEPTH`, and preserves care on unknown SAT answers.
+None of these alternative explorations produced arbiter gains on their own.
+
+## Integrated chain-factor stage and complete campaign
+
+The default mapped pass enables exact positive AO21 chain composition before
+local cut rewriting (`EPMAPPING_CHAIN_FACTOR=1`). It uses two-step blocks
+(`EPMAPPING_CHAIN_BLOCK=2`), a six-step minimum, and memoizes products and
+ordered segments across roots (`EPMAPPING_CHAIN_SHARE=1`). Each proposed
+transaction must strictly reduce rebuilt live-cell area and respect the fixed
+initial delay bound, otherwise it restores the input of the transaction.
+Infeasible physical covers are filtered before minimum-area selection
+(`EPMAPPING_FEASIBLE_COVERS=1`). Whole-window synthesis remains disabled.
+
+`noCHAIN` skips chain composition. `noSHARE` retains composition and within-root
+memoization but clears both memo tables between roots. Neither ablation relaxes
+the objective.
+
+The new three-part campaign is `results_v20_three_parts_chain`, produced by
+`scripts/experiments/run_three_parts.py`. It covers all sixteen original circuits
+in direct-mapping/mfs3 comparisons, one/six-round fully preprocessed experiments,
+and seven ablation arms. Both tools have a 1000-second post-mapping cap;
+preprocessing, mapping and CEC are measured separately. Frozen AIGs, libraries,
+database and ABC must match `results_v10_three_parts_1000` byte for byte.
+Every new mapped start must also equal its original archived mapped start.
+Reporting additionally recomputes area and worst pin-delay path independently
+from the serialized cell netlists. Failed runs cannot enter generated paper data.
+
+## Runtime-bounded candidate search (2026-10-16)
+
+The current three-part recipe retains the original starts, six-round main cap,
+whole-window synthesis off and the native 1000-second post-mapping alarm.
+`EPMAPPING_LIVE_QUERY_CACHE=9` (also the binary default) memoizes live inverse
+queries and reuses locally decoded cut truth tables. Query entries, including
+negative answers, expire when the root, network revision or node-slot count changes.
+`EPMAPPING_COFAC_PIVOTS=2` (also the default) retains two support-ranked pivots
+per Shannon/Davio family; `0` restores exhaustive pivot enumeration. This is a
+structural search budget, not an elapsed-time stop or a checkpoint fallback.
+It can sacrifice some area gains relative to exhaustive enumeration.
+
+The current full rerun is `results_v28_three_parts_query_budget`: sixteen circuits,
+all three experiment parts, nineteen ablation arms, and separate cold/warm pools.
+Its 128 complete-method runs (direct, cap 1/cap 6, and independent ablation full)
+all finish normally; maximum optimizer time is 713.51 seconds cold
+and 464.84 seconds warm. All reported outputs pass CEC and
+independent serialized-netlist area/delay checks. The complete-method main
+experiment has mean area changes of -7.11% cold
+and -7.11% warm relative to its original mapping.
+
+ABC completes 13 matched-start cases and times out on
+3. On the completed subset, our mean raw-output area ratio
+to mfs3 is 0.964571
+(7 area wins, 6 losses). This is an
+aggregate area advantage, not per-circuit dominance or a universal speedup.
+
+The controls are `noQUERY` (inverse-query memo and level shortcut off), `noTRUTH`
+(decoded simulation/dynamic-table reuse off; common scalar cut memo retained),
+and `allPIVOTS` (all pivots). Weakening the configuration can cause timeouts;
+their selected outputs remain marked incomplete. See
+`results_v28_three_parts_query_budget/QUERY_BUDGET_ANALYSIS.txt` and
+`paired_results.tsv` for separate cold/warm PPA, time and timeout counts.
+The older 64-run runtime pilot and v27 campaign remain historical measurements;
+they do not supply numbers to the updated paper.

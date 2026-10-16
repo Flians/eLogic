@@ -1,0 +1,14 @@
+{
+  "design": "arbiter",
+  "rc": 0,
+  "secs": 96.27560166100739,
+  "cec": 1,
+  "validation_secs": 0.115848722984083,
+  "baseline": {
+    "area": 557.72,
+    "delay": 999.87
+  },
+  "baseline_sha256": "a257b33bc241278cb0a8a2d3fac3747ce301b43bc92506e5ebae594b3ae212a6",
+  "area": 557.72,
+  "delay": 999.87
+}

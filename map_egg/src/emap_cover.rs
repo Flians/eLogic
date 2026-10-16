@@ -1,3 +1,4 @@
+pub(crate) mod profile;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
@@ -1131,7 +1132,7 @@ const MAP_EGG_CUT_MAX_NODES: usize = 65_536;
 /// A cut AIG has only a handful of nodes, so the mapper-wide defaults (30 iterations / 10k nodes)
 /// spend seconds per cut without changing the extracted cover. The limits stay overridable with
 /// `MAP_EGG_EGG_ITER_LIMIT` / `MAP_EGG_EGG_NODE_LIMIT`.
-fn cut_mapping_params() -> EmapParams {
+pub(crate) fn cut_mapping_params() -> EmapParams {
     fn usize_env(key: &str, default: usize) -> usize {
         std::env::var(key)
             .ok()

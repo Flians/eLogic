@@ -12,6 +12,7 @@ add_library(epmapping INTERFACE)
 target_include_directories(epmapping INTERFACE
   ${CMAKE_CURRENT_SOURCE_DIR}/..
   ${CMAKE_CURRENT_SOURCE_DIR}/../tools/mockturtle/include
+  ${CMAKE_CURRENT_BINARY_DIR}/../map_egg/release/include
   ${CMAKE_CURRENT_BINARY_DIR}/../map_egg/cxxbridge
   ${CMAKE_CURRENT_BINARY_DIR}/../map_egg
 )

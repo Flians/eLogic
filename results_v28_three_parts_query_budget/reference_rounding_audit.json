@@ -1,0 +1,558 @@
+{
+  "cold": {
+    "area_win_count_robust_to_rounding": 14,
+    "rows": [
+      {
+        "design": "aes_core",
+        "ours_area": 996.04,
+        "reconstructed_area": 1086.57054,
+        "reference_rounding_bounds": {
+          "area": [
+            1086.5103007499997,
+            1086.63077975
+          ],
+          "delay": [
+            425.58571675,
+            425.63896375
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "arbiter",
+        "ours_area": 223.64,
+        "reconstructed_area": 268.823096,
+        "reference_rounding_bounds": {
+          "area": [
+            268.79279475000004,
+            268.85339775
+          ],
+          "delay": [
+            604.21676625,
+            604.32280425
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "div",
+        "ours_area": 1182.38,
+        "reconstructed_area": 1176.2883000000002,
+        "reference_rounding_bounds": {
+          "area": [
+            1176.2189202499999,
+            1176.3576802500002
+          ],
+          "delay": [
+            60251.23741125001,
+            60257.272235250006
+          ]
+        },
+        "point_area_win": false,
+        "robust_area_win": false
+      },
+      {
+        "design": "ethernet",
+        "ours_area": 2531.03,
+        "reconstructed_area": 3008.4107200000003,
+        "reference_rounding_bounds": {
+          "area": [
+            3008.2497367499996,
+            3008.57170375
+          ],
+          "delay": [
+            588.30558325,
+            588.3744172500001
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "iwls05_i2c",
+        "ours_area": 45.11,
+        "reconstructed_area": 48.9608,
+        "reference_rounding_bounds": {
+          "area": [
+            48.953402249999996,
+            48.96819825
+          ],
+          "delay": [
+            288.05059675,
+            288.08940375000003
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "mem_ctrl",
+        "ours_area": 1818.16,
+        "reconstructed_area": 1799.1510210000001,
+        "reference_rounding_bounds": {
+          "area": [
+            1799.04351025,
+            1799.2585322500001
+          ],
+          "delay": [
+            1434.94337725,
+            1435.11702325
+          ]
+        },
+        "point_area_win": false,
+        "robust_area_win": false
+      },
+      {
+        "design": "RISC",
+        "ours_area": 2807.4,
+        "reconstructed_area": 3139.862838,
+        "reference_rounding_bounds": {
+          "area": [
+            3139.69926275,
+            3140.0264137500003
+          ],
+          "delay": [
+            1304.66976325,
+            1304.8102372500002
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "sasc",
+        "ours_area": 26.96,
+        "reconstructed_area": 31.301296,
+        "reference_rounding_bounds": {
+          "area": [
+            31.29477625,
+            31.30781625
+          ],
+          "delay": [
+            190.98545025,
+            191.01455025
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "simple_spi",
+        "ours_area": 35.89,
+        "reconstructed_area": 41.002038,
+        "reference_rounding_bounds": {
+          "area": [
+            40.995028749999996,
+            41.00904775
+          ],
+          "delay": [
+            286.98065025,
+            287.01935025
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "spi",
+        "ours_area": 146.68,
+        "reconstructed_area": 164.104128,
+        "reference_rounding_bounds": {
+          "area": [
+            164.09085275,
+            164.11740375
+          ],
+          "delay": [
+            489.46052575,
+            489.51947475000003
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "sqrt",
+        "ours_area": 1071.21,
+        "reconstructed_area": 1110.0159700000002,
+        "reference_rounding_bounds": {
+          "area": [
+            1109.95267375,
+            1110.0792667500002
+          ],
+          "delay": [
+            77998.28985625,
+            78006.19549825
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "systemcaes",
+        "ours_area": 447.57,
+        "reconstructed_area": 511.671782,
+        "reference_rounding_bounds": {
+          "area": [
+            511.64041875,
+            511.70314575
+          ],
+          "delay": [
+            783.95580025,
+            784.0442002500001
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "systemcdes",
+        "ours_area": 125.89,
+        "reconstructed_area": 138.835164,
+        "reference_rounding_bounds": {
+          "area": [
+            138.82317225,
+            138.84715624999998
+          ],
+          "delay": [
+            530.25848575,
+            530.32151475
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "tv80",
+        "ours_area": 330.87,
+        "reconstructed_area": 351.105576,
+        "reference_rounding_bounds": {
+          "area": [
+            351.08283124999997,
+            351.12832125
+          ],
+          "delay": [
+            907.80960725,
+            907.9103932500001
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "usb_funct",
+        "ours_area": 622.62,
+        "reconstructed_area": 695.56599,
+        "reference_rounding_bounds": {
+          "area": [
+            695.5259167500001,
+            695.60606375
+          ],
+          "delay": [
+            702.8260327500001,
+            702.90796775
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "usb_phy",
+        "ours_area": 21.39,
+        "reconstructed_area": 23.629626,
+        "reference_rounding_bounds": {
+          "area": [
+            23.62349875,
+            23.63575375
+          ],
+          "delay": [
+            163.80846675,
+            163.83552175
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      }
+    ]
+  },
+  "warm": {
+    "area_win_count_robust_to_rounding": 14,
+    "rows": [
+      {
+        "design": "aes_core",
+        "ours_area": 996.04,
+        "reconstructed_area": 1086.57054,
+        "reference_rounding_bounds": {
+          "area": [
+            1086.5103007499997,
+            1086.63077975
+          ],
+          "delay": [
+            425.58571675,
+            425.63896375
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "arbiter",
+        "ours_area": 223.64,
+        "reconstructed_area": 268.823096,
+        "reference_rounding_bounds": {
+          "area": [
+            268.79279475000004,
+            268.85339775
+          ],
+          "delay": [
+            604.21676625,
+            604.32280425
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "div",
+        "ours_area": 1182.38,
+        "reconstructed_area": 1176.2883000000002,
+        "reference_rounding_bounds": {
+          "area": [
+            1176.2189202499999,
+            1176.3576802500002
+          ],
+          "delay": [
+            60251.23741125001,
+            60257.272235250006
+          ]
+        },
+        "point_area_win": false,
+        "robust_area_win": false
+      },
+      {
+        "design": "ethernet",
+        "ours_area": 2531.03,
+        "reconstructed_area": 3008.4107200000003,
+        "reference_rounding_bounds": {
+          "area": [
+            3008.2497367499996,
+            3008.57170375
+          ],
+          "delay": [
+            588.30558325,
+            588.3744172500001
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "iwls05_i2c",
+        "ours_area": 45.11,
+        "reconstructed_area": 48.9608,
+        "reference_rounding_bounds": {
+          "area": [
+            48.953402249999996,
+            48.96819825
+          ],
+          "delay": [
+            288.05059675,
+            288.08940375000003
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "mem_ctrl",
+        "ours_area": 1818.16,
+        "reconstructed_area": 1799.1510210000001,
+        "reference_rounding_bounds": {
+          "area": [
+            1799.04351025,
+            1799.2585322500001
+          ],
+          "delay": [
+            1434.94337725,
+            1435.11702325
+          ]
+        },
+        "point_area_win": false,
+        "robust_area_win": false
+      },
+      {
+        "design": "RISC",
+        "ours_area": 2807.4,
+        "reconstructed_area": 3139.862838,
+        "reference_rounding_bounds": {
+          "area": [
+            3139.69926275,
+            3140.0264137500003
+          ],
+          "delay": [
+            1304.66976325,
+            1304.8102372500002
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "sasc",
+        "ours_area": 26.96,
+        "reconstructed_area": 31.301296,
+        "reference_rounding_bounds": {
+          "area": [
+            31.29477625,
+            31.30781625
+          ],
+          "delay": [
+            190.98545025,
+            191.01455025
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "simple_spi",
+        "ours_area": 35.89,
+        "reconstructed_area": 41.002038,
+        "reference_rounding_bounds": {
+          "area": [
+            40.995028749999996,
+            41.00904775
+          ],
+          "delay": [
+            286.98065025,
+            287.01935025
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "spi",
+        "ours_area": 146.68,
+        "reconstructed_area": 164.104128,
+        "reference_rounding_bounds": {
+          "area": [
+            164.09085275,
+            164.11740375
+          ],
+          "delay": [
+            489.46052575,
+            489.51947475000003
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "sqrt",
+        "ours_area": 1071.21,
+        "reconstructed_area": 1110.0159700000002,
+        "reference_rounding_bounds": {
+          "area": [
+            1109.95267375,
+            1110.0792667500002
+          ],
+          "delay": [
+            77998.28985625,
+            78006.19549825
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "systemcaes",
+        "ours_area": 447.57,
+        "reconstructed_area": 511.671782,
+        "reference_rounding_bounds": {
+          "area": [
+            511.64041875,
+            511.70314575
+          ],
+          "delay": [
+            783.95580025,
+            784.0442002500001
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "systemcdes",
+        "ours_area": 125.89,
+        "reconstructed_area": 138.835164,
+        "reference_rounding_bounds": {
+          "area": [
+            138.82317225,
+            138.84715624999998
+          ],
+          "delay": [
+            530.25848575,
+            530.32151475
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "tv80",
+        "ours_area": 330.87,
+        "reconstructed_area": 351.105576,
+        "reference_rounding_bounds": {
+          "area": [
+            351.08283124999997,
+            351.12832125
+          ],
+          "delay": [
+            907.80960725,
+            907.9103932500001
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "usb_funct",
+        "ours_area": 622.62,
+        "reconstructed_area": 695.56599,
+        "reference_rounding_bounds": {
+          "area": [
+            695.5259167500001,
+            695.60606375
+          ],
+          "delay": [
+            702.8260327500001,
+            702.90796775
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      },
+      {
+        "design": "usb_phy",
+        "ours_area": 21.39,
+        "reconstructed_area": 23.629626,
+        "reference_rounding_bounds": {
+          "area": [
+            23.62349875,
+            23.63575375
+          ],
+          "delay": [
+            163.80846675,
+            163.83552175
+          ]
+        },
+        "point_area_win": true,
+        "robust_area_win": true
+      }
+    ]
+  },
+  "assumption": "Published starts and changes each rounded to two decimals (+/-0.005 in own units)",
+  "script_sha256": "45fdec5f9ff7a002fe435598492d6e3162e24a1018a5e967aaa18796c45f01a7"
+}

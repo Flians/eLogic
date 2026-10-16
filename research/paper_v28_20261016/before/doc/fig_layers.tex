@@ -1,0 +1,35 @@
+% Pipeline and exact chain composition; schematic, no experimental costs.
+\begin{figure*}[t]
+\centering
+\subfloat[Two scopes of rewriting.]{%
+\begin{tikzpicture}[>=Stealth,font=\footnotesize,
+ box/.style={draw,rounded corners=2pt,align=center,inner sep=4pt},
+ arr/.style={->,line width=.45pt}]
+ \node[box,fill=black!7,minimum width=6.5cm] (in) at (0,0) {Input mapping $N_0$: fix $D_0=D(N_0)$};
+ \node[box,fill=blue!12,minimum width=6.5cm] (chain) at (0,-.85)
+ {Joint chain transformation\\compose blocks, share factors, evaluate total cost};
+ \node[box,fill=blue!12,minimum width=6.5cm] (cuts) at (0,-1.95)
+ {Live structural-cut rewriting\\L1/L2 lookup; L3 synthesis; L4 profiles\\resolve phases, price, check timing, substitute};
+ \node[box,fill=black!7,minimum width=6.5cm] (guard) at (0,-3.10)
+ {Round guard: nonworsening $(A,D)$; $D\le D_0$};
+ \draw[arr] (in)--(chain); \draw[arr] (chain)--(cuts); \draw[arr] (cuts)--(guard);
+ \draw[arr] (guard.east)--++(.40,0)|- (chain.east);
+ \node[rotate=90,font=\scriptsize,fill=white,inner sep=1pt] at (3.72,-1.92) {next round, if progressing};
+\end{tikzpicture}}
+\hfill
+\subfloat[Two-step composition exposes a reusable product.]{%
+\begin{tikzpicture}[>=Stealth,font=\footnotesize,
+ box/.style={draw,rounded corners=2pt,align=center,inner sep=4pt},
+ arr/.style={->,line width=.45pt}]
+ \node[align=center] at (0,0) {$F_1(F_2(z))=p_1\wedge(p_2\wedge z\vee q_2)\vee q_1$};
+ \node[align=center] at (0,-.62) {$=\;(p_1\wedge p_2)\wedge z\;\vee\;(q_1\vee p_1\wedge q_2)$};
+ \node[box,fill=blue!12] (prod) at (0,-1.36) {Shared product\\$P=p_1\wedge p_2$};
+ \node[box,fill=black!7] (left) at (-1.82,-2.42) {Root $r$\\$y_r=P\wedge z_r\vee Q_r$};
+ \node[box,fill=black!7] (right) at (1.82,-2.42) {Root $s$\\$y_s=P\wedge z_s\vee Q_s$};
+ \draw[arr] (prod)--(left); \draw[arr] (prod)--(right);
+ \node[align=center,font=\scriptsize] at (0,-3.19)
+ {$Q_j=q_{1,j}\vee(p_1\wedge q_{2,j})$, $j\in\{r,s\}$\\Reuse requires identical factor signals across roots.};
+\end{tikzpicture}}
+\caption{Overview of ePMapping. (a) Joint chain transformation precedes local cut rewriting; both use the fixed initial delay bound and a final round check. (b) Two-step composition exposes a product $P$ reusable across roots with different residual functions $Q_j$. Acceptance accounts for all cells implementing the product, residual functions and outputs.}
+\label{fig_layers}
+\end{figure*}

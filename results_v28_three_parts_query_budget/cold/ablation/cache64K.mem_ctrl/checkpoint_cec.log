@@ -1,0 +1,4 @@
+ABC command line: "read_genlib '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/inputs/asap7.genlib'; read -m '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/ablation/cache64K.mem_ctrl/checkpoint_12077_31.v'; cec -n '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/inputs/benchmarks/mem_ctrl.aig'".
+
+Entered genlib library with 47 gates from file "/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/inputs/asap7.genlib".
+Networks are equivalent.  Time =    11.08 sec

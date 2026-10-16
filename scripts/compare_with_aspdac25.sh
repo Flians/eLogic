@@ -6,8 +6,10 @@
 # `fraig` before each script, iterated until the subject graph cannot be reduced further) and
 # area-oriented `emap` (Mockturtle) for the mapping, then reports the area/delay of its post-mapping
 # resubstitution after one pass (t_e1) and to convergence (t_e∞). The engine's default initial netlist
-# is exactly that (`EPMAPPING_BASELINE=high_effort`; `direct` selects the paper's unoptimized A_i
-# graph), so a plain run is the matched baseline:
+# implements that reported recipe (`EPMAPPING_BASELINE=high_effort`; `direct` selects the A_i
+# recipe). This is not proof of identical mapped inputs: compare our initial A_e/D_e with Table 1
+# before attributing final-output differences to post-mapping. Original netlists, mapper parameters
+# and tool versions are unavailable. See research/aspdac25_alignment/alignment.md.
 #
 #   EPM_OUT=/tmp/epmap_asp EPM_JOBS=2 RAYON_NUM_THREADS=4 EPMAPPING_DSE=0 \
 #     EPMAPPING_NO_DELAY_REGRESSION=1 \

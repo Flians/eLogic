@@ -1,0 +1,24 @@
+\section{Preliminaries and Objective}
+\subsection{Mapped Netlists and Cuts}
+A technology library $\mathcal L$ supplies a Boolean function, area and physical input-pin delays for each standard cell. Technology mapping covers a technology-independent subject graph with these cells, producing a mapped netlist $N$. Let $V_{\rm cell}(N)$ denote its live physical cells and $O(N)$ its primary outputs. We use
+\begin{equation}
+ A(N)=\sum_{v\in V_{\rm cell}(N)}a(v),\qquad
+ D(N)=\max_{o\in O(N)}\tau(o),\label{eq_area}
+\end{equation}
+where $a(v)$ is cell area and $\tau$ is arrival time. Pin delays follow the load-independent gain-based model~\cite{calvino2022mapping}. Inversions are materialized as inverter cells and included in area and timing. Native and serialized netlists may differ in interface buffers and duplicate-output aliases; the experimental comparison accounts for these differences.
+
+Given the input mapped netlist $N_0$, define $A_0=A(N_0)$ and $D_0=D(N_0)$. Our optimization problem is
+\begin{equation}
+ \min_N A(N)\quad\text{subject to}\quad
+ D(N)\le D_0,\quad N\equiv N_0.\label{eq:objective}
+\end{equation}
+Delay is the secondary objective on an area tie. Internal arrival times may increase when sufficient slack remains under $D_0$.
+
+For a gate $x$, the \emph{transitive fanin} (TFI) contains the nodes feeding $x$. Its \emph{maximum fanout-free cone} (MFFC) is the logic used exclusively by $x$, including the root. A \emph{structural cut} $\mathcal C=(x,L)$ has leaves $L$ intersecting every primary-input-to-$x$ path; its cut function $f_{\mathcal C}$ expresses $x$ over those leaves. A dependency cut can instead use non-structural leaves over which $f_x$ is expressible~\cite{aspdac25}.
+
+The satisfiability don't-care (DC) set contains leaf minterms that cannot occur. A replacement agreeing with $f_{\mathcal C}$ on all remaining \emph{care} minterms preserves the root function. Conservative unreachable-minterm estimates therefore allow functional flexibility without requiring observability don't cares.
+
+\subsection{Covers and E-Graphs}
+A cut \emph{cover} $H$ is a cell directed acyclic graph (DAG) implementing an admissible function over $L$. Its representation records shared nodes, input and output polarities, and physical pins. Generators provide an area estimate $\widehat A(H)$; caller-side evaluation computes the root arrival from live leaf arrivals. The net area change additionally depends on which existing cells become unused and which cover nodes can be reused. \Cref{sec:accept} describes both local ranking and rebuilt-netlist validation.
+
+An \emph{e-graph}~\cite{nelson1980egraph} groups equivalent expressions into e-classes. Equality saturation~\cite{tate2009equality} expands these classes through rewriting, after which extraction selects an implementation under a cost model. ePMapping uses \textit{egg}~\cite{willsey2021egg} for bounded saturation and heuristic extraction. Extracted covers undergo the same physical feasibility checks as covers from the other generators.

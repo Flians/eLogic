@@ -1,0 +1,19 @@
+{
+  "complete": true,
+  "engine_runs": 736,
+  "method_runs": 704,
+  "fresh_abc_runs": 16,
+  "cohorts": {
+    "cold": {
+      "completed": 348,
+      "timeouts": 4,
+      "selected": 352
+    },
+    "warm": {
+      "completed": 349,
+      "timeouts": 3,
+      "selected": 352
+    }
+  },
+  "verified_profiles_sha256": "5020a0b13bbee872fefcf393ae8f65d3a1f004130749b5fbbfba6bfc09891603"
+}

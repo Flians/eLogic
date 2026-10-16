@@ -1,0 +1,17 @@
+design	abc_area	abc_delay
+aes_core	1113.13	410.49
+arbiter	557.72	999.87
+div	3609.46	52450.16
+ethernet	3739.47	557.03
+iwls05_i2c	59.46	237.61
+mem_ctrl	2323.99	1726.27
+RISC	3594.28	696.43
+sasc	35.85	140.61
+simple_spi	49.64	214.5
+spi	183.08	472.43
+sqrt	1355.08	101970.38
+systemcaes	559.33	775.42
+systemcdes	151.07	416.79
+tv80	462.39	799.99
+usb_funct	802.42	421.38
+usb_phy	27.15	155.17

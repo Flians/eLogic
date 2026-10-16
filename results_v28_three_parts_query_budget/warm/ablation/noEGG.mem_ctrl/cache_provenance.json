@@ -1,0 +1,10 @@
+{
+  "mode": "warm",
+  "cache_directory": "/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cache/ablation/noEGG.mem_ctrl",
+  "cache_record_sha256": {},
+  "initial_sha256": "a5cbf5c981883086487ee35c1874c540f07c7db8fb0a38e46507c17d3443cb89",
+  "profile": [
+    "memory_hits=0 disk_hits=0 builds=0 corrupt=0 write_failures=0 legacy_fallbacks=0"
+  ],
+  "returncode": "0"
+}

@@ -1,0 +1,47 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=24618
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/ablation/noQUERY.sqrt/abc_12614999654404.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/ablation/noQUERY.sqrt/abc_12614999654404_probe.aig'; quit".
+
+[i] ABC round 1: 24618 -> 18208 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/ablation/noQUERY.sqrt/abc_12614999654404.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/ablation/noQUERY.sqrt/abc_12614999654404_probe.aig'; quit".
+
+[i] ABC round 2: 18208 -> 18208 ands (no reduction); fixpoint after 1 round(s)
+[i] ABC baseline ands=18208
+[i] super library load = 0.494520753 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=1157.38 delay=88015.07 gates=11388 area_oriented=1 multioutput=0
+[i] post_mapping_timeout=1000 seconds (optimizer preparation and rebuilding included)
+[i] epmapping running (objective=1, objective_order=area_delay, global_objective_guard=1, preserve_depth=0, preserve_delay=0, delay_slack=0, rank_area_gain=1, required_times=1, area_under_delay=1, path_objective=0, critical_slack=0.001, max_area_growth=0, max_delay_growth=0, local_area_growth=0, max_rounds=6, egg=1, dc=1, dependency_cuts=0, chain_factor=1, chain_share=1, phase_reuse=1, phase_cost=1, phase_fanout=1, cofactor_modes=6, chain_block=2, observability_care=0, observability_min_depth=0, observability_budget=200, global_divisors=0, global_conflicts=2000, dependency_min_removed=1, dependency_internal=0, feasible_covers=1, dependency_pis=10, synth_cache=262144, cache_replace=1, cofactor_dedup=1, cofactor_proof_cache=1, cofactor_pivots=2, live_query_memo=8, shared_mapped_library=1, build_reuse=2, operator_policy=3, dc_window=per_node, single_matcher=index)
+[i] epmapping checkpoint round=0 area=1157.38 delay=88015.07 partial_round=0 netlist=checkpoint_19823_0.v
+[i] epmapping checkpoint round=0 area=1156.99 delay=88015.07 partial_round=1 netlist=checkpoint_19823_1.v
+[i] epmapping checkpoint round=0 area=1156.85 delay=88015.07 partial_round=1 netlist=checkpoint_19823_2.v
+[i] epmapping checkpoint round=0 area=1156.04 delay=88010.96 partial_round=1 netlist=checkpoint_19823_3.v
+[i] epmapping checkpoint round=0 area=1155.41 delay=88010.96 partial_round=1 netlist=checkpoint_19823_4.v
+[i] epmapping checkpoint round=0 area=1154.78 delay=88010.96 partial_round=1 netlist=checkpoint_19823_5.v
+[i] epmapping checkpoint round=0 area=1154.28 delay=88010.96 partial_round=1 netlist=checkpoint_19823_6.v
+[i] epmapping checkpoint round=0 area=1153.58 delay=87998.84 partial_round=1 netlist=checkpoint_19823_7.v
+[i] epmapping checkpoint round=0 area=1153.3 delay=87998.84 partial_round=1 netlist=checkpoint_19823_8.v
+[i] epmapping checkpoint round=0 area=1153.02 delay=87998.84 partial_round=1 netlist=checkpoint_19823_9.v
+[i] epmapping checkpoint round=0 area=1152.85 delay=87957.2 partial_round=1 netlist=checkpoint_19823_10.v
+[i] epmapping checkpoint round=0 area=1152.57 delay=87941.61 partial_round=1 netlist=checkpoint_19823_11.v
+[i] epmapping checkpoint round=0 area=1151.36 delay=87941.61 partial_round=1 netlist=checkpoint_19823_12.v
+[i] epmapping checkpoint round=0 area=1150.4 delay=87929.73 partial_round=1 netlist=checkpoint_19823_13.v
+[i] epmapping checkpoint round=0 area=1149.73 delay=87911.01 partial_round=1 netlist=checkpoint_19823_14.v
+[i] epmapping checkpoint round=0 area=1149.52 delay=87911.01 partial_round=1 netlist=checkpoint_19823_15.v
+[i] epmapping checkpoint round=0 area=1149.24 delay=87911.01 partial_round=1 netlist=checkpoint_19823_16.v
+[i] epmapping checkpoint round=0 area=1149.04 delay=87869.37 partial_round=1 netlist=checkpoint_19823_17.v
+[i] epmapping checkpoint round=0 area=1148.99 delay=87859.16 partial_round=1 netlist=checkpoint_19823_18.v
+[i] epmapping checkpoint round=0 area=1148.14 delay=87837.64 partial_round=1 netlist=checkpoint_19823_19.v
+[i] epmapping checkpoint round=0 area=1147.37 delay=87837.64 partial_round=1 netlist=checkpoint_19823_20.v
+[i] epmapping checkpoint round=0 area=1146.58 delay=87825.76 partial_round=1 netlist=checkpoint_19823_21.v
+[i] epmapping checkpoint round=0 area=1146.07 delay=87801.09 partial_round=1 netlist=checkpoint_19823_22.v
+[i] epmapping checkpoint round=0 area=1145.72 delay=87801.09 partial_round=1 netlist=checkpoint_19823_23.v
+[i] epmapping checkpoint round=0 area=1145.48 delay=87736.87 partial_round=1 netlist=checkpoint_19823_24.v
+[i] epmapping checkpoint round=0 area=1145.35 delay=87726.66 partial_round=1 netlist=checkpoint_19823_25.v
+[i] epmapping checkpoint round=0 area=1144.03 delay=87728.53 partial_round=1 netlist=checkpoint_19823_26.v
+[i] epmapping checkpoint round=0 area=1142.85 delay=87716.65 partial_round=1 netlist=checkpoint_19823_27.v
+[i] epmapping checkpoint round=0 area=1142.24 delay=87678.72 partial_round=1 netlist=checkpoint_19823_28.v
+[i] epmapping checkpoint round=0 area=1141.96 delay=87678.72 partial_round=1 netlist=checkpoint_19823_29.v
+[i] epmapping checkpoint round=0 area=1141.59 delay=87591.92 partial_round=1 netlist=checkpoint_19823_30.v
+[i] epmapping checkpoint round=0 area=1141.46 delay=87560.19 partial_round=1 netlist=checkpoint_19823_31.v
+[i] epmapping checkpoint round=0 area=1140.25 delay=87560.19 partial_round=1 netlist=checkpoint_19823_32.v
+/home/flynn/workplace/MIGBalance/scripts/experiments/common.sh: line 151: 19823 Alarm clock             env ${unset_env[@]+"${unset_env[@]}"} "${EPM_BASE_ENV[@]}" "${RECIPE_ENV[@]}" ${round_env[@]+"${round_env[@]}"} ${extra[@]+"${extra[@]}"} ${EPM_AWAKE[@]+"${EPM_AWAKE[@]}"} perl -e 'alarm shift; exec @ARGV' "$alarm" "$BIN" "$genlib_run" "$aig" "$wd"

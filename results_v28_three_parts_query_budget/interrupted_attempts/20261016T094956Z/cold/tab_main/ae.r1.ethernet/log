@@ -1,0 +1,9 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=86726
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.ethernet/abc_345397904975632.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.ethernet/abc_345397904975632_probe.aig'; quit".
+
+[i] ABC round 1: 86726 -> 55758 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.ethernet/abc_345397904975632.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.ethernet/abc_345397904975632_probe.aig'; quit".
+
+[i] ABC round 2: 55758 -> 55727 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.ethernet/abc_345397904975632.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.ethernet/abc_345397904975632_probe.aig'; quit".
+

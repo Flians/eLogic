@@ -1,0 +1,32 @@
+[
+  {
+    "test": "live_query_cache",
+    "exit_code": 0
+  },
+  {
+    "test": "local_truth_table",
+    "exit_code": 0
+  },
+  {
+    "test": "bounded_cache",
+    "exit_code": 0
+  },
+  {
+    "test": "operator_policy",
+    "exit_code": 0
+  },
+  {
+    "test": "paper_validation",
+    "exit_code": 0
+  },
+  {
+    "test": "profile_cache",
+    "exit_code": 0
+  },
+  {
+    "test": "cofactor_candidate_coverage_profile_exhaustive",
+    "exit_code": 0,
+    "pivot_budget": 0,
+    "profile_enabled": 1
+  }
+]

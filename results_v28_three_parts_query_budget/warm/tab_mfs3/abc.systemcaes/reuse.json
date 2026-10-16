@@ -1,0 +1,14 @@
+{
+  "source_archive": "/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold",
+  "source_manifest_sha256": "9be1a04369847f568553b5cf6fc614015758a0be2a763a9bb3f7467ea42da442",
+  "copied_sha256": {
+    "baseline.log": "c60a1db21634dedba72d9e6645122536393fea004d035e4ca0b3156770730b37",
+    "result.json": "d304f1f303981a23a1dc307c2277217e7b8d62b56e01850ab107ff4951c324d6",
+    "cec.log": "4d8869db0bf417fd0d62516a8806a89fcb1a395e50566d93d042d525c68f771e",
+    "log": "2d22e91e343177604f30c7ee0bae9334143cc5b4943cc04bf77f997f6f738f61",
+    "mapped.v": "28631c2c0562f91507d8cbd904eeea9f92f89534dee919bc742889b4a69b01d2"
+  },
+  "identical_initial_netlist": true,
+  "identical_abc_binary": true,
+  "identical_library": true
+}

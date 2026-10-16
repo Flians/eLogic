@@ -1,0 +1,2 @@
+{"area": 21.379999999999956, "delay": 158.68, "initial_area": 22.53999999999998, "initial_delay": 163.29000000000002, "cec": 1, "cofactor_replacements": 29, "netlist_sha256": "b562a541b603f2e14e0427e169ee5abe8b2038eb55bdca2739cc35348427b0f6"}
+New cut candidates and shared-phase materialization reduce usb_phy area with unchanged original input and delay bound

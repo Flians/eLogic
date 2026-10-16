@@ -1,0 +1,2 @@
+{"pdf": "/home/flynn/workplace/MIGBalance/epmapping_paper/DATE27-ePMapping-sub/DATE27-ePMapping.pdf", "sha256": "d076741a42cd9df1616184eebb6b37a2f58d063b8d708edec5a97f0c77f6b45c", "pages": 7, "body_pages": 6, "reference_pages": 1, "visual_QA_pending": true, "visually_checked_pages": [], "overfull_boxes": false, "unresolved_references": false}
+{"cold": {"runs": 64, "completed": 64, "timeouts": 0, "max_seconds": 713.5067684}, "warm": {"runs": 64, "completed": 64, "timeouts": 0, "max_seconds": 464.8427462}}

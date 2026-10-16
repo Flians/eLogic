@@ -68,6 +68,17 @@ else
   fail "noCARE must set EPMAPPING_DC=0 (SAT refinement alone is not the care mask)"
 fi
 
+if grep '^DRY' "$DRY" | grep 'EPMAPPING_WINDOW_SYN=1' >/dev/null; then
+  fail "DATE stage enables whole-window synthesis"
+else
+  ok "every DATE stage keeps whole-window synthesis disabled"
+fi
+if grep '^DRY' "$DRY" | grep '/noWINDOW\.' >/dev/null; then
+  fail "redundant noWINDOW arm must not appear in cut-only ablations"
+else
+  ok "cut-only ablations contain no redundant noWINDOW arm"
+fi
+
 echo "== 3. report.py on synthetic logs =="
 R="$DRY_ROOT/report"; mkdir -p "$R/funnel/r1.sasc" "$R/funnel/r1.c7552" "$R/main_ae" \
   "$R/ablation/full.sasc" "$R/ablation/full.c7552" "$R/db/ae.asap7_4in_3lvl_a050.stats.sasc"

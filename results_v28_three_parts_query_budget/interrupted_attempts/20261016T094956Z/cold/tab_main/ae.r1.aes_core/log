@@ -1,0 +1,30 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=21522
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916_probe.aig'; quit".
+
+[i] ABC round 1: 21522 -> 19561 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916_probe.aig'; quit".
+
+[i] ABC round 2: 19561 -> 19202 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916_probe.aig'; quit".
+
+[i] ABC round 3: 19202 -> 19066 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916_probe.aig'; quit".
+
+[i] ABC round 4: 19066 -> 18985 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916_probe.aig'; quit".
+
+[i] ABC round 5: 18985 -> 18952 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916_probe.aig'; quit".
+
+[i] ABC round 6: 18952 -> 18940 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916_probe.aig'; quit".
+
+[i] ABC round 7: 18940 -> 18929 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916_probe.aig'; quit".
+
+[i] ABC round 8: 18929 -> 18927 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916_probe.aig'; quit".
+
+[i] ABC round 9: 18927 -> 18919 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/tab_main/ae.r1.aes_core/abc_345397895789916_probe.aig'; quit".
+

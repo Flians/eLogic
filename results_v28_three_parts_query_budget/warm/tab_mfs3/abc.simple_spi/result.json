@@ -1,0 +1,14 @@
+{
+  "design": "simple_spi",
+  "rc": 0,
+  "secs": 0.11515597498510033,
+  "cec": 1,
+  "validation_secs": 0.11516410496551543,
+  "baseline": {
+    "area": 49.64,
+    "delay": 214.5
+  },
+  "baseline_sha256": "9e5f6bf48075ee03e0e51bb8296eb4ef20d234b9b4174a188378d5931ab3b0d8",
+  "area": 48.3,
+  "delay": 214.5
+}

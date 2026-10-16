@@ -1,0 +1,14 @@
+{
+  "design": "sasc",
+  "rc": 0,
+  "secs": 0.06480694498168305,
+  "cec": 1,
+  "validation_secs": 0.11503787996480241,
+  "baseline": {
+    "area": 35.85,
+    "delay": 140.61
+  },
+  "baseline_sha256": "c287786db123660816d5e8de5584c6d589ca3ee15dd3a622b7bee3b48b18eea0",
+  "area": 35.19,
+  "delay": 140.61
+}

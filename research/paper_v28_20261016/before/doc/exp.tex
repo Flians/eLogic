@@ -1,0 +1,65 @@
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{results/build_ablation.pdf}
+\caption{Construction-control runtime relative to full (262144 cache entries), cold/warm: aggregate optimizer-time ratios and per-design ratios. Colors encode the logarithm of each ratio. $\dagger$ marks at least one TO; equal elapsed budgets do not imply equal completed work. Selected-output area effects and timeout counts appear in \Cref{tab:ablation}.}\label{fig:ablation}
+\end{figure*}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=.90\linewidth]{results/round_progress.pdf}
+\caption{Selected-output reductions from $N_e$ at caps 1 and 6. Cold/warm curves separate when different; intermediate caps were not measured.}\label{fig:rounds}
+\end{figure}
+\section{Experimental Results}
+
+\MfsComparisonTable
+\MainResultTable
+\subsection{Setup}\label{sec:setup}
+We evaluate sixteen designs with the ASAP7 genlib~\cite{asap7}, reporting area in $\mu m^2$ and worst-output delay in ps. We use C++/mockturtle~\cite{EPFLLibraries}, Rust/\textit{egg}~\cite{willsey2021egg}, and ABC~\cite{ABCTool}.
+
+All experiments fix the initial delay bound across rounds (\Cref{eq:objective}), with whole-window synthesis and unmap/remap exploration disabled.
+
+For \texttt{mfs3}, both tools use the same 40-entry subset with at most six inputs per cell, and byte-identical area-oriented \texttt{emap} inputs. The evaluated \texttt{mfs3} implementation restricts cell truth tables and node simulation to six inputs. Preprocessing experiments and ablations use all 47 entries for initial mapping and optimization.
+
+The direct input $N_i$ maps the raw AIG without ABC optimization. For $N_e$, the flow repeats \texttt{fraig; resyn2rs; fraig; compress2rs} until the AND count stops decreasing, with a 20-iteration cap, then applies area-oriented \texttt{emap}. Let $A_e=A(N_e)$ and $D_e=D(N_e)$. The database does not alter initial mapping; benchmarks and preprocessing remain unchanged.
+
+Cuts use $K=6$, $B=12$, and the L4 area threshold $\theta=0$. Care uses an eight-input reconvergence window and a cumulative 60\,s budget, then full care; SAT refinement is disabled. The three-level mapped database has area cap $0.50$. SOP/DSD starts at four leaves; Shannon and both Davio forms start at three. Each native structure cache holds at most 262144 entries; pre-mapping reuse is keyed by the exact AIG state. Temporary mapped networks share an immutable cell library. All statistical deferrals are rechecked; only strict area dominance suppresses live pricing. Independent output-polarity factoring and exact AIG synthesis are disabled. Equality saturation allows two iterations and 500 e-nodes; extraction permits eight realizations per class, 20000 combinations and 4000 visits. Chain composition uses two-step blocks, at least six steps and cross-root sharing. Both round caps allow early stopping.
+
+Experiments run on two Xeon Gold 6226R sockets (32 cores), Ubuntu 22.04.5, GCC 11.2.0, Rust 1.99.0 and ABC 1.01. A shared host runs up to sixteen single-worker ePMapping optimizations and eight independent ABC jobs. Both tools have a 1000\,s post-mapping limit. For ePMapping this includes optimizer preparation, all rounds and final rebuild, excluding preprocessing, mapping and CEC. An outer 3600\,s guard covers setup and validation. Artifacts are archived.
+
+Each configuration/design runs cold with an empty private pool, then warm with the same pool and limits. Cold may reload its own records after eviction or leave an incomplete pool on a timeout. Native caches restart; OS caches are not cleared. Both groups share the verified ABC batch. Times are $t_c/t_w$.
+
+Completed outputs undergo CEC. At a deadline (TO), independent CEC and serialized area/delay audits validate the best saved implementation, or select the initial mapping. Snapshots consume the 1000\,s budget; post-run validation is outside it. ABC cannot export an interrupted result and retains its initial mapping on a timeout. Across all parts, cold/warm have \ColdCompleted{}/\WarmCompleted{} completions and \ColdMethodTimeouts{}/\WarmMethodTimeouts{} timeouts. Selected outputs meet their initial bounds. Of the timeouts, \ColdCheckpointSelections{}/\WarmCheckpointSelections{} select improved saved implementations. Of \ProfilePairs{} cold/warm pairs, \ProfileEqual{} agree in cost and \ProfileIdentical{} serialize identically. Differing values are stacked or separated by a slash, cold first. Independent audits include serialization buffers. Changes are $\delta A_j=100(A_j/A_{0,j}-1)$ and $\delta D_j=100(D_j/D_{0,j}-1)$; negative is better. Means include initial selections; ablations sum $\Delta A=\sum_j(A_{\rm arm,j}-A_{\rm full,j})$.
+
+\subsection{Area Recovery after AIG Preprocessing}\label{sec:aspdac}
+
+The preprocessed-input experiment measures area recovery after AIG preprocessing (\Cref{tab:main}). Both caps start from $N_e$. At one round, mean area changes are \OwnOneArea\%; mean delay changes are \OwnOneDelay\% (cold/warm). At cap 6, these are \OwnArea\% area and \OwnDelay\% delay, with \ColdMainCompleted{}/\WarmMainCompleted{} completed runs. Area decreases on \OwnAreaWins{} of sixteen; every selected result has CEC evidence and meets its initial bounds. Snapshots preserve partial progress after preprocessing. Independent cap-1/cap-6 runs can follow different trajectories under care budgets and deadlines.
+
+For \texttt{arbiter}, area changes from $557.72$ to $\ArbiterArea\,\mu m^2$ and delay from $999.87$ to $\ArbiterDelay$\,ps. The other fifteen average \mbox{\OwnOtherArea\%} area and \mbox{\OwnOtherDelay\%} delay changes. Chain transactions occur in \ChainAreaWins{} of the completed designs. 
+
+
+
+The ASPDAC'25 columns reconstruct final costs from its reported starts and rounded changes~\cite{aspdac25}; that implementation is not re-run. Our final area is smaller on \MainWins{} designs, with mean area and delay differences of \mbox{\MainAreaAll\%} and \mbox{\MainDelayAll\%}. These approximate end-to-end comparisons use different starts and cannot isolate post-mapping gains. Our delay bound refers to our input.
+
+\subsection{Common-Input Comparison with ABC}\label{sec:mfs3}
+The direct-input experiment uses the same mapping for both tools (\Cref{tab:mfs3}); ours uses one round. ABC's \texttt{mfs3 -a} does not enforce our initial-delay bound, so we distinguish raw and externally guarded outputs.
+
+ABC completes \ABCCompleted{} designs and times out on \ABCTimeouts{}. On the ABC-completed subset, its mean area/delay changes are \mbox{\ABCArea\%}/\mbox{\ABCDelay\%}, versus \mbox{\PairedOwnArea\%}/\mbox{\PairedOwnDelay\%} for our verified selections. ePMapping completes \ColdMfsCompleted{}/\WarmMfsCompleted{} designs cold/warm. Its all-sixteen selected-output means are \mbox{\MfsOwnArea\%}/\mbox{\MfsOwnDelay\%}, within the initial delay bounds.
+
+Of the completed ABC outputs, \ABCViolations{} violate the delay bound and \ABCFeasible{} satisfy both initial area and delay bounds. An external policy retains a completed result only if both hold, otherwise returning its initial mapping. Its paired means are \mbox{\ABCGuardArea\%} area and \mbox{\ABCGuardDelay\%} delay. This external selection leaves ABC unchanged; means describe the paired subset.
+
+\Cref{tab:mfs3} shows the common mapping before ABC import. ABC may normalize output buffers, so its percentages use the parsed start; ours use the displayed costs. Times exclude CEC. ABC includes import and writing; ours includes optimizer preparation through rebuild. 
+
+\subsection{Operator Ablations and Efficiency}\label{sec:oracles}
+\AblationResultTable
+
+
+All sixteen arms use identical $N_e$ inputs, bounds and round caps (\Cref{tab:ablation}); L1 remains enabled. noSYN disables all L3, including cofactors; noEGG disables L4. noDB removes lookup and database-derived mapper entries; noCARE supplies full care. noCHAIN skips composition; noSHARE clears chain memo tables between roots. noNARROW removes narrow initialization with unchanged extraction caps; noPHASE disables all physical phase reuse.
+
+noSHANNON retains only Davio; noDAVIO retains only Shannon. noREUSE removes existing-INV fanout lookup but retains backward INV-input cancellation. noPRICE uses intrinsic area and timing filters while preserving physical reuse. Polarity-aware matching remains enabled; configurations are logged. The three construction controls in \Cref{fig:ablation} retain the candidate families: cache64K lowers each native cache limit to 65536; noAIGREUSE disables pre-mapping exact-AIG reuse; noLIBSHARE copies the cell library into each transient mapped network.
+
+Removing Shannon and Davio gives summed area differences of \DeltaShannon{} and \DeltaDavio\,$\mu m^2$; removing forward reuse and live pricing gives \DeltaReuse{} and \DeltaPrice\,$\mu m^2$. \UsbAblationExample{} Full-ablation and main runs are independent measurements: deadlines and care budgets can change trajectories. \DeadlineExample{}
+
+Removing the database improves \DBBetterCount{} designs; most aggregate gain comes from interrupted \texttt{sqrt} runs. noDB changes inner mapping too. Chain and sharing effects must not be added.
+
+Removing L4 worsens area on \EggWorseCount{} designs; its cold/warm time ratios are \ColdNoEggRatio{}/\WarmNoEggRatio{}. L4 takes \TimeEggShare\%/\WarmTimeEggShare\% of recorded phase time in \ColdPhaseRuns{}/\WarmPhaseRuns{} completed full runs (CEC and other phases excluded). Optimizer totals at cap 6 are \ColdMainSeconds\,s/\WarmMainSeconds\,s. Persistent pool reuse avoids saturation and extraction on hits; native caches restart in each process. The cache64K time/full ratios are \CacheCapacityColdRatio{}/\CacheCapacityWarmRatio{}, versus \AigReuseColdRatio{}/\AigReuseWarmRatio{} for noAIGREUSE and \LibraryShareColdRatio{}/\LibraryShareWarmRatio{} for noLIBSHARE. \BuildCaseExample{} Avoided mapper calls need not reduce elapsed time: exact keys also cost time. These controls add no transformations; memory capacity and deadlines affect their results. \CacheDeadlineExample{} Ablations and shared-host scheduling affect elapsed time.
+

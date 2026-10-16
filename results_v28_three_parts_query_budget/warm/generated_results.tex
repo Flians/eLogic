@@ -1,0 +1,97 @@
+% GENERATED from verified three-part campaign; do not edit numbers.
+\newcommand{\MainWins}{14}
+\newcommand{\MainAreaAll}{-9.12}
+\newcommand{\MainDelayAll}{-6.92}
+\newcommand{\OwnArea}{-7.11}
+\newcommand{\OwnDelay}{-7.43}
+\newcommand{\OwnAreaWins}{16}
+\newcommand{\OwnOneArea}{-5.04}
+\newcommand{\OwnOneDelay}{-4.90}
+\newcommand{\ABCCompleted}{13}
+\newcommand{\ABCTimeouts}{3}
+\newcommand{\ABCFeasible}{6}
+\newcommand{\ABCViolations}{7}
+\newcommand{\ABCArea}{-3.58}
+\newcommand{\ABCDelay}{+11.02}
+\newcommand{\ABCGuardArea}{-1.59}
+\newcommand{\ABCGuardDelay}{-0.15}
+\newcommand{\MfsOwnArea}{-6.96}
+\newcommand{\MfsOwnDelay}{-5.47}
+\newcommand{\PairedOwnArea}{-7.06}
+\newcommand{\PairedOwnDelay}{-6.61}
+\newcommand{\ChainAreaWins}{1}
+\newcommand{\OwnOtherArea}{-3.59}
+\newcommand{\OwnOtherDelay}{-3.00}
+\newcommand{\TimeSynShare}{38.0}
+\newcommand{\TimeEggShare}{13.9}
+\newcommand{\DeltaSyn}{+394.71}
+\newcommand{\DeltaEgg}{+3.89}
+\newcommand{\DeltaDB}{+1.62}
+\newcommand{\DeltaCare}{+15.16}
+\newcommand{\DeltaChain}{+334.08}
+\newcommand{\DeltaShare}{+334.08}
+\newcommand{\MainResultTable}{%
+\begin{table}[t]
+\centering\footnotesize
+\setlength{\tabcolsep}{2pt}
+\caption{Fully preprocessed inputs and six-round-cap post-mapping results. The ASPDAC'25 columns reconstruct final values from published starts and rounded changes; mapped starts differ. Ave. Ratio averages per-design ratios to the corresponding ASPDAC area or delay over all 16 designs. $t_{opt}$ excludes preprocessing, mapping and CEC. Area: $\mu m^2$; delay: ps.}\label{tab:main}
+\begin{tabular}{@{}lrrrrrrr@{}}
+\toprule
+\multirow{2}{*}{Circuit} & \multicolumn{2}{c}{ASPDAC\textquotesingle25} & \multicolumn{2}{c}{Initial} & \multicolumn{2}{c}{Ours} & \multirow{2}{*}{$t_{opt}$}
+\\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+ & Area & Delay & $A_e$ & $D_e$ & Area & Delay & (s) \\
+\midrule
+aes\_core & 1086.57 & 425.61 & 1029.98 & 410.72 & 996.04 & 407.66 & 156.4 \\
+arbiter & 268.82 & 604.27 & 557.72 & 999.87 & 223.64 & 261.39 & 19.7 \\
+div & 1176.29 & 60254.25 & 1184.50 & 53105.06 & 1182.38 & 53024.38 & 170.1 \\
+ethernet & 3008.41 & 588.34 & 2541.41 & 543.88 & 2531.03 & 543.56 & 330.6 \\
+iwls05\_i2c & 48.96 & 288.07 & 47.66 & 303.61 & 45.11 & 290.02 & 4.9 \\
+mem\_ctrl & 1799.15 & 1435.03 & 1895.40 & 1519.75 & 1818.16 & 1461.58 & 463.9 \\
+RISC & 3139.86 & 1304.74 & 2927.19 & 1453.77 & 2807.40 & 1392.91 & 267.8 \\
+sasc & 31.30 & 191.00 & 27.28 & 191.20 & 26.96 & 191.20 & 1.4 \\
+simple\_spi & 41.00 & 287.00 & 36.96 & 308.22 & 35.89 & 293.36 & 3.1 \\
+spi & 164.10 & 489.49 & 149.43 & 500.98 & 146.68 & 450.90 & 21.1 \\
+sqrt & 1110.02 & 78002.24 & 1157.38 & 88015.07 & 1071.21 & 80961.45 & 206.7 \\
+systemcaes & 511.67 & 784.00 & 483.75 & 709.03 & 447.57 & 682.83 & 58.1 \\
+systemcdes & 138.84 & 530.29 & 131.06 & 488.85 & 125.89 & 487.52 & 25.0 \\
+tv80 & 351.11 & 907.86 & 340.61 & 846.12 & 330.87 & 833.94 & 63.8 \\
+usb\_funct & 695.57 & 702.87 & 646.23 & 668.08 & 622.62 & 664.39 & 105.6 \\
+usb\_phy & 23.63 & 163.82 & 22.54 & 163.29 & 21.39 & 158.68 & 1.9 \\
+Ave. Ratio & 1.0000 & 1.0000 & 1.0189 & 1.0366 & 0.9088 & 0.9308 & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+}
+\newcommand{\AblationResultTable}{%
+\begin{table}[t]
+\centering\footnotesize
+\setlength{\tabcolsep}{3pt}
+\caption{Ablations on 16 identical $A_e$ starts, with the same delay bound and six-round cap. $\Delta A$ sums signed differences from full; W/B count worse/better areas. Time is total optimizer time divided by full.}\label{tab:ablation}
+\begin{tabular}{lrrrrrr}
+\toprule
+Arm & $\delta A$ (\%) & $\delta D$ (\%) & $\Delta A$ & W & B & Time/full \\
+\midrule
+full & -7.11 & -7.43 & +0.00 & 0 & 0 & 1.00 \\
+noSYN & -3.91 & -5.61 & +394.71 & 16 & 0 & 0.59 \\
+noEGG & -7.05 & -7.42 & +3.89 & 11 & 0 & 0.86 \\
+noDB & -7.09 & -7.26 & +1.62 & 5 & 7 & 0.71 \\
+noCARE & -7.02 & -7.24 & +15.16 & 13 & 1 & 0.91 \\
+noCHAIN & -3.36 & -2.82 & +334.08 & 1 & 0 & 0.99 \\
+noSHARE & -3.36 & -2.82 & +334.08 & 1 & 0 & 1.00 \\
+noNARROW & -7.10 & -7.43 & +0.92 & 6 & 0 & 1.24 \\
+noPHASE & -5.03 & -6.54 & +243.82 & 15 & 0 & 0.74 \\
+noSHANNON & -5.76 & -7.53 & +148.11 & 15 & 0 & 0.95 \\
+noDAVIO & -6.71 & -7.09 & +39.52 & 13 & 1 & 0.92 \\
+noREUSE & -5.11 & -6.71 & +231.82 & 15 & 0 & 0.92 \\
+noPRICE & -5.79 & -6.54 & +163.59 & 15 & 0 & 0.69 \\
+cache64K & -7.11 & -7.43 & +0.00 & 0 & 0 & 1.37 \\
+noAIGREUSE & -7.11 & -7.43 & +0.00 & 0 & 0 & 0.99 \\
+noLIBSHARE & -7.11 & -7.43 & +0.00 & 0 & 0 & 1.03 \\
+noQUERY & -6.74 & -6.96 & +68.63 & 2 & 0 & 2.15 \\
+noTRUTH & -7.11 & -7.43 & +0.00 & 0 & 0 & 1.02 \\
+allPIVOTS & -7.84 & -7.33 & -39.99 & 0 & 11 & 1.55 \\
+\bottomrule
+\end{tabular}
+\end{table}
+}

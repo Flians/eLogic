@@ -1,0 +1,148 @@
+{
+  "recorded_at": "2026-10-16T17:18:14.881057+08:00",
+  "method": "live inverse-query acceleration, decoded/cached cut truth tables, two support-ranked pivots, complete-coverage rechecks and shared mapped covers",
+  "cohorts": [
+    "cold",
+    "warm"
+  ],
+  "circuits": 16,
+  "parts": [
+    "mfs3",
+    "main",
+    "ablation"
+  ],
+  "main_caps": [
+    1,
+    6
+  ],
+  "mfs3_cap": 1,
+  "ablation_cap": 6,
+  "ablation_arms": [
+    "full",
+    "noSYN",
+    "noEGG",
+    "noDB",
+    "noCARE",
+    "noCHAIN",
+    "noSHARE",
+    "noNARROW",
+    "noPHASE",
+    "noSHANNON",
+    "noDAVIO",
+    "noREUSE",
+    "noPRICE",
+    "cache64K",
+    "noAIGREUSE",
+    "noLIBSHARE",
+    "noQUERY",
+    "noTRUTH",
+    "allPIVOTS"
+  ],
+  "ablation_flags": {
+    "full": {},
+    "noSYN": {
+      "EPMAPPING_SYN": "0",
+      "EPMAPPING_COFAC": "0"
+    },
+    "noEGG": {
+      "EPMAPPING_EGG": "0"
+    },
+    "noDB": {
+      "EPMAPPING_SUPER": "off"
+    },
+    "noCARE": {
+      "EPMAPPING_DC": "0",
+      "EPMAPPING_SAT_DC": "0"
+    },
+    "noCHAIN": {
+      "EPMAPPING_CHAIN_FACTOR": "0"
+    },
+    "noSHARE": {
+      "EPMAPPING_CHAIN_SHARE": "0"
+    },
+    "noNARROW": {
+      "MAP_EGG_PROFILE_NARROW": "0"
+    },
+    "noPHASE": {
+      "EPMAPPING_PHASE_REUSE": "0"
+    },
+    "noSHANNON": {
+      "EPMAPPING_COFAC": "4"
+    },
+    "noDAVIO": {
+      "EPMAPPING_COFAC": "2"
+    },
+    "noREUSE": {
+      "EPMAPPING_PHASE_FANOUT": "0"
+    },
+    "noPRICE": {
+      "EPMAPPING_PHASE_COST": "0"
+    },
+    "cache64K": {
+      "EPMAPPING_SYN_CACHE": "65536"
+    },
+    "noAIGREUSE": {
+      "EPMAPPING_BUILD_REUSE": "0"
+    },
+    "noLIBSHARE": {
+      "EPMAPPING_SHARED_MAPPED_LIBRARY": "0"
+    },
+    "noQUERY": {
+      "EPMAPPING_LIVE_QUERY_CACHE": "8"
+    },
+    "noTRUTH": {
+      "EPMAPPING_LIVE_QUERY_CACHE": "1"
+    },
+    "allPIVOTS": {
+      "EPMAPPING_COFAC_PIVOTS": "0"
+    }
+  },
+  "method_goal_flags": {
+    "EPMAPPING_OBJECTIVE": "area_delay_bound",
+    "EPMAPPING_AREA_UNDER_DELAY": "1",
+    "EPMAPPING_WINDOW_SYN": "0",
+    "EPMAPPING_WRITE_BASELINE": "1",
+    "EPMAPPING_SAT_DC": "0",
+    "EPMAPPING_DSE": "0",
+    "EPMAPPING_EGG_REQ": "1",
+    "EPMAPPING_POST_TIMEOUT": "1000",
+    "EPMAPPING_CHAIN_FACTOR": "1",
+    "EPMAPPING_CHAIN_BLOCK": "2",
+    "EPMAPPING_CHAIN_SHARE": "1",
+    "EPMAPPING_FEASIBLE_COVERS": "1",
+    "MAP_EGG_PROFILE_NARROW": "1",
+    "EPMAPPING_PHASE_REUSE": "1",
+    "EPMAPPING_COFAC": "6",
+    "EPMAPPING_COFAC_MIN_LEAVES": "3",
+    "EPMAPPING_PHASE_COST": "1",
+    "EPMAPPING_PHASE_FANOUT": "1",
+    "MAP_EGG_PROFILE_PHASE_KEEP": "0",
+    "EPMAPPING_OPERATOR_POLICY": "3",
+    "EPMAPPING_SYN_CACHE": "262144",
+    "EPMAPPING_CHECKPOINT": "1",
+    "EPMAPPING_BUILD_REUSE": "2",
+    "EPMAPPING_SHARED_MAPPED_LIBRARY": "1",
+    "EPMAPPING_LIVE_QUERY_CACHE": "9",
+    "EPMAPPING_COFAC_PIVOTS": "2"
+  },
+  "post_timeout_seconds": 1000,
+  "abc_timeout_seconds": 1000,
+  "outer_process_guard_seconds": 3600,
+  "workers_per_cohort": 6,
+  "engine_workers": 1,
+  "maximum_native_workers": 12,
+  "independent_abc_workers": 6,
+  "cold_policy": "empty private e-graph pool per stage/arm/design",
+  "warm_policy": "reuse only paired cold pool after its result/provenance; all native caches restart",
+  "baseline_policy": "fresh 1000-second ABC batch shared by byte-identical warm cohort",
+  "baseline_scope": "same <=6-input sublibrary and initial netlist for mfs3; original full library for main and ablation",
+  "original_archive": "/home/flynn/workplace/MIGBalance/results_v20_three_parts_chain",
+  "expected_engine_runs": 736,
+  "expected_method_runs": 704,
+  "expected_fresh_abc_runs": 16,
+  "timeout_selection": "checkpoint",
+  "checkpoint_policy": "independent CEC and serialized PPA guard of best saved output; TO remains incomplete, not completed",
+  "native_cache_entries": 262144,
+  "capacity_ablation_entries": 65536,
+  "engine_sha256": "a48bf54b80ebd17b266e6fa1e3d6c2f7cf4af1318f01fcb18c2f6f97d03d0f37"
+}

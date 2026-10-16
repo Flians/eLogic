@@ -1,0 +1,398 @@
+{
+  "whole_window_synthesis": false,
+  "engine_cec_outputs": 349,
+  "baseline_cec_outputs": 16,
+  "main_own_area": -7.105879507980664,
+  "main_own_delay": -7.432345784912146,
+  "main_one_area": -5.042286058222667,
+  "main_one_delay": -4.898327582414619,
+  "main_other_area": -3.5862031015629836,
+  "main_other_delay": -3.0039954046933905,
+  "main_area_wins": 16,
+  "reference_area": -9.11990081538116,
+  "reference_delay": -6.923785422736665,
+  "reference_wins": 14,
+  "mfs_ours_area": -6.955472590948491,
+  "mfs_ours_delay": -5.467522658158299,
+  "abc_completed": 13,
+  "abc_timeouts": 3,
+  "abc_feasible": 6,
+  "abc_delay_violations": 7,
+  "cut_oracle_times": {
+    "secs_stage1": 602.4447588939998,
+    "secs_stage2": 201.75637493399998,
+    "secs_synth": 684.4732236360001,
+    "secs_egg": 250.30645205999997,
+    "secs_care": 61.504622958,
+    "secs_window": 0.0,
+    "secs_chain": 0.265436816
+  },
+  "method_timeouts": 3,
+  "selected_cec_outputs": 352,
+  "phase_timed_full_runs": 16,
+  "method_checkpoint_selections": 3,
+  "full_main_ppa_equal": {
+    "aes_core": true,
+    "arbiter": true,
+    "div": true,
+    "ethernet": true,
+    "iwls05_i2c": true,
+    "mem_ctrl": true,
+    "RISC": true,
+    "sasc": true,
+    "simple_spi": true,
+    "spi": true,
+    "sqrt": true,
+    "systemcaes": true,
+    "systemcdes": true,
+    "tv80": true,
+    "usb_funct": true,
+    "usb_phy": true
+  },
+  "cofactor_activity": {
+    "aes_core": {
+      "cofactor_wins": 434,
+      "secs_cofactor": 44.71756601,
+      "available": true
+    },
+    "arbiter": {
+      "cofactor_wins": 0,
+      "secs_cofactor": 1.863038682,
+      "available": true
+    },
+    "div": {
+      "cofactor_wins": 170,
+      "secs_cofactor": 14.85050458,
+      "available": true
+    },
+    "ethernet": {
+      "cofactor_wins": 9347,
+      "secs_cofactor": 23.42843271,
+      "available": true
+    },
+    "iwls05_i2c": {
+      "cofactor_wins": 54,
+      "secs_cofactor": 2.158773094,
+      "available": true
+    },
+    "mem_ctrl": {
+      "cofactor_wins": 2054,
+      "secs_cofactor": 101.4388104,
+      "available": true
+    },
+    "RISC": {
+      "cofactor_wins": 4248,
+      "secs_cofactor": 56.01580896,
+      "available": true
+    },
+    "sasc": {
+      "cofactor_wins": 54,
+      "secs_cofactor": 0.678351433,
+      "available": true
+    },
+    "simple_spi": {
+      "cofactor_wins": 74,
+      "secs_cofactor": 1.372945254,
+      "available": true
+    },
+    "spi": {
+      "cofactor_wins": 161,
+      "secs_cofactor": 6.665843479,
+      "available": true
+    },
+    "sqrt": {
+      "cofactor_wins": 1266,
+      "secs_cofactor": 23.81852668,
+      "available": true
+    },
+    "systemcaes": {
+      "cofactor_wins": 1248,
+      "secs_cofactor": 16.78027984,
+      "available": true
+    },
+    "systemcdes": {
+      "cofactor_wins": 176,
+      "secs_cofactor": 12.11114799,
+      "available": true
+    },
+    "tv80": {
+      "cofactor_wins": 310,
+      "secs_cofactor": 19.04058673,
+      "available": true
+    },
+    "usb_funct": {
+      "cofactor_wins": 751,
+      "secs_cofactor": 16.65231645,
+      "available": true
+    },
+    "usb_phy": {
+      "cofactor_wins": 24,
+      "secs_cofactor": 0.939624753,
+      "available": true
+    }
+  },
+  "cofactor_seconds": 344.810412144,
+  "abc_raw_area": -3.575691302200082,
+  "abc_guarded_area": -1.5940348664441888,
+  "paired_ours_area": -7.063179599648575,
+  "abc_raw_delay": 11.018744353868293,
+  "abc_guarded_delay": -0.14558063949823968,
+  "paired_ours_delay": -6.610547597300915,
+  "paired_area_wins": 7,
+  "guarded_paired_area_wins": 11,
+  "ablation": {
+    "full": {
+      "area": 0.0,
+      "worse": 0,
+      "better": 0,
+      "own_area": -7.105879507980664,
+      "own_delay": -7.432345784912146,
+      "optimizer_seconds": 1915.8493831189999,
+      "time_ratio": 1.0
+    },
+    "noSYN": {
+      "area": 394.70999999999947,
+      "worse": 16,
+      "better": 0,
+      "own_area": -3.9051680184811115,
+      "own_delay": -5.61044267703323,
+      "optimizer_seconds": 1135.205048175,
+      "time_ratio": 0.5925335562271017
+    },
+    "noEGG": {
+      "area": 3.8899999999995742,
+      "worse": 11,
+      "better": 0,
+      "own_area": -7.0514191741609835,
+      "own_delay": -7.423816406565098,
+      "optimizer_seconds": 1653.346249521,
+      "time_ratio": 0.8629834182629507
+    },
+    "noDB": {
+      "area": 1.6199999999993686,
+      "worse": 5,
+      "better": 7,
+      "own_area": -7.093108356692806,
+      "own_delay": -7.260743611263597,
+      "optimizer_seconds": 1365.2702611590003,
+      "time_ratio": 0.7126187857922016
+    },
+    "noCARE": {
+      "area": 15.159999999999123,
+      "worse": 13,
+      "better": 1,
+      "own_area": -7.0173015738841995,
+      "own_delay": -7.242745072389706,
+      "optimizer_seconds": 1744.600388309,
+      "time_ratio": 0.9106145836312003
+    },
+    "noCHAIN": {
+      "area": 334.08000000000004,
+      "worse": 1,
+      "better": 0,
+      "own_area": -3.3620654077152974,
+      "own_delay": -2.816245691900054,
+      "optimizer_seconds": 1905.81027027,
+      "time_ratio": 0.9947599675958576
+    },
+    "noSHARE": {
+      "area": 334.08000000000004,
+      "worse": 1,
+      "better": 0,
+      "own_area": -3.3620654077152974,
+      "own_delay": -2.816245691900054,
+      "optimizer_seconds": 1906.6111947170002,
+      "time_ratio": 0.9951780194813854
+    },
+    "noNARROW": {
+      "area": 0.9199999999998454,
+      "worse": 6,
+      "better": 0,
+      "own_area": -7.102617055187663,
+      "own_delay": -7.428114490401176,
+      "optimizer_seconds": 2367.217008756,
+      "time_ratio": 1.2355966129770464
+    },
+    "noPHASE": {
+      "area": 243.8199999999998,
+      "worse": 15,
+      "better": 0,
+      "own_area": -5.032886323499387,
+      "own_delay": -6.541978030754591,
+      "optimizer_seconds": 1413.1289627399997,
+      "time_ratio": 0.7375991950053129
+    },
+    "noSHANNON": {
+      "area": 148.1099999999998,
+      "worse": 15,
+      "better": 0,
+      "own_area": -5.756875883151738,
+      "own_delay": -7.533658354410004,
+      "optimizer_seconds": 1821.414746486,
+      "time_ratio": 0.9507087365713163
+    },
+    "noDAVIO": {
+      "area": 39.51999999999929,
+      "worse": 13,
+      "better": 1,
+      "own_area": -6.712804651724133,
+      "own_delay": -7.085329215076569,
+      "optimizer_seconds": 1758.2772883069997,
+      "time_ratio": 0.9177534015980562
+    },
+    "noREUSE": {
+      "area": 231.81999999999917,
+      "worse": 15,
+      "better": 0,
+      "own_area": -5.11349455272647,
+      "own_delay": -6.705610925291919,
+      "optimizer_seconds": 1754.760161655,
+      "time_ratio": 0.9159175961934195
+    },
+    "noPRICE": {
+      "area": 163.5899999999991,
+      "worse": 15,
+      "better": 0,
+      "own_area": -5.793188516806176,
+      "own_delay": -6.540764749938204,
+      "optimizer_seconds": 1317.395868373,
+      "time_ratio": 0.6876301863710609
+    },
+    "cache64K": {
+      "area": 0.0,
+      "worse": 0,
+      "better": 0,
+      "own_area": -7.105879507980664,
+      "own_delay": -7.432345784912146,
+      "optimizer_seconds": 2625.6487993990004,
+      "time_ratio": 1.3704881096260544
+    },
+    "noAIGREUSE": {
+      "area": 0.0,
+      "worse": 0,
+      "better": 0,
+      "own_area": -7.105879507980664,
+      "own_delay": -7.432345784912146,
+      "optimizer_seconds": 1895.967812957,
+      "time_ratio": 0.9896225818495018
+    },
+    "noLIBSHARE": {
+      "area": 0.0,
+      "worse": 0,
+      "better": 0,
+      "own_area": -7.105879507980664,
+      "own_delay": -7.432345784912146,
+      "optimizer_seconds": 1982.1632227870002,
+      "time_ratio": 1.0346132844535207
+    },
+    "noQUERY": {
+      "area": 68.62999999999965,
+      "worse": 2,
+      "better": 0,
+      "own_area": -6.73535775264939,
+      "own_delay": -6.9600968415713,
+      "optimizer_seconds": 4110.988404606001,
+      "time_ratio": 2.1457784942954743
+    },
+    "noTRUTH": {
+      "area": 0.0,
+      "worse": 0,
+      "better": 0,
+      "own_area": -7.105879507980664,
+      "own_delay": -7.432345784912146,
+      "optimizer_seconds": 1962.807170162,
+      "time_ratio": 1.0245101663297522
+    },
+    "allPIVOTS": {
+      "area": -39.99000000000004,
+      "worse": 0,
+      "better": 11,
+      "own_area": -7.843392843910236,
+      "own_delay": -7.329162289359293,
+      "optimizer_seconds": 2970.0465093500006,
+      "time_ratio": 1.5502505236161985
+    }
+  },
+  "chain_activity": {
+    "aes_core": {
+      "chain_wins": 0,
+      "secs_chain": 0.0,
+      "available": true
+    },
+    "arbiter": {
+      "chain_wins": 384,
+      "secs_chain": 0.055729088,
+      "available": true
+    },
+    "div": {
+      "chain_wins": 0,
+      "secs_chain": 0.0,
+      "available": true
+    },
+    "ethernet": {
+      "chain_wins": 0,
+      "secs_chain": 0.0,
+      "available": true
+    },
+    "iwls05_i2c": {
+      "chain_wins": 0,
+      "secs_chain": 0.0,
+      "available": true
+    },
+    "mem_ctrl": {
+      "chain_wins": 0,
+      "secs_chain": 0.225990777,
+      "available": true
+    },
+    "RISC": {
+      "chain_wins": 0,
+      "secs_chain": 0.0,
+      "available": true
+    },
+    "sasc": {
+      "chain_wins": 0,
+      "secs_chain": 0.0,
+      "available": true
+    },
+    "simple_spi": {
+      "chain_wins": 0,
+      "secs_chain": 0.0,
+      "available": true
+    },
+    "spi": {
+      "chain_wins": 0,
+      "secs_chain": 0.0,
+      "available": true
+    },
+    "sqrt": {
+      "chain_wins": 0,
+      "secs_chain": 0.0,
+      "available": true
+    },
+    "systemcaes": {
+      "chain_wins": 0,
+      "secs_chain": 0.0,
+      "available": true
+    },
+    "systemcdes": {
+      "chain_wins": 0,
+      "secs_chain": 0.0,
+      "available": true
+    },
+    "tv80": {
+      "chain_wins": 0,
+      "secs_chain": 0.0,
+      "available": true
+    },
+    "usb_funct": {
+      "chain_wins": 0,
+      "secs_chain": 0.0,
+      "available": true
+    },
+    "usb_phy": {
+      "chain_wins": 0,
+      "secs_chain": 0.0,
+      "available": true
+    }
+  }
+}

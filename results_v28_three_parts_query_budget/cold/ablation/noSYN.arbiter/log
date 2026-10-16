@@ -1,0 +1,54 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=11839
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/ablation/noSYN.arbiter/abc_4048157593509.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/ablation/noSYN.arbiter/abc_4048157593509_probe.aig'; quit".
+
+[i] ABC round 1: 11839 -> 11839 ands (no reduction); fixpoint after 0 round(s)
+[i] ABC baseline ands=11839
+[i] super library load = 0.492206002 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=557.72 delay=999.87 gates=6163 area_oriented=1 multioutput=0
+[i] post_mapping_timeout=1000 seconds (optimizer preparation and rebuilding included)
+[i] epmapping running (objective=1, objective_order=area_delay, global_objective_guard=1, preserve_depth=0, preserve_delay=0, delay_slack=0, rank_area_gain=1, required_times=1, area_under_delay=1, path_objective=0, critical_slack=0.001, max_area_growth=0, max_delay_growth=0, local_area_growth=0, max_rounds=6, egg=1, dc=1, dependency_cuts=0, chain_factor=1, chain_share=1, phase_reuse=1, phase_cost=1, phase_fanout=1, cofactor_modes=0, chain_block=2, observability_care=0, observability_min_depth=0, observability_budget=200, global_divisors=0, global_conflicts=2000, dependency_min_removed=1, dependency_internal=0, feasible_covers=1, dependency_pis=10, synth_cache=262144, cache_replace=1, cofactor_dedup=1, cofactor_proof_cache=1, cofactor_pivots=2, live_query_memo=9, shared_mapped_library=1, build_reuse=2, operator_policy=3, dc_window=per_node, single_matcher=index)
+[i] epmapping checkpoint round=0 area=557.72 delay=999.87 partial_round=0 netlist=checkpoint_4685_0.v
+[i] chain_factor proposed_area=361.88 proposed_delay=565.47 roots=128 segments=2944 products=384 accepted=1
+[i] epmapping checkpoint round=1 area=361.88 delay=565.47 partial_round=0 netlist=checkpoint_4685_1.v
+[i] chain_factor proposed_area=269.72 proposed_delay=348.27 roots=128 segments=1536 products=384 accepted=1
+[i] epmapping checkpoint round=2 area=269.72 delay=348.27 partial_round=0 netlist=checkpoint_4685_2.v
+[i] chain_factor proposed_area=235.16 proposed_delay=261.39 roots=128 segments=896 products=384 accepted=1
+[i] epmapping checkpoint round=3 area=235.16 delay=261.39 partial_round=0 netlist=checkpoint_4685_3.v
+[i] chain_factor proposed_area=246.68 proposed_delay=239.07 roots=128 segments=640 products=384 accepted=0
+[i] epmapping live_queries inverse=8799222 hits=8734202 level_skips=6432 walks=1540 removed_builds=2289460 removed_hits=0 tt_hits=6436 local_tt=114728
+[i] epmapping synth_cache lookups=0 hits=0
+[i] epmapping cofactor_duplicates=0
+[i] epmapping cofactor_proofs=0
+[i] operator_policy source=egraph bucket=132 calls=512 build_requests=512 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.071116426 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=512
+[i] operator_policy source=egraph bucket=264 calls=2176 build_requests=2176 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.345679746 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=4352
+[i] operator_policy source=egraph bucket=268 calls=2688 build_requests=2688 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.594341947 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=5376
+[i] operator_policy source=egraph bucket=272 calls=36 build_requests=36 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.20488755 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=288
+[i] operator_policy source=egraph bucket=278 calls=512 build_requests=512 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=2.251974474 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=3054
+[i] operator_policy source=egraph bucket=328 calls=512 build_requests=512 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.083679492 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=1024
+[i] map_egg paths library_hits=0 egg_calls=6436 egg_cache_hits=0
+[i] epmapping rounds=4 replacements_per_round=128,128,128,0
+[i] epmapping roots=12108 cuts=114728 dc_cuts=27008 dc_cuts_over_free=26752 dc_free_hist=0,0,0,0,256,0,0,0,26752 rejected=0
+[i] epmapping objective_guard rollbacks=0 discarded_replacements=0
+[i] epmapping path_objective critical_roots=0 noncritical_roots=0 critical_replacements=0 noncritical_replacements=0
+[i] epmapping replacements=384 (egg=0, single=0, multi=0, synth=0, window=0)
+[i] epmapping experimental_replacements dependency=0 divisor=0 global=0 chain=384
+[i] epmapping cofactor cuts=0 builds=0 hits=0 covers=0 replacements=0 secs=0
+[i] epmapping build_reuse mapping_calls=0 alias_hits=0 reused=0 factor_seconds=0 mapping_seconds=0 proof_seconds=0 key_seconds=0
+[i] epmapping phase: replacements with input negation=0 with inverted output=0
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=0 mffc_cut_egg_roots=6436 egg_covers=14606 reject_depth=0 reject_delay=0 reject_objective=1263968 reject_objective_by_source=0,14606,0,0,0,0,0,0,0,0,0
+[i] epmapping staged_secs cut_enum=0.258485575 care=1.512334866 stage1=5.765156932 stage2=4.242485802 egg=3.555099954 mffc=0.038855914 care_cache=0/0 care_mismatch=0 dc_cut=0.012834634 dc_collect=0.00723809 dc_sim=0.079913801 dc_window=1.506404681 dc_cone=0 win_calls=11596 win_gates_avg=5 win_gates_max=7 node_windows=11596 node_window_cuts=114212 node_window_no_dc=22940 node_window_pis_max=8
+[i] epmapping window_synth windows=0 applied=0 gain=0 actual=0 gates=0 abandoned=0 delay_rejected=0 secs=0
+[i] epmapping synth roots=0 covers=0 wins=0 secs=0
+[i] dependency cuts=0 wins=0 reuse=0 secs=0
+[i] global_divisors sampled=0 sat_queries=0 proved=0 unknown=0 wins=0 secs=0
+[i] observability cuts=0 queries=0 cleared=0 projected=0 unknown=0 wins=0 secs=0
+[i] chain_factor attempts=4 roots=384 rejected=1 product_hits=4480 segment_hits=4224 secs=0.054283291
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 557.72 -> 235.16 delay 999.87 -> 261.39
+[i] epmapping_failure_reason =114728
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold/ablation/noSYN.arbiter/epmapping_mapped.v"
+[i] egraph_profile memory_hits=6412 disk_hits=0 builds=24 corrupt=0 write_failures=0 legacy_fallbacks=0
+[i] cec=1
+[i] epmapping timing preprocess=3.681287718 library=2.671852771 mapping=1.201804403 optimizer=15.89331439 validation=1.097785121 total=24.55416874

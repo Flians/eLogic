@@ -1,0 +1,12 @@
+{
+  "design": "sqrt",
+  "rc": 124,
+  "secs": 1000.005890251,
+  "cec": 0,
+  "validation_secs": 0,
+  "baseline": {
+    "area": 1355.08,
+    "delay": 101970.38
+  },
+  "baseline_sha256": "465210878eddf8c804cea9db872112d835717bc31e89c49391cfeb8ef0345f5e"
+}

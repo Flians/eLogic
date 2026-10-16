@@ -262,6 +262,14 @@ impl TechLib {
     }
 
     pub fn from_genlib<P: AsRef<Path>>(path: P, max_inputs: usize) -> Result<Self, GenlibError> {
+        let mut lib = Self::from_genlib_unindexed(path, max_inputs)?;
+        lib.build_index();
+        Ok(lib)
+    }
+
+    /// Parse the complete library without eagerly enumerating every NP variant.
+    /// Profile extraction enumerates the cells actually present in its cover DAG.
+    pub(crate) fn from_genlib_unindexed<P: AsRef<Path>>(path: P, max_inputs: usize) -> Result<Self, GenlibError> {
         let contents = fs::read_to_string(path)?;
         let mut lib = Self {
             inv_area: f32::INFINITY,
@@ -275,7 +283,6 @@ impl TechLib {
         lib.detect_and2();
         lib.detect_buffer();
         lib.detect_constants();
-        lib.build_index();
         Ok(lib)
     }
 
@@ -571,6 +578,25 @@ impl TechLib {
                 }
             }
         }
+    }
+
+    /// Same cell-specific variants as the eager index, in the same enumeration order.
+    pub(crate) fn matching_cell_variants(&self, cell: &Cell) -> Vec<CellVariant> {
+        let n = cell.vars.len();
+        if n == 0 || n > 9 { return Vec::new(); }
+        let mut variants = Vec::new();
+        for perm in all_permutations(n as u8) {
+            let pin_names: Vec<String> = perm.iter().map(|&i| cell.vars[i as usize].clone()).collect();
+            let pin_delay = pin_names.iter().map(|p| cell.pin_delay.get(p).copied().unwrap_or(0.)).collect::<Vec<_>>();
+            for neg_mask in 0..if n <= 6 {1u16 << n} else {1} {
+                for out_neg in [false, true] {
+                    if permute_negate_tt9(&cell.tt,n as u8,&perm,neg_mask,out_neg) != cell.tt {continue;}
+                    let v = CellVariant {cell_name:cell.name.clone(),out_pin:cell.out_pin.clone(),n_inputs:n as u8,perm:perm.clone(),neg_mask,out_neg,area:cell.area,pin_delay:pin_delay.clone(),pin_names:pin_names.clone()};
+                    if self.variant_tt_wiring(&v) == Some(cell.tt) { variants.push(v); }
+                }
+            }
+        }
+        variants
     }
 
     #[must_use]

@@ -1,0 +1,281 @@
+/* mockturtle: C++ logic network library
+ * Copyright (C) 2018-2022  EPFL
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+/*!
+  \file aiger_reader.hpp
+  \brief Lorina reader for AIGER files
+
+  \author Heinz Riener
+  \author Mathias Soeken
+  \author Siang-Yun (Sonia) Lee
+*/
+
+#pragma once
+
+#include "../networks/aig.hpp"
+#include "../networks/sequential.hpp"
+#include "../traits.hpp"
+#include <lorina/aiger.hpp>
+#include <iostream>
+
+namespace mockturtle
+{
+
+/*! \brief Lorina reader callback for Aiger files.
+ *
+ * **Required network functions:**
+ * - `create_pi`
+ * - `create_po`
+ * - `get_constant`
+ * - `create_not`
+ * - `create_and`
+ *
+ * **Optional network functions to support sequential networks:**
+ * - `create_ri`
+ * - `create_ro`
+ *
+ * A network type that implements neither cannot hold registers.  Reading a
+ * latched AIGER file into one flattens a single timeframe of the design: each
+ * latch output becomes a primary input, appended behind the file's own primary
+ * inputs, and each latch next-state function becomes a primary output, appended
+ * behind the file's own primary outputs.  No logic is lost, but the sequential
+ * behaviour is: the registers become free inputs.  Use a `sequential<Ntk>` to
+ * read the design as the sequential network it is.
+ *
+   \verbatim embed:rst
+
+   Example
+
+   .. code-block:: c++
+
+      aig_network aig;
+      lorina::read_aiger( "file.aig", aiger_reader( aig ) );
+
+      mig_network mig;
+      lorina::read_aiger( "file.aig", aiger_reader( mig ) );
+   \endverbatim
+ */
+template<typename Ntk>
+class aiger_reader : public lorina::aiger_reader
+{
+public:
+  explicit aiger_reader( Ntk& ntk ) : _ntk( ntk )
+  {
+    static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
+    static_assert( has_create_pi_v<Ntk>, "Ntk does not implement the create_pi function" );
+    static_assert( has_create_po_v<Ntk>, "Ntk does not implement the create_po function" );
+    static_assert( has_get_constant_v<Ntk>, "Ntk does not implement the get_constant function" );
+    static_assert( has_create_not_v<Ntk>, "Ntk does not implement the create_not function" );
+    static_assert( has_create_and_v<Ntk>, "Ntk does not implement the create_and function" );
+  }
+
+  /*! \brief Whether the network type can hold registers. */
+  static constexpr bool has_registers = has_create_ri_v<Ntk> && has_create_ro_v<Ntk>;
+
+  ~aiger_reader()
+  {
+    uint32_t output_id{ 0 };
+    for ( auto out : outputs )
+    {
+      auto const lit = std::get<0>( out );
+      auto signal = signals[lit >> 1];
+      if ( lit & 1 )
+      {
+        signal = _ntk.create_not( signal );
+      }
+      if constexpr ( has_set_output_name_v<Ntk> )
+      {
+        if ( !std::get<1>( out ).empty() )
+        {
+          _ntk.set_output_name( output_id, std::get<1>( out ) );
+        }
+      }
+      ++output_id;
+      _ntk.create_po( signal );
+    }
+
+    for ( auto i = 0u; i < latches.size(); ++i )
+    {
+      auto& latch = latches[i];
+      auto const lit = std::get<0>( latch );
+
+      auto signal = signals[lit >> 1];
+      if ( lit & 1 )
+      {
+        signal = _ntk.create_not( signal );
+      }
+
+      if constexpr ( has_set_name_v<Ntk> )
+      {
+        _ntk.set_name( signal, std::get<2>( latch ) + "_next" );
+      }
+
+      if constexpr ( has_registers )
+      {
+        _ntk.create_ri( signal );
+        register_t reg;
+        reg.init = std::get<1>( latch );
+        _ntk.set_register( i, reg );
+      }
+      else
+      {
+        /* The network cannot hold registers.  `on_header` materialized the latch
+           outputs as primary inputs, so keep their next-state functions by
+           appending them as primary outputs; dropping them would silently
+           discard every gate that only feeds a register. */
+        _ntk.create_po( signal );
+      }
+    }
+  }
+
+  void on_header( uint64_t, uint64_t num_inputs, uint64_t num_latches, uint64_t, uint64_t ) const override
+  {
+    if constexpr ( !has_registers )
+    {
+      if ( num_latches != 0u )
+      {
+        std::cerr << "[w] network type does not support latches, applying comb: ROs become PIs, RIs become POs\n";
+      }
+    }
+
+    _num_inputs = static_cast<uint32_t>( num_inputs );
+
+    /* constant */
+    signals.push_back( _ntk.get_constant( false ) );
+
+    /* create primary inputs (pi) */
+    for ( auto i = 0u; i < num_inputs; ++i )
+    {
+      signals.push_back( _ntk.create_pi() );
+    }
+
+    /* create latch outputs (ro), or primary inputs standing in for them.  Every
+       AIGER literal above `1 + num_inputs` refers to one of these, so a signal
+       must be pushed for each of them whether the network can hold registers or
+       not: skipping them leaves `signals` short and `on_and` reads past its
+       end. */
+    for ( auto i = 0u; i < num_latches; ++i )
+    {
+      if constexpr ( has_registers )
+      {
+        signals.push_back( _ntk.create_ro() );
+      }
+      else
+      {
+        signals.push_back( _ntk.create_pi() );
+      }
+    }
+  }
+
+  void on_input_name( unsigned index, const std::string& name ) const override
+  {
+    if constexpr ( has_set_name_v<Ntk> )
+    {
+      _ntk.set_name( signals[1 + index], name );
+    }
+  }
+
+  void on_output_name( unsigned index, const std::string& name ) const override
+  {
+    std::get<1>( outputs[index] ) = name;
+  }
+
+  void on_latch_name( unsigned index, const std::string& name ) const override
+  {
+    if constexpr ( has_set_name_v<Ntk> )
+    {
+      _ntk.set_name( signals[1 + _num_inputs + index], name );
+    }
+    std::get<2>( latches[index] ) = name;
+  }
+
+  void on_and( unsigned index, unsigned left_lit, unsigned right_lit ) const override
+  {
+    (void)index;
+    assert( signals.size() == index );
+
+    auto left = signals[left_lit >> 1];
+    if ( left_lit & 1 )
+    {
+      left = _ntk.create_not( left );
+    }
+
+    auto right = signals[right_lit >> 1];
+    if ( right_lit & 1 )
+    {
+      right = _ntk.create_not( right );
+    }
+
+    signals.push_back( _ntk.create_and( left, right ) );
+  }
+
+  void on_latch( unsigned index, unsigned next, latch_init_value reset ) const override
+  {
+    (void)index;
+    /* AIGER cannot express `unknown`: a latch either has a defined reset value
+       or is explicitly nondeterministic. */
+    uint8_t const r = reset == latch_init_value::NONDETERMINISTIC ? register_init::dont_care
+                      : reset == latch_init_value::ONE            ? register_init::one
+                                                                  : register_init::zero;
+    latches.push_back( std::make_tuple( next, r, "" ) );
+  }
+
+  void on_output( unsigned index, unsigned lit ) const override
+  {
+    (void)index;
+    assert( index == outputs.size() );
+    ++_num_outputs;
+    outputs.emplace_back( lit, "" );
+  }
+
+  void on_bad_state( uint32_t index, uint32_t lit ) const override
+  {
+    /* A bad-state property is a signal that must never become 1. Logic networks
+       have no notion of properties, so it is kept as a primary output; dropping
+       it would silently discard logic. Writers that emit the AIGER 1.9 extended
+       header move the primary outputs into this section -- ABC does so for any
+       design with a non-zero latch initialization -- so reading them back as
+       primary outputs restores the original network. */
+    (void)index;
+    outputs.emplace_back( lit, "" );
+  }
+
+  void on_bad_state_name( uint32_t pos, const std::string& name ) const override
+  {
+    /* bad states are appended behind the primary outputs, see `on_bad_state` */
+    std::get<1>( outputs[_num_outputs + pos] ) = name;
+  }
+
+private:
+  Ntk& _ntk;
+
+  mutable uint32_t _num_inputs{ 0 };
+  mutable uint32_t _num_outputs{ 0 };
+  mutable std::vector<std::tuple<unsigned, std::string>> outputs;
+  mutable std::vector<typename Ntk::signal> signals;
+  mutable std::vector<std::tuple<unsigned, uint8_t, std::string>> latches;
+};
+
+} /* namespace mockturtle */

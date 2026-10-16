@@ -1,0 +1,12 @@
+{
+  "design": "mem_ctrl",
+  "rc": 124,
+  "secs": 1000.0074287430001,
+  "cec": 0,
+  "validation_secs": 0,
+  "baseline": {
+    "area": 2323.99,
+    "delay": 1726.27
+  },
+  "baseline_sha256": "c600ac3976d81be446dcca833d086b9557a52d7280104681aa3162e05e2c6d1a"
+}

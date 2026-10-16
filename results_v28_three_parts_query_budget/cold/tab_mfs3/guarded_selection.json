@@ -1,0 +1,119 @@
+[
+  {
+    "design": "aes_core",
+    "retained_raw_output": false,
+    "area": 1113.13,
+    "delay": 410.49,
+    "selected_netlist": "tab_mfs3/abc.aes_core/guarded.v",
+    "selected_sha256": "fdbf2339888d2b0153093390c667e943bc9ee07d163eb270aba80aa1413bc34b",
+    "source_netlist": "tab_mfs3/base.aes_core/epmapping_mapped.v"
+  },
+  {
+    "design": "arbiter",
+    "retained_raw_output": true,
+    "area": 557.72,
+    "delay": 999.87,
+    "selected_netlist": "tab_mfs3/abc.arbiter/guarded.v",
+    "selected_sha256": "c4700cf2485ed1cc94e932532d4d6b5e692b973ff4bd6dec4c1bf0e75788eebb",
+    "source_netlist": "tab_mfs3/abc.arbiter/mapped.v"
+  },
+  {
+    "design": "ethernet",
+    "retained_raw_output": false,
+    "area": 3739.47,
+    "delay": 557.03,
+    "selected_netlist": "tab_mfs3/abc.ethernet/guarded.v",
+    "selected_sha256": "d26a28feb197ce14477b1103db7e3c9683ffb4edab919fe3a0d8fa320201f655",
+    "source_netlist": "tab_mfs3/base.ethernet/epmapping_mapped.v"
+  },
+  {
+    "design": "iwls05_i2c",
+    "retained_raw_output": true,
+    "area": 57.09,
+    "delay": 233.88,
+    "selected_netlist": "tab_mfs3/abc.iwls05_i2c/guarded.v",
+    "selected_sha256": "8dee36e166567da5baebdfa58eec4dc66425f0ed535ab9abbc1ce3cb823135f9",
+    "source_netlist": "tab_mfs3/abc.iwls05_i2c/mapped.v"
+  },
+  {
+    "design": "RISC",
+    "retained_raw_output": false,
+    "area": 3594.28,
+    "delay": 696.43,
+    "selected_netlist": "tab_mfs3/abc.RISC/guarded.v",
+    "selected_sha256": "57a7724c67bda53eb855b07ec24a8ad2e5df826f6cdd1bbb833673a259215bad",
+    "source_netlist": "tab_mfs3/base.RISC/epmapping_mapped.v"
+  },
+  {
+    "design": "sasc",
+    "retained_raw_output": true,
+    "area": 35.19,
+    "delay": 140.61,
+    "selected_netlist": "tab_mfs3/abc.sasc/guarded.v",
+    "selected_sha256": "06d97654e870cd0e1a3c1f2ee63f70ced7a751dbc4bc6e2e0bb86e6400a44e1c",
+    "source_netlist": "tab_mfs3/abc.sasc/mapped.v"
+  },
+  {
+    "design": "simple_spi",
+    "retained_raw_output": true,
+    "area": 48.3,
+    "delay": 214.5,
+    "selected_netlist": "tab_mfs3/abc.simple_spi/guarded.v",
+    "selected_sha256": "0f16c5403b893cd89a577d4a0ef0dc206b276302d0729bb46788e9ea7dc0ff2e",
+    "source_netlist": "tab_mfs3/abc.simple_spi/mapped.v"
+  },
+  {
+    "design": "spi",
+    "retained_raw_output": false,
+    "area": 183.08,
+    "delay": 472.43,
+    "selected_netlist": "tab_mfs3/abc.spi/guarded.v",
+    "selected_sha256": "9480cddacbcc295abbe28920d5e0f6b7a70fbc0c6d75229b3c464f55af6410ec",
+    "source_netlist": "tab_mfs3/base.spi/epmapping_mapped.v"
+  },
+  {
+    "design": "systemcaes",
+    "retained_raw_output": false,
+    "area": 559.33,
+    "delay": 775.42,
+    "selected_netlist": "tab_mfs3/abc.systemcaes/guarded.v",
+    "selected_sha256": "42d999db31aee9057b37ad868141d51dd8e65f7a80ceb1fa6bd7eaba2c8fc106",
+    "source_netlist": "tab_mfs3/base.systemcaes/epmapping_mapped.v"
+  },
+  {
+    "design": "systemcdes",
+    "retained_raw_output": false,
+    "area": 151.07,
+    "delay": 416.79,
+    "selected_netlist": "tab_mfs3/abc.systemcdes/guarded.v",
+    "selected_sha256": "34ca11a2cb68a9300e9017404853ecc5158beedea394979df74901929a6710eb",
+    "source_netlist": "tab_mfs3/base.systemcdes/epmapping_mapped.v"
+  },
+  {
+    "design": "tv80",
+    "retained_raw_output": false,
+    "area": 462.39,
+    "delay": 799.99,
+    "selected_netlist": "tab_mfs3/abc.tv80/guarded.v",
+    "selected_sha256": "364ad23ddab18b9106f960c265486e35038adac332252eb3e12c88e30762827e",
+    "source_netlist": "tab_mfs3/base.tv80/epmapping_mapped.v"
+  },
+  {
+    "design": "usb_funct",
+    "retained_raw_output": true,
+    "area": 781.99,
+    "delay": 420.02,
+    "selected_netlist": "tab_mfs3/abc.usb_funct/guarded.v",
+    "selected_sha256": "e5e49f084ddeaad7548660355811f9561dd608c7b02a7d269369210b71628398",
+    "source_netlist": "tab_mfs3/abc.usb_funct/mapped.v"
+  },
+  {
+    "design": "usb_phy",
+    "retained_raw_output": true,
+    "area": 24.53,
+    "delay": 155.17,
+    "selected_netlist": "tab_mfs3/abc.usb_phy/guarded.v",
+    "selected_sha256": "9ac95411d7613d29a91fb8166eafbb4ec0558cf2da27a7bb66f34ab30b8d97c0",
+    "source_netlist": "tab_mfs3/abc.usb_phy/mapped.v"
+  }
+]

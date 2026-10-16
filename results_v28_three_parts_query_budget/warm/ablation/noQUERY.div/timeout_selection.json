@@ -1,0 +1,27 @@
+{
+  "raw_returncode": 142,
+  "status": "optimizer_timeout",
+  "post_seconds": 1000,
+  "selected": "checkpoint",
+  "netlist": "checkpoint_8474_17.v",
+  "area": 1183.1000000000522,
+  "delay": 53062.719999999346,
+  "cec": 1,
+  "checkpoint": {
+    "version": 1,
+    "pid": 8474,
+    "round": 1,
+    "partial_round": true,
+    "area": 1183.1000000000522,
+    "delay": 53062.719999999346,
+    "optimizer_seconds": 899.094586822,
+    "cec": null,
+    "netlist": "checkpoint_8474_17.v"
+  },
+  "selected_netlist_sha256": "2ff6b058244194de63d3a9e9bfd354b9e6fec102a8b59e80faa643dec5958f6a",
+  "cec_source": "/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noQUERY.div/checkpoint_cec.log",
+  "cec_log_sha256": "841607736a331e702d0daca106950bb72fc64c8a80c32bbb616b711486a047a8",
+  "initial_sha256": "e608cf494f0bd5280f6221990762f0363316ccfac8e987e1d16c9d656c55c937",
+  "raw_row_sha256": "f831a9911458ac24e992130c771d597d4657cc3c8c0c373df10d547f9aacfc9b",
+  "raw_log_sha256": "bdbf99996860eef7c3bec9c6a9845131bfccc0a929739aed1627d4c5ed7b846e"
+}

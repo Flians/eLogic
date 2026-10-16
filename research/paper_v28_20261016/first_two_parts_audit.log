@@ -1,0 +1,50 @@
+{
+  "cold/tab_mfs3/ours": {
+    "completed": 16,
+    "timeouts": 0,
+    "mean_area_change_percent": -6.95547259094651,
+    "mean_delay_change_percent": -5.467522658158286,
+    "mean_seconds": 115.51379252187499,
+    "max_seconds": 407.0801476
+  },
+  "cold/tab_main/ae.r1": {
+    "completed": 16,
+    "timeouts": 0,
+    "mean_area_change_percent": -5.042286058221423,
+    "mean_delay_change_percent": -4.898327582414597,
+    "mean_seconds": 101.765912312875,
+    "max_seconds": 363.1090017
+  },
+  "cold/tab_main/ae": {
+    "completed": 16,
+    "timeouts": 0,
+    "mean_area_change_percent": -7.105879507979207,
+    "mean_delay_change_percent": -7.43234578491212,
+    "mean_seconds": 201.37351566925,
+    "max_seconds": 713.5067684
+  },
+  "warm/tab_mfs3/ours": {
+    "completed": 16,
+    "timeouts": 0,
+    "mean_area_change_percent": -6.95547259094651,
+    "mean_delay_change_percent": -5.467522658158286,
+    "mean_seconds": 59.96255793425,
+    "max_seconds": 342.4326236
+  },
+  "warm/tab_main/ae.r1": {
+    "completed": 16,
+    "timeouts": 0,
+    "mean_area_change_percent": -5.042286058221423,
+    "mean_delay_change_percent": -4.898327582414597,
+    "mean_seconds": 49.401031866,
+    "max_seconds": 191.9516633
+  },
+  "warm/tab_main/ae": {
+    "completed": 16,
+    "timeouts": 0,
+    "mean_area_change_percent": -7.105879507979207,
+    "mean_delay_change_percent": -7.43234578491212,
+    "mean_seconds": 118.749026042125,
+    "max_seconds": 463.8677512
+  }
+}

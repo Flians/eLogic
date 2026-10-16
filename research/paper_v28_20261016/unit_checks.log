@@ -1,0 +1,2 @@
+raw CEC, no-care configuration, metric consistency and uniqueness checks passed
+Cold/warm/corrupt-rebuild outputs match; timing-library changes invalidate persisted pools; all pass CEC and bounds

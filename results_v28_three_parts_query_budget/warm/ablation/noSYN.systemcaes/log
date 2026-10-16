@@ -1,0 +1,119 @@
+[i] ABC baseline: high_effort, round="fraig; resyn2rs; fraig; compress2rs", ands=12384
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134_probe.aig'; quit".
+
+[i] ABC round 1: 12384 -> 9523 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134_probe.aig'; quit".
+
+[i] ABC round 2: 9523 -> 9481 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134_probe.aig'; quit".
+
+[i] ABC round 3: 9481 -> 9472 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134_probe.aig'; quit".
+
+[i] ABC round 4: 9472 -> 9469 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134_probe.aig'; quit".
+
+[i] ABC round 5: 9469 -> 9468 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134_probe.aig'; quit".
+
+[i] ABC round 6: 9468 -> 9460 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134_probe.aig'; quit".
+
+[i] ABC round 7: 9460 -> 9454 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134_probe.aig'; quit".
+
+[i] ABC round 8: 9454 -> 9449 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134_probe.aig'; quit".
+
+[i] ABC round 9: 9449 -> 9446 ands
+ABC command line: "read_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134.aig'; fraig; resyn2rs; fraig; compress2rs; write_aiger '/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/abc_13126723873134_probe.aig'; quit".
+
+[i] ABC round 10: 9446 -> 9446 ands (no reduction); fixpoint after 9 round(s)
+[i] ABC baseline ands=9446
+[i] super library load = 0.495721215 s
+[i] super library: 505598 gates, max_vars=4
+[i] emap area=483.75 delay=709.03 gates=4166 area_oriented=1 multioutput=0
+[i] post_mapping_timeout=1000 seconds (optimizer preparation and rebuilding included)
+[i] epmapping running (objective=1, objective_order=area_delay, global_objective_guard=1, preserve_depth=0, preserve_delay=0, delay_slack=0, rank_area_gain=1, required_times=1, area_under_delay=1, path_objective=0, critical_slack=0.001, max_area_growth=0, max_delay_growth=0, local_area_growth=0, max_rounds=6, egg=1, dc=1, dependency_cuts=0, chain_factor=1, chain_share=1, phase_reuse=1, phase_cost=1, phase_fanout=1, cofactor_modes=0, chain_block=2, observability_care=0, observability_min_depth=0, observability_budget=200, global_divisors=0, global_conflicts=2000, dependency_min_removed=1, dependency_internal=0, feasible_covers=1, dependency_pis=10, synth_cache=262144, cache_replace=1, cofactor_dedup=1, cofactor_proof_cache=1, cofactor_pivots=2, live_query_memo=9, shared_mapped_library=1, build_reuse=2, operator_policy=3, dc_window=per_node, single_matcher=index)
+[i] epmapping checkpoint round=0 area=483.75 delay=709.03 partial_round=0 netlist=checkpoint_20964_0.v
+[i] epmapping checkpoint round=1 area=478.1 delay=682.01 partial_round=0 netlist=checkpoint_20964_1.v
+[i] epmapping checkpoint round=2 area=478.03 delay=681.61 partial_round=0 netlist=checkpoint_20964_2.v
+[i] epmapping checkpoint round=3 area=478.02 delay=681.61 partial_round=0 netlist=checkpoint_20964_3.v
+[i] epmapping live_queries inverse=11718082 hits=11651585 level_skips=28589 walks=3792 removed_builds=3062094 removed_hits=0 tt_hits=5789 local_tt=124555
+[i] epmapping synth_cache lookups=0 hits=0
+[i] epmapping cofactor_duplicates=0
+[i] epmapping cofactor_proofs=0
+[i] operator_policy source=egraph bucket=132 calls=2292 build_requests=2292 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.343657576 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=2292
+[i] operator_policy source=egraph bucket=136 calls=1208 build_requests=1208 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.19739547 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=3062
+[i] operator_policy source=egraph bucket=140 calls=113 build_requests=113 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.026978439 build_seconds=0 proposals=1 committed=1 credited_area=7.15255738e-09 delay_rejects=0 area_rejects=584
+[i] operator_policy source=egraph bucket=146 calls=47 build_requests=47 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.009986702 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=47
+[i] operator_policy source=egraph bucket=150 calls=5 build_requests=5 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.001189513 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=5
+[i] operator_policy source=egraph bucket=168 calls=1 build_requests=1 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.000159008 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=1 area_rejects=1
+[i] operator_policy source=egraph bucket=200 calls=276 build_requests=276 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.044618936 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=590
+[i] operator_policy source=egraph bucket=204 calls=4 build_requests=4 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.00089069 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=20
+[i] operator_policy source=egraph bucket=210 calls=3 build_requests=3 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.000612982 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=3
+[i] operator_policy source=egraph bucket=214 calls=3 build_requests=3 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.000806777 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=3
+[i] operator_policy source=egraph bucket=232 calls=1 build_requests=1 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.000156234 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=1 area_rejects=1
+[i] operator_policy source=egraph bucket=264 calls=309 build_requests=309 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.048985198 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=618
+[i] operator_policy source=egraph bucket=265 calls=12 build_requests=12 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.005888755 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=24
+[i] operator_policy source=egraph bucket=268 calls=120 build_requests=120 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.021723979 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=592
+[i] operator_policy source=egraph bucket=269 calls=35 build_requests=35 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.006177804 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=128
+[i] operator_policy source=egraph bucket=273 calls=12 build_requests=12 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.002260725 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=12
+[i] operator_policy source=egraph bucket=296 calls=1 build_requests=1 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.000156191 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=1 area_rejects=1
+[i] operator_policy source=egraph bucket=328 calls=227 build_requests=227 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.036086863 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=454
+[i] operator_policy source=egraph bucket=329 calls=23 build_requests=23 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.003700992 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=46
+[i] operator_policy source=egraph bucket=332 calls=240 build_requests=240 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.043246671 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=1136
+[i] operator_policy source=egraph bucket=333 calls=177 build_requests=177 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.030412605 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=434
+[i] operator_policy source=egraph bucket=336 calls=12 build_requests=12 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.002718333 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=96
+[i] operator_policy source=egraph bucket=337 calls=60 build_requests=60 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.011758543 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=112
+[i] operator_policy source=egraph bucket=340 calls=28 build_requests=28 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.007671127 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=224
+[i] operator_policy source=egraph bucket=341 calls=364 build_requests=364 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.09140088 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=2880
+[i] operator_policy source=egraph bucket=343 calls=1 build_requests=1 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.000671487 build_seconds=0 proposals=1 committed=1 credited_area=0.01999999702 delay_rejects=0 area_rejects=7
+[i] operator_policy source=egraph bucket=345 calls=4 build_requests=4 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.002103122 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=32
+[i] operator_policy source=egraph bucket=360 calls=1 build_requests=1 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.000160035 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=1 area_rejects=1
+[i] operator_policy source=egraph bucket=396 calls=12 build_requests=12 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.002634973 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=44
+[i] operator_policy source=egraph bucket=397 calls=4 build_requests=4 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.000915563 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=20
+[i] operator_policy source=egraph bucket=398 calls=4 build_requests=4 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.001043844 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=20
+[i] operator_policy source=egraph bucket=400 calls=1 build_requests=1 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.000237866 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=3
+[i] operator_policy source=egraph bucket=402 calls=28 build_requests=28 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.009155285 build_seconds=0 proposals=1 committed=1 credited_area=0.009999986887 delay_rejects=0 area_rejects=180
+[i] operator_policy source=egraph bucket=403 calls=4 build_requests=4 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.001503321 build_seconds=0 proposals=1 committed=1 credited_area=0 delay_rejects=0 area_rejects=22
+[i] operator_policy source=egraph bucket=406 calls=1 build_requests=1 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.000411641 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=6
+[i] operator_policy source=egraph bucket=407 calls=4 build_requests=4 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.000930736 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=4
+[i] operator_policy source=egraph bucket=460 calls=28 build_requests=28 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.006818288 build_seconds=0 proposals=4 committed=4 credited_area=0.01999999642 delay_rejects=0 area_rejects=108
+[i] operator_policy source=egraph bucket=461 calls=7 build_requests=7 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.001349333 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=13
+[i] operator_policy source=egraph bucket=462 calls=4 build_requests=4 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.000816507 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=12
+[i] operator_policy source=egraph bucket=464 calls=13 build_requests=13 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.003229859 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=67
+[i] operator_policy source=egraph bucket=466 calls=48 build_requests=48 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.015017377 build_seconds=0 proposals=2 committed=2 credited_area=0.009999992847 delay_rejects=10 area_rejects=203
+[i] operator_policy source=egraph bucket=467 calls=8 build_requests=8 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.002026679 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=21
+[i] operator_policy source=egraph bucket=468 calls=4 build_requests=4 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.001284018 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=32
+[i] operator_policy source=egraph bucket=470 calls=22 build_requests=22 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.005501071 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=29
+[i] operator_policy source=egraph bucket=471 calls=5 build_requests=5 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.00167898 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=32
+[i] operator_policy source=egraph bucket=473 calls=4 build_requests=4 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.001132339 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=32
+[i] operator_policy source=egraph bucket=474 calls=8 build_requests=8 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.002365806 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=0 area_rejects=8
+[i] operator_policy source=egraph bucket=503 calls=1 build_requests=1 cache_hits=0 deferred=0 rechecked=0 dominated=0 skipped=0 seconds=0.000400194 build_seconds=0 proposals=0 committed=0 credited_area=0 delay_rejects=3 area_rejects=1
+[i] map_egg paths library_hits=0 egg_calls=5789 egg_cache_hits=0
+[i] epmapping rounds=4 replacements_per_round=342,243,158,148
+[i] epmapping roots=15690 cuts=124555 dc_cuts=19711 dc_cuts_over_free=14856 dc_free_hist=0,258,1124,87,3386,7,240,136,14473 rejected=0
+[i] epmapping objective_guard rollbacks=0 discarded_replacements=0
+[i] epmapping path_objective critical_roots=0 noncritical_roots=0 critical_replacements=0 noncritical_replacements=0
+[i] epmapping replacements=891 (egg=10, single=719, multi=162, synth=0, window=0)
+[i] epmapping experimental_replacements dependency=0 divisor=0 global=0 chain=0
+[i] epmapping cofactor cuts=0 builds=0 hits=0 covers=0 replacements=0 secs=0
+[i] epmapping build_reuse mapping_calls=0 alias_hits=0 reused=0 factor_seconds=0 mapping_seconds=0 proof_seconds=0 key_seconds=0
+[i] epmapping phase: replacements with input negation=136 with inverted output=589
+[i] epmapping functional_rejections=0 build_rejections=0 cycle_rejections=0
+[i] epmapping staged library_cuts=1165 mffc_cut_egg_roots=5789 egg_covers=14296 reject_depth=0 reject_delay=11332 reject_objective=1420982 reject_objective_by_source=0,14262,0,0,0,0,0,0,0,0,0
+[i] epmapping staged_secs cut_enum=0.893496858 care=1.536891801 stage1=9.964684746 stage2=6.612845403 egg=1.001727417 mffc=0.108276389 care_cache=0/0 care_mismatch=0 dc_cut=0.017935799 dc_collect=0.008062399 dc_sim=0.140498933 dc_window=1.530290622 dc_cone=0 win_calls=13102 win_gates_avg=8 win_gates_max=18 node_windows=13102 node_window_cuts=121431 node_window_no_dc=16679 node_window_pis_max=8
+[i] epmapping window_synth windows=0 applied=0 gain=0 actual=0 gates=0 abandoned=0 delay_rejected=0 secs=0
+[i] epmapping synth roots=0 covers=0 wins=0 secs=0
+[i] dependency cuts=0 wins=0 reuse=0 secs=0
+[i] global_divisors sampled=0 sat_queries=0 proved=0 unknown=0 wins=0 secs=0
+[i] observability cuts=0 queries=0 cleared=0 projected=0 unknown=0 wins=0 secs=0
+[i] chain_factor attempts=0 roots=0 rejected=0 product_hits=0 segment_hits=0 secs=0
+[i] epmapping sat_dc cuts=0 calls=0 cleared=0 budget_hits=0 secs=0 dc_time_budget_stops=0
+[i] epmapping area 483.75 -> 478.02 delay 709.03 -> 681.61
+[i] epmapping_failure_reason =123377
+[i] wrote "/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/warm/ablation/noSYN.systemcaes/epmapping_mapped.v"
+[i] egraph_profile memory_hits=5586 disk_hits=203 builds=0 corrupt=0 write_failures=0 legacy_fallbacks=0
+[i] cec=1
+[i] epmapping timing preprocess=32.20922693 library=2.659223866 mapping=0.302877905 optimizer=20.8370639 validation=1.16636693 total=57.18116138

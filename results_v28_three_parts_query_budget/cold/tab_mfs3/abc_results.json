@@ -1,0 +1,220 @@
+[
+  {
+    "design": "aes_core",
+    "rc": 0,
+    "secs": 32.533760058984626,
+    "cec": 1,
+    "validation_secs": 1.775790485960897,
+    "baseline": {
+      "area": 1113.13,
+      "delay": 410.49
+    },
+    "baseline_sha256": "fdbf2339888d2b0153093390c667e943bc9ee07d163eb270aba80aa1413bc34b",
+    "area": 1083.15,
+    "delay": 465.2
+  },
+  {
+    "design": "arbiter",
+    "rc": 0,
+    "secs": 96.27560166100739,
+    "cec": 1,
+    "validation_secs": 0.115848722984083,
+    "baseline": {
+      "area": 557.72,
+      "delay": 999.87
+    },
+    "baseline_sha256": "a257b33bc241278cb0a8a2d3fac3747ce301b43bc92506e5ebae594b3ae212a6",
+    "area": 557.72,
+    "delay": 999.87
+  },
+  {
+    "design": "div",
+    "rc": 124,
+    "secs": 1000.0052868199999,
+    "cec": 0,
+    "validation_secs": 0,
+    "baseline": {
+      "area": 3609.46,
+      "delay": 52450.16
+    },
+    "baseline_sha256": "b34d573d1281d0250d2838c2933555928c7857c23d0057f45909851560607732"
+  },
+  {
+    "design": "ethernet",
+    "rc": 0,
+    "secs": 52.59781512897462,
+    "cec": 1,
+    "validation_secs": 11.948191879026126,
+    "baseline": {
+      "area": 3739.47,
+      "delay": 557.03
+    },
+    "baseline_sha256": "d26a28feb197ce14477b1103db7e3c9683ffb4edab919fe3a0d8fa320201f655",
+    "area": 3715.08,
+    "delay": 613.8
+  },
+  {
+    "design": "iwls05_i2c",
+    "rc": 0,
+    "secs": 0.8700002480181865,
+    "cec": 1,
+    "validation_secs": 0.15523721900535747,
+    "baseline": {
+      "area": 59.46,
+      "delay": 237.61
+    },
+    "baseline_sha256": "515286e382c639ed2e087a3194e1acee0adf72b9b41b14e59359dc4bc0ac89c7",
+    "area": 57.09,
+    "delay": 233.88
+  },
+  {
+    "design": "mem_ctrl",
+    "rc": 124,
+    "secs": 1000.0074287430001,
+    "cec": 0,
+    "validation_secs": 0,
+    "baseline": {
+      "area": 2323.99,
+      "delay": 1726.27
+    },
+    "baseline_sha256": "c600ac3976d81be446dcca833d086b9557a52d7280104681aa3162e05e2c6d1a"
+  },
+  {
+    "design": "RISC",
+    "rc": 0,
+    "secs": 91.93938929299998,
+    "cec": 1,
+    "validation_secs": 11.903429712999923,
+    "baseline": {
+      "area": 3594.28,
+      "delay": 696.43
+    },
+    "baseline_sha256": "57a7724c67bda53eb855b07ec24a8ad2e5df826f6cdd1bbb833673a259215bad",
+    "area": 3491.97,
+    "delay": 1175.2
+  },
+  {
+    "design": "sasc",
+    "rc": 0,
+    "secs": 0.06480694498168305,
+    "cec": 1,
+    "validation_secs": 0.11503787996480241,
+    "baseline": {
+      "area": 35.85,
+      "delay": 140.61
+    },
+    "baseline_sha256": "c287786db123660816d5e8de5584c6d589ca3ee15dd3a622b7bee3b48b18eea0",
+    "area": 35.19,
+    "delay": 140.61
+  },
+  {
+    "design": "simple_spi",
+    "rc": 0,
+    "secs": 0.11515597498510033,
+    "cec": 1,
+    "validation_secs": 0.11516410496551543,
+    "baseline": {
+      "area": 49.64,
+      "delay": 214.5
+    },
+    "baseline_sha256": "9e5f6bf48075ee03e0e51bb8296eb4ef20d234b9b4174a188378d5931ab3b0d8",
+    "area": 48.3,
+    "delay": 214.5
+  },
+  {
+    "design": "spi",
+    "rc": 0,
+    "secs": 7.6061558409710415,
+    "cec": 1,
+    "validation_secs": 0.4175320799695328,
+    "baseline": {
+      "area": 183.08,
+      "delay": 472.43
+    },
+    "baseline_sha256": "9480cddacbcc295abbe28920d5e0f6b7a70fbc0c6d75229b3c464f55af6410ec",
+    "area": 179.17,
+    "delay": 496.51
+  },
+  {
+    "design": "sqrt",
+    "rc": 124,
+    "secs": 1000.005890251,
+    "cec": 0,
+    "validation_secs": 0,
+    "baseline": {
+      "area": 1355.08,
+      "delay": 101970.38
+    },
+    "baseline_sha256": "465210878eddf8c804cea9db872112d835717bc31e89c49391cfeb8ef0345f5e"
+  },
+  {
+    "design": "systemcaes",
+    "rc": 0,
+    "secs": 17.584053346014116,
+    "cec": 1,
+    "validation_secs": 0.8701622239896096,
+    "baseline": {
+      "area": 559.33,
+      "delay": 775.42
+    },
+    "baseline_sha256": "42d999db31aee9057b37ad868141d51dd8e65f7a80ceb1fa6bd7eaba2c8fc106",
+    "area": 542.8,
+    "delay": 845.51
+  },
+  {
+    "design": "systemcdes",
+    "rc": 0,
+    "secs": 1.827297993004322,
+    "cec": 1,
+    "validation_secs": 0.518957203021273,
+    "baseline": {
+      "area": 151.07,
+      "delay": 416.79
+    },
+    "baseline_sha256": "34ca11a2cb68a9300e9017404853ecc5158beedea394979df74901929a6710eb",
+    "area": 139.76,
+    "delay": 505.0
+  },
+  {
+    "design": "tv80",
+    "rc": 0,
+    "secs": 38.360106879,
+    "cec": 1,
+    "validation_secs": 1.2193388990000358,
+    "baseline": {
+      "area": 462.39,
+      "delay": 799.99
+    },
+    "baseline_sha256": "364ad23ddab18b9106f960c265486e35038adac332252eb3e12c88e30762827e",
+    "area": 430.06,
+    "delay": 940.55
+  },
+  {
+    "design": "usb_funct",
+    "rc": 0,
+    "secs": 3.5370732289738953,
+    "cec": 1,
+    "validation_secs": 1.1719544740044512,
+    "baseline": {
+      "area": 802.42,
+      "delay": 421.38
+    },
+    "baseline_sha256": "09827c1f24c6d6908ad76868c99957c89614bc8243e3fd321b7d25cd4250cdf9",
+    "area": 781.99,
+    "delay": 420.02
+  },
+  {
+    "design": "usb_phy",
+    "rc": 0,
+    "secs": 0.11531676800223067,
+    "cec": 1,
+    "validation_secs": 0.11538393702358007,
+    "baseline": {
+      "area": 27.15,
+      "delay": 155.17
+    },
+    "baseline_sha256": "c497a8bd4b91c6bc7fea7859e78fdb0265e45cc3444c55d86b7977c96453dd47",
+    "area": 24.53,
+    "delay": 155.17
+  }
+]
