@@ -26,3 +26,34 @@ rewrite_*.json
 mig_*.json
 iwls26/
 backups/
+
+# Local shell/editor credentials and machine configuration.
+/.bash_profile
+/.bashrc
+/.zshrc
+/.zprofile
+/.profile
+/.gitconfig
+/.mcp.json
+/.ripgreprc
+/.claude/
+/.idea
+/.vscode/
+
+# Raw experiments remain local; compact, checked records live under data/.
+/results_v*/
+/research/*/
+/res/
+/tmp/
+/mapped.v
+/supergates.jsonl
+/*.log
+/*.log[0-9]*
+/output/pdf/*.aux
+/output/pdf/*.bbl
+/output/pdf/*.blg
+/output/pdf/*.log
+/output/pdf/*.out
+/output/pdf/texput.log
+**/__pycache__/
+!/Cargo.lock

@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "description": "Four newly registered unmodified upstream submodules plus the existing mockturtle submodule, reused at the user request. Gitlinks are authoritative.",
+  "sources": [
+    {
+      "name": "eqmap",
+      "path": "tools/eqmap",
+      "url": "https://github.com/cornell-zhang/eqmap.git",
+      "commit": "d3144c45d3441530cd8d240c5fc6ea6645b8a2fb",
+      "tracked_worktree_clean": true
+    },
+    {
+      "name": "E-Syn",
+      "path": "tools/E-Syn",
+      "url": "https://github.com/Gy-Hu/E-Syn.git",
+      "commit": "72f5568ab61bac9b8de224199c45fd975ab2399c",
+      "tracked_worktree_clean": true
+    },
+    {
+      "name": "E-morphic",
+      "path": "tools/E-morphic",
+      "url": "https://github.com/Gy-Hu/E-Syn2.git",
+      "commit": "26c128b5b0453795917474d118b8f89dd7a2ebc9",
+      "tracked_worktree_clean": true
+    },
+    {
+      "name": "mockturtle",
+      "path": "tools/mockturtle",
+      "url": "https://github.com/lsils/mockturtle.git",
+      "commit": "434c1ac9899c2fecd450abc89615e375f36e3a24",
+      "reused_existing_submodule": true,
+      "tracked_worktree_clean": false
+    },
+    {
+      "name": "abc",
+      "path": "tools/abc",
+      "url": "https://github.com/berkeley-abc/abc.git",
+      "commit": "48498af8189ef321ee876065d8947875cf711294",
+      "tracked_worktree_clean": true
+    }
+  ],
+  "historical_esyn": "Earlier /tmp source has environment-budget and model-path patches; historical data is preserved, not relabelled as an unmodified-upstream run.",
+  "installed_binaries_changed": false,
+  "ABC_revision_note": "Upstream commit follows installed Debian package version 1.01+20211229git48498af+dfsg-2; this does not establish binary-identical reproduction.",
+  "experiment_policy_note": "Source registration does not silently replace frozen experiment dependencies or their parameters.",
+  "reused_mockturtle": "Use existing tools/mockturtle directly; existing tracked modifications preserved and recorded, not reset or relabelled as clean upstream. Earlier stock-emap results used upstream1c9c3af; not relabelled as the current checkout.",
+  "project_mockturtle_overlay": {
+    "manifest": "tools/mockturtle-overlay/manifest.json",
+    "patch_directory": "tools/patches/mockturtle",
+    "installer": "tools/apply_mockturtle_overlay.py",
+    "installed_before_project_build": true,
+    "unmodified_baseline_warning": "Project overlay builds are not unmodified upstream emap builds."
+  },
+  "supporting_dependencies": [
+    {
+      "path": "tools/pybind11",
+      "commit": "fdec8c350aa0c7fbb552ec70d8176f8a13eb0561"
+    }
+  ]
+}

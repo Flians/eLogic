@@ -89,8 +89,10 @@ def main():
         if args.profile_cache_mode:
             # Freeze the Rust implementation and every archived native dependency as well.
             sources=set((PROJECT/'map_egg/src').rglob('*.rs'))
-            sources.update((PROJECT/'patches/mockturtle').glob('*.patch'))
+            sources.update((PROJECT/'tools/patches/mockturtle').glob('*.patch'))
             sources.add(PROJECT/'scripts/apply_mockturtle_patches.sh')
+            sources.update(p for p in (PROJECT/'tools/mockturtle-overlay').rglob('*') if p.is_file())
+            sources.update(PROJECT/p for p in ['tools/apply_mockturtle_overlay.py', 'tools/CMakeLists.txt'])
             sources.update(PROJECT/rel for rel in ['epmapping/exact_aig_key.hpp', 'epmapping/live_query_cache.hpp', 'epmapping/local_truth_table.hpp'])
             sources.update([PROJECT/'map_egg/Cargo.toml',PROJECT/'map_egg/build.rs',PROJECT/'map_egg/CMakeLists.txt',PROJECT/'epmapping/CMakeLists.txt'])
             archived=original/'inputs/compiled_dependencies'

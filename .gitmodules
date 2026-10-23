@@ -6,3 +6,15 @@
 	path = tools/mockturtle
 	url = https://github.com/lsils/mockturtle.git
 	branch = master
+[submodule "tools/eqmap"]
+	path = tools/eqmap
+	url = https://github.com/cornell-zhang/eqmap.git
+[submodule "tools/E-Syn"]
+	path = tools/E-Syn
+	url = https://github.com/Gy-Hu/E-Syn.git
+[submodule "tools/E-morphic"]
+	path = tools/E-morphic
+	url = https://github.com/Gy-Hu/E-Syn2.git
+[submodule "tools/abc"]
+	path = tools/abc
+	url = https://github.com/berkeley-abc/abc.git

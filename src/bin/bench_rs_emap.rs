@@ -1,13 +1,28 @@
+//! Benchmark mapper QoR. Use **`tools/mockturtle/experiments/benchmarks/c432.aig`** (or larger) to
+//! compare **delay** — tiny benchmarks show almost no `max_delay` spread.
+//!
+//! Relevant env (see `EmapParams` in `emapper`; all **`EMAPPER_*`**):
+//! - `EMAPPER_AREA_FLOW_PASSES`, `EMAPPER_EXACT_AREA_PASSES` — area recovery (0 = delay-first).
+//!   If **unset**, this binary defaults to **1** / **1** (lighter than `main`).
+//! - `EMAPPER_MAX_CUTS` — more cuts can improve delay (slower)
+//! - `EMAPPER_MAPPING_AREA_COST` — `flow` (default) or `physical` for cut ranking
+//! - `EMAPPER_MIXED_OBJECTIVE` — `1` = Stage 1b delay/area split by critical path; `0` = Stage 1b still runs, uniform objective
+//! - `EMAPPER_USE_EGG`, `EMAPPER_OBJECTIVE`, `EMAPPER_MAX_COVER_NODES`, `EMAPPER_USE_DUAL_PHASE_DELAY`
+//! - `EMAPPER_TECHLIB_CACHE` or `MIGBALANCE_TECHLIB_CACHE` — JSON cache path; if unset, a sidecar
+//!   `*.m{max_inputs}.ttcache.*` next to the genlib is used.
+
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::OnceLock;
+use std::path::PathBuf;
 use std::time::Instant;
 
 use emapper::aig::Aig;
 use emapper::emap::EmapResult;
-use emapper::mapping::{EmapParams, NodeBindingKind, emap_with_params};
-use emapper::techlib::{MappingObjective, TechLib};
+use emapper::mapping::{
+    NodeBindingKind, emap_params_from_bench_env, emap_with_params, mapped_depth,
+    techlib_cache_path_near_genlib, write_mapped_verilog,
+};
+use emapper::run_abc_cec;
+use emapper::techlib::TechLib;
 
 fn main() {
     let mut a = std::env::args().skip(1);
@@ -23,13 +38,25 @@ fn main() {
 
     let mut aig_graph = Aig::from_aiger(aig.to_string_lossy().as_ref());
     aig_graph.cleanup_graph();
-    let tech = TechLib::from_genlib(&genlib, 6).expect("failed to load genlib");
+    let max_inputs = 9usize;
+    let tech_cache = std::env::var("EMAPPER_TECHLIB_CACHE")
+        .or_else(|_| std::env::var("MIGBALANCE_TECHLIB_CACHE"))
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| techlib_cache_path_near_genlib(&genlib, max_inputs));
+    let tech =
+        TechLib::from_genlib_cached(&genlib, max_inputs, &tech_cache).expect("failed to load genlib");
 
     let t0 = Instant::now();
-    let res = emap_with_params(&aig_graph, &tech, emap_params_from_env());
+    let res = emap_with_params(&aig_graph, &tech, emap_params_from_bench_env());
     let runtime = t0.elapsed().as_secs_f64();
     let (p_cut, p_egg, p_tt, p_match) = res.perf.ratio_percent();
+    /* `depth`: binding-graph depth of the emitted bindings (historical metric, ignores `out_neg`).
+       `depth_netlist`: cell depth of the netlist the writer actually emits, which is what ABC's
+       `lev` and mockturtle's `depth_view` report. */
     let max_depth = max_binding_depth(&res);
+    let netlist_depth = mapped_depth(&aig_graph, &res);
 
     let (vpath, cleanup_tmp) = verilog_out.map_or_else(
         || {
@@ -44,25 +71,25 @@ fn main() {
         |p| (p, false),
     );
     let f = std::fs::File::create(&vpath).expect("create verilog");
-    emapper::mapping::write_mapped_verilog(&aig_graph, &tech, &res, f, "top")
-        .expect("write verilog");
+    write_mapped_verilog(&aig_graph, &tech, &res, f, "top").expect("write verilog");
     let nec = run_abc_cec(&genlib, &aig, &vpath);
     if cleanup_tmp {
         let _ = std::fs::remove_file(&vpath);
     }
 
     println!(
-        "{{\"mapper\":\"{}\",\"area\": {:.6}, \"gates\": {:.6}, \"delay\": {:.6}, \"depth\": {:.6}, \"runtime\": {:.6}, \"nec\": {:.6}}}",
+        "{{\"mapper\":\"{}\",\"area\": {:.6}, \"gates\": {:.6}, \"delay\": {:.6}, \"depth\": {:.6}, \"depth_netlist\": {:.6}, \"runtime\": {:.6}, \"nec\": {:.6}}}",
         res.mapper_name,
         res.total_area as f64,
         res.bindings.len() as f64,
         res.max_delay as f64,
         max_depth as f64,
+        netlist_depth as f64,
         runtime,
         nec
     );
     eprintln!(
-        "profile: cut_gen={:.3}% egg={:.3}% tt={:.3}% tech_match={:.3}% (accounted {:.6}s, direct_tt_hit={}, direct_variant_reject={}, egg_attempt={}, egg_build_ok={}, egg_coverable_hit={}, egg_proxy_fallback={}, egg_reject_non_improving={}, egg_miss={})",
+        "profile: cut_gen={:.3}% egg={:.3}% tt={:.3}% tech_match={:.3}% (accounted {:.6}s, direct_tt_hit={}, direct_variant_reject={}, egg_attempt={}, egg_build_ok={}, egg_coverable_hit={}, egg_proxy_fallback={}, egg_reject_non_improving={}, egg_miss={}, supergate_hit={}, supergate_store={})",
         p_cut,
         p_egg,
         p_tt,
@@ -75,50 +102,10 @@ fn main() {
         res.perf.egg_coverable_hit,
         res.perf.egg_proxy_fallback,
         res.perf.egg_reject_non_improving,
-        res.perf.egg_miss
+        res.perf.egg_miss,
+        res.perf.supergate_hit,
+        res.perf.supergate_store
     );
-}
-
-fn emap_params_from_env() -> EmapParams {
-    let use_egg = match std::env::var("EMAP_USE_EGG") {
-        Ok(v) => v != "0" && !v.eq_ignore_ascii_case("false"),
-        Err(_) => true,
-    };
-    let objective = match std::env::var("EMAP_OBJECTIVE")
-        .unwrap_or_else(|_| "delay".to_string())
-        .to_lowercase()
-    {
-        ref s if s == "area" => MappingObjective::AreaFirst,
-        _ => MappingObjective::DelayFirst,
-    };
-    let mixed = std::env::var("EMAP_MIXED_OBJECTIVE")
-        .ok()
-        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
-    let env_u = |k: &str, d: usize| {
-        std::env::var(k)
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(d)
-    };
-    let dual = std::env::var("EMAP_SINGLE_PHASE_DELAY")
-        .ok()
-        .is_none_or(|v| v != "1" && !v.eq_ignore_ascii_case("true"));
-
-    EmapParams {
-        max_cuts: 16,
-        max_inputs: 6,
-        wire_delay: 0.0,
-        use_egg,
-        cache_egg: use_egg,
-        cache_tt: true,
-        objective,
-        critical_path_mixed_objective: mixed,
-        area_flow_passes: env_u("EMAP_AREA_FLOW_PASSES", 1),
-        exact_area_passes: env_u("EMAP_EXACT_AREA_PASSES", 1),
-        max_cover_nodes: env_u("EMAP_MAX_COVER_NODES", 64),
-        use_dual_phase_delay: dual,
-        mapper_name: "egraph-based-mapper",
-    }
 }
 
 fn max_binding_depth(res: &EmapResult) -> u32 {
@@ -175,132 +162,6 @@ fn max_binding_depth(res: &EmapResult) -> u32 {
         .map(|b| depth(b.node, b.phase_neg, &bind_map, &bind_nodes, &mut memo))
         .max()
         .unwrap_or(0)
-}
-
-fn usage_exit() -> ! {
-    eprintln!("Usage: bench_rs_emap genlibPath aigPath [verilogPath]");
-    eprintln!("Env: BENCH_RS_EMAP_ABC=…  BENCH_RS_EMAP_CEC_DEBUG=1");
-    std::process::exit(1);
-}
-
-static ABC_FOR_CEC: OnceLock<Option<PathBuf>> = OnceLock::new();
-
-fn abc_for_cec() -> Option<PathBuf> {
-    ABC_FOR_CEC
-        .get_or_init(|| {
-            if let Ok(p) = std::env::var("BENCH_RS_EMAP_ABC") {
-                let pb = PathBuf::from(p.trim());
-                return if pb.as_os_str().is_empty() || !pb.is_file() {
-                    None
-                } else {
-                    Some(pb)
-                };
-            }
-            ["yosys-abc", "abc"]
-                .into_iter()
-                .find(|n| Command::new(n).arg("-h").output().is_ok())
-                .map(PathBuf::from)
-        })
-        .clone()
-}
-
-fn parse_cec_outcome(txt: &str) -> Option<f64> {
-    let lower = txt.to_ascii_lowercase();
-    if lower.contains("networks are equivalent") || txt.contains("UNSAT") {
-        return Some(1.0);
-    }
-    if lower.contains("networks are not equivalent") {
-        return Some(0.0);
-    }
-    if txt.contains("SAT") && !txt.contains("UNSAT") {
-        return Some(0.0);
-    }
-    None
-}
-
-fn shell_path(p: &Path) -> String {
-    let s = p.to_string_lossy();
-    if s.contains(' ') {
-        format!("\"{s}\"")
-    } else {
-        s.into_owned()
-    }
-}
-
-fn abs(p: &Path) -> PathBuf {
-    std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
-}
-
-fn cec_debug(msg: &str) {
-    if std::env::var("BENCH_RS_EMAP_CEC_DEBUG").as_deref() == Ok("1") {
-        eprintln!("{msg}");
-    }
-}
-
-fn run_abc_cec(genlib: &Path, aig: &Path, vpath: &Path) -> f64 {
-    let Some(exe) = abc_for_cec() else {
-        cec_debug("BENCH_RS_EMAP_CEC_DEBUG: no ABC (set BENCH_RS_EMAP_ABC or PATH yosys-abc/abc)");
-        return -1.0;
-    };
-    let g = abs(genlib);
-    let a = abs(aig);
-    let v = abs(vpath);
-    let mut impl_aig = std::env::temp_dir();
-    impl_aig.push(format!(
-        "bench_rs_emap_impl_{}_{}.aig",
-        std::process::id(),
-        nanos_stamp()
-    ));
-    let impl_s = shell_path(&impl_aig);
-
-    let build = format!(
-        "read_library {}; read_verilog -m {}; strash; write_aiger {}",
-        shell_path(&g),
-        shell_path(&v),
-        impl_s
-    );
-    let out_b = match Command::new(&exe).args(["-c", &build]).output() {
-        Ok(o) => o,
-        Err(_) => {
-            cec_debug("BENCH_RS_EMAP_CEC_DEBUG: spawn failed (read_library/read_verilog)");
-            return -1.0;
-        }
-    };
-    if !out_b.status.success() || !impl_aig.exists() {
-        cec_debug(&format!(
-            "BENCH_RS_EMAP_CEC_DEBUG: ABC build failed (exit {:?})\n--- stdout ---\n{}\n--- stderr ---\n{}",
-            out_b.status.code(),
-            String::from_utf8_lossy(&out_b.stdout),
-            String::from_utf8_lossy(&out_b.stderr)
-        ));
-        let _ = std::fs::remove_file(&impl_aig);
-        return -1.0;
-    }
-
-    let cec = format!("cec -n {} {}", shell_path(&a), impl_s);
-    let out = match Command::new(&exe).args(["-c", &cec]).output() {
-        Ok(o) => o,
-        Err(_) => {
-            cec_debug("BENCH_RS_EMAP_CEC_DEBUG: spawn failed (cec)");
-            let _ = std::fs::remove_file(&impl_aig);
-            return -1.0;
-        }
-    };
-    let _ = std::fs::remove_file(&impl_aig);
-
-    let txt = format!(
-        "{}{}",
-        String::from_utf8_lossy(&out.stdout),
-        String::from_utf8_lossy(&out.stderr)
-    );
-    if let Some(x) = parse_cec_outcome(&txt) {
-        return x;
-    }
-    cec_debug(&format!(
-        "BENCH_RS_EMAP_CEC_DEBUG: unrecognized cec output (exit {:?})\n{txt}",
-        out.status.code()
-    ));
-    -1.0
 }
 
 fn nanos_stamp() -> String {
