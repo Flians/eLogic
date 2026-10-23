@@ -26,11 +26,12 @@
   ],
   "data_export_scope": "compact records and selected final evidence; local raw data not deleted",
   "existing_local_shell_editor_files": "not selected for GitHub",
-  "github_push": "source and data synchronization in progress; remote verification required",
+  "github_push": "verified: GitHub main contains reviewed source, compact data, paper, slides and audit report",
   "data_verification": {
     "archives_verified": 786,
     "members_verified": 231969,
     "database_verified": true
   },
-  "cleanup_manifest": "maintenance/sync_20261023/cleanup.json"
+  "cleanup_manifest": "maintenance/sync_20261023/cleanup.json",
+  "github_sync_receipt": "maintenance/sync_20261023/github-sync-complete.json"
 }

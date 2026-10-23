@@ -1,0 +1,14 @@
+{
+  "verified_date": "2026-10-23",
+  "repository": "https://github.com/Flians/eLogic",
+  "verified_payload_commit": "958dd1936fe169ab7482da47b22942d4bff2911b",
+  "review_commit": "26e553279",
+  "review_report": "epmapping/docs/review-20261023.md",
+  "archives_verified": 786,
+  "archive_members_verified": 231969,
+  "database_verified": true,
+  "scope": "Tracked source, paper/slides and compact published evidence; unrelated working-tree changes excluded.",
+  "whole_window_synthesis": false,
+  "post_mapping_limit_seconds": 1000,
+  "overleaf_pushed": false
+}
