@@ -87,6 +87,35 @@ rejected.
 - 报告/讲稿：`epmapping_paper/talks/epmapping_30min/`。
 - `db/` 是运行用数据库，不是可随意丢弃的历史日志；保留源码、库、冻结设置、输出网表和CEC证据。
 
+## 当前配置与复核（2026-10-23）
+
+论文 v28 使用冻结的完整配置，不能用可执行文件的裸默认值替代：
+`EPMAPPING_SYN_CACHE=262144`、`EPMAPPING_OPERATOR_POLICY=3`、
+`EPMAPPING_BUILD_REUSE=2`、`EPMAPPING_SHARED_MAPPED_LIBRARY=1`、
+`EPMAPPING_LIVE_QUERY_CACHE=9` 和每族两个 pivot。完整设置位于
+`results_v28_three_parts_query_budget/cold/manifest.json` 的 `goal`。
+尤其是裸默认缓存容量仍为 8192，裸运行不设置 post-mapping 截止；论文运行明确设置 1000 秒。
+
+只读复核现有数据、冻结输入、既有 CEC 证据、独立物理 PPA 与论文均值：
+
+```sh
+python3 scripts/experiments/audit_epmapping_state.py --out /tmp/epmapping-audit.json
+```
+
+此命令需要本地完整 v28 档案，不运行新优化或新 CEC，不覆盖冻结实验、表格或论文 PDF。
+仅核验 GitHub 紧凑归档时，使用 `python3 scripts/maintenance/verify_published_data.py --deep`。
+检查点回归测试采用 v28 完整配置及其 `usb_phy` 参考点（21.39 / 158.68），
+与旧候选生成试验的 21.38 阈值分开。正常完成和真正的 SIGALRM 截止分别检查，
+检查点通过 CEC 不等于优化正常完成。完整配置的 128/128 完成，也不包括弱化控制中的 7 次截止。
+
+新建实验时使用新目录，按配对驱动冻结配置，而不是覆盖原结果：
+
+```sh
+python3 scripts/experiments/run_three_parts_paired.py --root results_epmapping_new --jobs 6
+```
+
+本次复核及进一步优化建议见 [代码、数据和论文复核](docs/review-20261023.md)。
+
 ## 历史记录
 
 旧README的全部实验过程和可选策略说明已原样归档至 [历史说明](docs/history/README-through-20261021.md)，包括旧版本、失败、回退和实验性operator/cache配置。归档文件中的相对路径按原README位置解释；不要将历史默认值当作当前设置。

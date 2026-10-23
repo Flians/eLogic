@@ -1,0 +1,159 @@
+{
+  "campaign": "results_v28_three_parts_query_budget",
+  "optimization_rerun": false,
+  "cec_rerun": false,
+  "verification": "frozen input/source hashes, existing CEC proofs, independent physical PPA, configuration and paper macros",
+  "profiles": {
+    "cold": {
+      "method_attempts": 352,
+      "statuses": {
+        "complete": 348,
+        "timeout": 4
+      },
+      "primary_attempts": 64,
+      "primary_completed": 64,
+      "main_area_percent": -7.105879507980664,
+      "main_delay_percent": -7.432345784912146,
+      "main_area_wins": 16,
+      "abc_completed": 13,
+      "abc_timeouts": 3
+    },
+    "warm": {
+      "method_attempts": 352,
+      "statuses": {
+        "complete": 349,
+        "timeout": 3
+      },
+      "primary_attempts": 64,
+      "primary_completed": 64,
+      "main_area_percent": -7.105879507980664,
+      "main_delay_percent": -7.432345784912146,
+      "main_area_wins": 16,
+      "abc_completed": 13,
+      "abc_timeouts": 3
+    }
+  },
+  "sources": {
+    "epmapping/bounded_cache.hpp": {
+      "sha256": "c766a4a5fe0b4fad685a0e5eaa402040ecf30a7470516a38e68989e643f76b4f",
+      "matches_paper_source": true
+    },
+    "epmapping/epmapping.hpp": {
+      "sha256": "a3cdd549cb4c1485d7470ef7a26ee7740ad80475c6da963eabace073d55de1ad",
+      "matches_paper_source": true
+    },
+    "epmapping/exact_aig_key.hpp": {
+      "sha256": "53855e706dbc01eaae5d40915768955c4c7e1ccb3db831c1e8b8db520efb3a6d",
+      "matches_paper_source": true
+    },
+    "epmapping/live_query_cache.hpp": {
+      "sha256": "a49f971788c46ffeb869bb435bcd5400dc086c9d82c425d29401bd1e17156df3",
+      "matches_paper_source": true
+    },
+    "epmapping/local_truth_table.hpp": {
+      "sha256": "30598f45600800adc9491d50b5e0356597855e8297a0e178b7cff140194a072a",
+      "matches_paper_source": true
+    },
+    "epmapping/objective.hpp": {
+      "sha256": "809990c20b26b7e7f7778d292ba243f94f32b1b308f282acf9a329354d6c7643",
+      "matches_paper_source": true
+    },
+    "epmapping/operator_policy.hpp": {
+      "sha256": "959c7bdd127f91acb2e26de90a7db7a5e5db035edd450fff17978159e3e08cc9",
+      "matches_paper_source": true
+    },
+    "epmapping/main.cpp": {
+      "sha256": "837b5885320c962ea449de0976f93bf7c122125cc75e9f376032d465aa9d2e1b",
+      "matches_paper_source": true
+    }
+  },
+  "paper_pdf_sha256": "62dc2780ed3c2425dfbdbe23cf37b5b6b2635acb53d94f6cfff7fffe7e7eab67",
+  "date": "2026-10-23",
+  "build": "epmapping_check rebuilt successfully; fixed four-header overlay verified",
+  "python_tests": [
+    {
+      "test": "test_area_delay_bound.py",
+      "returncode": 0,
+      "seconds": 0.432
+    },
+    {
+      "test": "test_global_objective_guard.py",
+      "returncode": 0,
+      "seconds": 0.283
+    },
+    {
+      "test": "test_profile_cache.py",
+      "returncode": 0,
+      "seconds": 0.611
+    },
+    {
+      "test": "test_phase_boundary_reuse.py",
+      "returncode": 0,
+      "seconds": 13.19
+    },
+    {
+      "test": "test_anytime_checkpoint.py",
+      "returncode": 1,
+      "seconds": 13.314,
+      "initial_failure": "stale 21.38 pilot threshold; current v28 result is 21.39",
+      "returncode_after_fix": 0
+    }
+  ],
+  "cpp_tests": [
+    {
+      "test": "bounded_cache",
+      "returncode": 0
+    },
+    {
+      "test": "live_query_cache",
+      "returncode": 0
+    },
+    {
+      "test": "local_truth_table",
+      "returncode": 0
+    },
+    {
+      "test": "operator_policy",
+      "returncode": 0
+    }
+  ],
+  "usb_v28_replays": {
+    "count": 2,
+    "area": 21.39,
+    "delay": 158.68,
+    "cec": true
+  },
+  "paper": {
+    "pages": 7,
+    "body_pages": 6,
+    "references_pages": 1,
+    "visually_checked_pages": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "overfull_boxes": false,
+    "unresolved_references_after_second_pass": false
+  },
+  "published_data": {
+    "archives_verified": 786,
+    "members_verified": 231969,
+    "database_verified": true,
+    "raw_data_deleted": false
+  },
+  "dependency_comparison": {
+    "same_original_path": 207,
+    "changed_packaging_files": [
+      "epmapping/CMakeLists.txt",
+      "scripts/apply_mockturtle_patches.sh"
+    ],
+    "moved_patch_files": [
+      "patches/mockturtle/tech-library-function-buckets.patch",
+      "patches/mockturtle/shared-mapped-library.patch"
+    ]
+  }
+}

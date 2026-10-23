@@ -13,10 +13,17 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'scripts/experiments'))
 from audit_mapped_ppa import audit
 from recover_checkpoint import recover
-from timeout_selection import prepare, adapt_row, selected_netlist
+from timeout_selection import prepare, adapt_row, selected_netlist, read_rows
 
 frozen = ROOT / 'results_v20_three_parts_chain/inputs'
-goal = json.loads((ROOT / 'research/usb_candidate_generation_20261015/validated_env.json').read_text())
+# Pin the checkpoint regression to the paper's admitted profile, rather than a
+# pre-pivot pilot whose usb_phy area (21.38) is no longer this profile's result.
+paper_campaign = ROOT / 'results_v28_three_parts_query_budget'
+goal = json.loads((paper_campaign / 'cold/manifest.json').read_text())['goal']
+reference = next(row for row in read_rows(paper_campaign / 'cold', 'tab_main')
+                 if row['stage'] == 'ae' and row['design'] == 'usb_phy')
+expected_area = float(reference['out_a'])
+expected_delay = float(reference['out_d'])
 env = {k: v for k, v in os.environ.items() if not k.startswith(('EPMAPPING_', 'MAP_EGG_'))}
 env.update(goal)
 env.update(ABC=str(frozen / 'abc'), EPMAPPING_BASELINE='high_effort',
@@ -53,7 +60,9 @@ with tempfile.TemporaryDirectory(prefix='epm-anytime-') as folder:
             capture_output=True, text=True, timeout=30)
         assert proof.returncode == 0 and 'Networks are equivalent' in proof.stdout, proof.stdout + proof.stderr
         if name == 'complete':
-            assert record['round'] > 0 and selected['area'] <= 21.38001, record
+            assert record['round'] > 0, record
+            assert abs(selected['area'] - expected_area) < .0001, (record, reference)
+            assert abs(selected['delay'] - expected_delay) < .001, (record, reference)
             final = audit(wd / 'epmapping_mapped.v', frozen / 'asap7.genlib')
             assert abs(selected['area'] - final['area']) < .0001
             assert abs(selected['delay'] - final['delay']) < .001
