@@ -1,0 +1,15 @@
+\section{Introduction}
+Logic synthesis commonly optimizes an and-inverter graph (AIG)~\cite{AIG} or majority-inverter graph (MIG)~\cite{MIG,MIG_TCAD} before technology mapping~\cite{calvino2022mapping}. Graph size is only a proxy for cell area: equivalent graphs can map differently because library functions, pin delays and inversion costs differ.
+
+Post-mapping resubstitution uses dependency cuts and mapped-subnetwork databases~\cite{iwls24,aspdac25}; equality saturation explores equivalent implementations~\cite{ustun2022impress,cheng2024seer,coward2024rover,chen2024esyn}. We combine local cover diversity with sharing across roots.
+
+Compact factorizations can miss library-friendly Shannon/Davio forms. More extraction capacity cannot introduce absent decompositions. Across roots, isolated costs can obscure shared factors.
+
+\textbf{ePMapping} addresses both scopes (\Cref{fig_layers}). Each round jointly evaluates AO21 blocks, then combines cell matching, database lookup and structural synthesis. Bounded equality saturation follows when these yield no admissible proposal. Live required times permit slack use under the initial delay bound; rebuilt netlists guard acceptance.
+
+The contributions are:
+\begin{itemize}
+ \item staged cut search with Shannon/Davio alternatives, reusable arrival-independent e-graph pools and live phase pricing;
+ \item joint AO21 block composition and cross-root reuse, accepted by total mapped area;
+ \item a three-part evaluation of common-input optimization, recovery after preprocessing, and component area/runtime trade-offs.
+\end{itemize}

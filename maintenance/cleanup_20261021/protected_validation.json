@@ -1,0 +1,14 @@
+{
+  "checks": {
+    "archive:emapper/BASELINES.md": true,
+    "archive:epmapping/README.md": true,
+    "archive:emapper/readme.md": true,
+    "maintenance/cleanup_20261021/protected_artifacts.json": 50,
+    "results_v2/search_resources_20261021/ranked-source-freeze.json": 31,
+    "results_v2/search_resources_20261021/metadata-source-freeze.json": 31,
+    "results_v2/search_resources_20261021/cap-source-freeze.json": 30,
+    "results_v2/search_resources_20261021/small-key-source-freeze.json": 31
+  },
+  "errors": [],
+  "all_passed": true
+}

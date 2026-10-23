@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "upstream_url": "https://github.com/lsils/mockturtle.git",
+  "recorded_upstream_commit": "434c1ac9899c2fecd450abc89615e375f36e3a24",
+  "purpose": "Preserve existing project changes required by ePMapping/eGraphMap; no new mapping algorithm change in this packaging step.",
+  "files": [
+    {
+      "path": "include/mockturtle/algorithms/cut_enumeration.hpp",
+      "upstream_sha256": "7e80e5b9976fed352298c1e89f66c1e7fd225007be0e43589ebfecb699d49902",
+      "overlay_sha256": "5786b4a38eef85fdb728aedd0c907901214c1818f5bbd602e8507bb4dbb2180e"
+    },
+    {
+      "path": "include/mockturtle/algorithms/emap.hpp",
+      "upstream_sha256": "a6b05908fb1d9f6554698b082008fc8ee88ebf34c45d12fc64d68830ec253e65",
+      "overlay_sha256": "76d18ffa1d6da9f55bea0ffddf9bcdb956f6890a4a458ee86d227c24b2ef3f1f"
+    },
+    {
+      "path": "include/mockturtle/utils/tech_library.hpp",
+      "upstream_sha256": "1082e6ef1d6195edc0247910576baa694f5c989345573142e90f98073249c951",
+      "overlay_sha256": "2ecf81122357dfabf741a9993e349ad0be74fdee77ff54f46d5711c67409ce70"
+    },
+    {
+      "path": "include/mockturtle/views/cell_view.hpp",
+      "upstream_sha256": "b6c50fa4a5faed181531146b25d149058c76cf763f8f19705a0b31c634f41544",
+      "overlay_sha256": "6fcc3607946b6f88b6b561d564542f594eb529ce106722234a18621c86635e76"
+    }
+  ]
+}

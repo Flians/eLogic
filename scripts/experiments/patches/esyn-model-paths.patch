@@ -1,0 +1,22 @@
+diff --git a/e-rewriter/src/utils/xgboost.rs b/e-rewriter/src/utils/xgboost.rs
+index 137ac65..1b51a8f 100644
+--- a/e-rewriter/src/utils/xgboost.rs
++++ b/e-rewriter/src/utils/xgboost.rs
+@@ -9,7 +9,7 @@ use crate::utils::{sym_eval::*};
+ 
+ pub fn xgboost(input_string: &str) -> (f64, Vec<f32>) {
+     // load model and predict
+-    let bst = Booster::load("/data/cchen/E-Brush/e-rewriter/src/model/xgb_delay.model");
++    let bst = Booster::load(concat!(env!("CARGO_MANIFEST_DIR"), "/src/model/xgb_delay.model"));
+     
+     let operator_counts = count_operators(&input_string);
+     let x1 = operator_counts.get("+").copied().unwrap_or(0);
+@@ -41,7 +41,7 @@ pub fn xgboost(input_string: &str) -> (f64, Vec<f32>) {
+ 
+ pub fn xgboost_new(input_string: &str,&graph_density:&f32,&graph_edge:&f32) -> (f64, Vec<f32>) {
+     // load model and predict
+-    let bst = Booster::load("/data/cchen/E-Brush/e-rewriter/src/model/xgb.model");
++    let bst = Booster::load(concat!(env!("CARGO_MANIFEST_DIR"), "/src/model/xgb.model"));
+     //let bst = Booster::load("/data/cchen/E-Brush/e-rewriter/src/model/xgb_23_10_26_area.model");
+     //let bst = Booster::load("/data/cchen/E-Brush/e-rewriter/src/model/xgb_23_10_26_delay.model");
+     let operator_counts = count_operators(&input_string);

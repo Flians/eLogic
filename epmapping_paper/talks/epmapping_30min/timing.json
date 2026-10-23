@@ -1,0 +1,132 @@
+[
+  {
+    "slide": 1,
+    "title": "Area Optimization After Technology Mapping",
+    "seconds": 30
+  },
+  {
+    "slide": 2,
+    "title": "Why optimize after mapping?",
+    "seconds": 60
+  },
+  {
+    "slide": 3,
+    "title": "Problem formulation",
+    "seconds": 70
+  },
+  {
+    "slide": 4,
+    "title": "Design questions",
+    "seconds": 30
+  },
+  {
+    "slide": 5,
+    "title": "Two optimization scopes",
+    "seconds": 80
+  },
+  {
+    "slide": 6,
+    "title": "AO21 chain composition",
+    "seconds": 90
+  },
+  {
+    "slide": 7,
+    "title": "Sharing changes the unit of evaluation",
+    "seconds": 70
+  },
+  {
+    "slide": 8,
+    "title": "Local rewriting on structural cuts",
+    "seconds": 70
+  },
+  {
+    "slide": 9,
+    "title": "Complementary candidate sources",
+    "seconds": 75
+  },
+  {
+    "slide": 10,
+    "title": "Cofactor decompositions",
+    "seconds": 100
+  },
+  {
+    "slide": 11,
+    "title": "Pivot selection under a search budget",
+    "seconds": 65
+  },
+  {
+    "slide": 12,
+    "title": "Bounded equality saturation",
+    "seconds": 65
+  },
+  {
+    "slide": 13,
+    "title": "Timing profiles for reusable covers",
+    "seconds": 100
+  },
+  {
+    "slide": 14,
+    "title": "Area cost in the live netlist",
+    "seconds": 90
+  },
+  {
+    "slide": 15,
+    "title": "Local feasibility and global acceptance",
+    "seconds": 75
+  },
+  {
+    "slide": 16,
+    "title": "Reusing work and restricting search",
+    "seconds": 65
+  },
+  {
+    "slide": 17,
+    "title": "Experimental protocol",
+    "seconds": 70
+  },
+  {
+    "slide": 18,
+    "title": "Evidence from three experiments",
+    "seconds": 45
+  },
+  {
+    "slide": 19,
+    "title": "Area gains after strong AIG optimization",
+    "seconds": 75
+  },
+  {
+    "slide": 20,
+    "title": "arbiter: a structural case study",
+    "seconds": 60
+  },
+  {
+    "slide": 21,
+    "title": "Same-input comparison with mfs3",
+    "seconds": 90
+  },
+  {
+    "slide": 22,
+    "title": "Completion and cache-dependent runtime",
+    "seconds": 65
+  },
+  {
+    "slide": 23,
+    "title": "Area penalties from removing mechanisms",
+    "seconds": 65
+  },
+  {
+    "slide": 24,
+    "title": "Reuse and search coverage: different tradeoffs",
+    "seconds": 75
+  },
+  {
+    "slide": 25,
+    "title": "Scope of the evidence",
+    "seconds": 60
+  },
+  {
+    "slide": 26,
+    "title": "Conclusions",
+    "seconds": 60
+  }
+]

@@ -12,7 +12,7 @@ pub enum AigNode {
     And,
 }
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct Aig {
     graph: StableGraph<AigNode, bool, Directed>,
     input_symbols: HashMap<u32, String>,
@@ -300,6 +300,15 @@ impl Aig {
         &self.graph
     }
 
+    /// All node indices currently in the graph, in ascending index order.
+    ///
+    /// Includes primary inputs, the constant node and output nodes, so
+    /// `node_indices().map(|n| n.index()).max() + 1` is the dense index bound used by the
+    /// mapper's per-node vectors.
+    pub fn node_indices(&self) -> impl Iterator<Item = NodeIndex> + '_ {
+        self.graph.node_indices()
+    }
+
     pub(crate) fn graph_mut(&mut self) -> &mut StableGraph<AigNode, bool> {
         &mut self.graph
     }
@@ -343,7 +352,10 @@ impl Aig {
     }
 
     #[must_use]
-    pub fn output_edges(&self, node: NodeIndex) -> petgraph::stable_graph::Neighbors<bool, u32> {
+    pub fn output_edges(
+        &self,
+        node: NodeIndex,
+    ) -> petgraph::stable_graph::Neighbors<'_, bool, u32> {
         self.graph.neighbors_directed(node, Outgoing)
     }
 
@@ -379,6 +391,17 @@ impl Aig {
             .or_else(|| self.output_symbols.get(&index))
     }
 
+    /// Attach a name to a primary input. Needed when an [`Aig`] is built programmatically (e.g. by
+    /// re-extracting a restructured e-graph) so that equivalence checking can still match ports.
+    pub fn set_symbol_input(&mut self, var: u32, name: String) {
+        self.input_symbols.insert(var, name);
+    }
+
+    /// Attach a name to a primary output.
+    pub fn set_symbol_output(&mut self, pos: u32, name: String) {
+        self.output_symbols.insert(pos, name);
+    }
+
     #[must_use]
     pub fn try_unwrap_and(&self, node: NodeIndex) -> Option<(EdgeIndex, EdgeIndex)> {
         match self.graph[node] {
@@ -394,7 +417,11 @@ impl Aig {
                         Some((x.id(), y.id()))
                     }
                     (Some(x), None) => {
-                        panic!("AND gate {} has one input: {}", node.index(), x.id().index())
+                        panic!(
+                            "AND gate {} has one input: {}",
+                            node.index(),
+                            x.id().index()
+                        )
                     }
                     (None, None) => panic!("AND gate {} has zero inputs", node.index()),
                     _ => unreachable!(),

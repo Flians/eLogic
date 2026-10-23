@@ -1,0 +1,16 @@
+# Test-only library: FA is one physical instance described by two output functions.
+GATE INV 0.2 Y=!A;
+PIN A INV 1 99 0.2 0 0.2 0
+GATE AND 1 Y=A*B;
+PIN A NONINV 1 99 1 0 1 0
+PIN B NONINV 1 99 1 0 1 0
+GATE BUF 0.1 Y=A;
+PIN A NONINV 1 99 0.1 0 0.1 0
+GATE FA 2 S=A*!B*!C+!A*B*!C+!A*!B*C+A*B*C;
+PIN A UNKNOWN 1 99 3 0 3 0
+PIN B UNKNOWN 1 99 3 0 3 0
+PIN C UNKNOWN 1 99 3 0 3 0
+GATE FA 2 CO=A*B+A*C+B*C;
+PIN A UNKNOWN 1 99 7 0 7 0
+PIN B UNKNOWN 1 99 7 0 7 0
+PIN C UNKNOWN 1 99 7 0 7 0

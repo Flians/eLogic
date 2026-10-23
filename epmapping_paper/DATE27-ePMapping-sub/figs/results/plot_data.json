@@ -1,0 +1,1194 @@
+{
+  "round_progress": {
+    "cohort_percent_reduction": {
+      "cold": {
+        "a": [
+          0.0,
+          5.042286058222667,
+          7.105879507980664
+        ],
+        "d": [
+          0.0,
+          4.898327582414619,
+          7.432345784912146
+        ]
+      },
+      "warm": {
+        "a": [
+          0.0,
+          5.042286058222667,
+          7.105879507980664
+        ],
+        "d": [
+          0.0,
+          4.898327582414619,
+          7.432345784912146
+        ]
+      }
+    },
+    "identical": true
+  },
+  "abc_comparison": {
+    "a": [
+      {
+        "design": "aes_core",
+        "ours": -1.750918580938432,
+        "abc": -2.6933062625210002,
+        "ours_status": "complete"
+      },
+      {
+        "design": "arbiter",
+        "ours": -37.17994692677329,
+        "abc": 0.0,
+        "ours_status": "complete"
+      },
+      {
+        "design": "div",
+        "ours": -3.9443573276889077,
+        "abc": null,
+        "ours_status": "complete"
+      },
+      {
+        "design": "ethernet",
+        "ours": -1.3657526883158133,
+        "abc": -0.6522314659563988,
+        "ours_status": "complete"
+      },
+      {
+        "design": "iwls05_i2c",
+        "ours": -7.408654655665936,
+        "abc": -3.9858728557013112,
+        "ours_status": "complete"
+      },
+      {
+        "design": "mem_ctrl",
+        "ours": -4.090071947399232,
+        "abc": null,
+        "ours_status": "complete"
+      },
+      {
+        "design": "RISC",
+        "ours": -5.54175275986204,
+        "abc": -2.8464671644947037,
+        "ours_status": "complete"
+      },
+      {
+        "design": "sasc",
+        "ours": -1.1436541143654222,
+        "abc": -1.8410041841004254,
+        "ours_status": "complete"
+      },
+      {
+        "design": "simple_spi",
+        "ours": -2.3368251410153196,
+        "abc": -2.699435938759076,
+        "ours_status": "complete"
+      },
+      {
+        "design": "spi",
+        "ours": -4.495302599956307,
+        "abc": -2.1356783919598166,
+        "ours_status": "complete"
+      },
+      {
+        "design": "sqrt",
+        "ours": -11.43179738465625,
+        "abc": null,
+        "ours_status": "complete"
+      },
+      {
+        "design": "systemcaes",
+        "ours": -2.4743890011263536,
+        "abc": -2.9553215454204307,
+        "ours_status": "complete"
+      },
+      {
+        "design": "systemcdes",
+        "ours": -6.182564374131205,
+        "abc": -7.486595617925462,
+        "ours_status": "complete"
+      },
+      {
+        "design": "tv80",
+        "ours": -5.086615194965283,
+        "abc": -6.991933216548796,
+        "ours_status": "complete"
+      },
+      {
+        "design": "usb_funct",
+        "ours": -5.179083988518663,
+        "abc": -2.5460482041823385,
+        "ours_status": "complete"
+      },
+      {
+        "design": "usb_phy",
+        "ours": -11.675874769797412,
+        "abc": -9.650092081031303,
+        "ours_status": "complete"
+      }
+    ],
+    "d": [
+      {
+        "design": "aes_core",
+        "ours": -0.014616677629175623,
+        "abc": 13.327973884869305,
+        "ours_status": "complete"
+      },
+      {
+        "design": "arbiter",
+        "ours": -43.445647934231445,
+        "abc": 0.0,
+        "ours_status": "complete"
+      },
+      {
+        "design": "div",
+        "ours": -0.4630453156008296,
+        "abc": null,
+        "ours_status": "complete"
+      },
+      {
+        "design": "ethernet",
+        "ours": -1.8760210401594035,
+        "abc": 10.191551621995231,
+        "ours_status": "complete"
+      },
+      {
+        "design": "iwls05_i2c",
+        "ours": -0.989015613820976,
+        "abc": -1.5697992508732828,
+        "ours_status": "complete"
+      },
+      {
+        "design": "mem_ctrl",
+        "ours": -1.0398141658025661,
+        "abc": null,
+        "ours_status": "complete"
+      },
+      {
+        "design": "RISC",
+        "ours": -0.2326149074565964,
+        "abc": 68.74632052036817,
+        "ours_status": "complete"
+      },
+      {
+        "design": "sasc",
+        "ours": 0.0,
+        "abc": 0.0,
+        "ours_status": "complete"
+      },
+      {
+        "design": "simple_spi",
+        "ours": -9.77622377622378,
+        "abc": 0.0,
+        "ours_status": "complete"
+      },
+      {
+        "design": "spi",
+        "ours": -0.8826704485320636,
+        "abc": 5.097051415024434,
+        "ours_status": "complete"
+      },
+      {
+        "design": "sqrt",
+        "ours": -0.0403842842174984,
+        "abc": null,
+        "ours_status": "complete"
+      },
+      {
+        "design": "systemcaes",
+        "ours": -18.677619870521777,
+        "abc": 9.038972427845549,
+        "ours_status": "complete"
+      },
+      {
+        "design": "systemcdes",
+        "ours": -0.5326423378679945,
+        "abc": 21.164135415916885,
+        "ours_status": "complete"
+      },
+      {
+        "design": "tv80",
+        "ours": -1.9525244065550784,
+        "abc": 17.57021962774534,
+        "ours_status": "complete"
+      },
+      {
+        "design": "usb_funct",
+        "ours": -6.075276472542601,
+        "abc": -0.3227490626038332,
+        "ours_status": "complete"
+      },
+      {
+        "design": "usb_phy",
+        "ours": -1.4822452793709973,
+        "abc": 0.0,
+        "ours_status": "complete"
+      }
+    ]
+  },
+  "ablation_effects": {
+    "designs": [
+      "aes_core",
+      "arbiter",
+      "div",
+      "ethernet",
+      "iwls05_i2c",
+      "mem_ctrl",
+      "RISC",
+      "sasc",
+      "simple_spi",
+      "spi",
+      "sqrt",
+      "systemcaes",
+      "systemcdes",
+      "tv80",
+      "usb_funct",
+      "usb_phy"
+    ],
+    "arms": [
+      "noSHANNON",
+      "noDAVIO",
+      "noREUSE",
+      "noPRICE"
+    ],
+    "cohort_summed_area_delta": {
+      "cold": [
+        148.11,
+        39.52,
+        231.82,
+        163.59
+      ],
+      "warm": [
+        148.11,
+        39.52,
+        231.82,
+        163.59
+      ]
+    },
+    "cohort_per_design_percent": {
+      "cold": [
+        [
+          0.030119272318396284,
+          0.1365407011766573,
+          1.2097907714549772,
+          0.7770772258142156
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.002537255366297231,
+          0.003383007155055573,
+          0.06512288773490305,
+          0.060048377002308584
+        ],
+        [
+          0.13551795118982302,
+          0.09087209555003195,
+          0.22480966246940515,
+          0.1639648680576533
+        ],
+        [
+          3.214364885834642,
+          0.1773442695632843,
+          4.522278873863894,
+          2.5714919086677
+        ],
+        [
+          1.3750165001980008,
+          0.32230386764640073,
+          2.9815857790293387,
+          2.1246754961059544
+        ],
+        [
+          3.067607038540987,
+          0.3188003134572792,
+          3.3458003846975837,
+          2.0791479660896117
+        ],
+        [
+          0.25964391691395416,
+          0.14836795252224366,
+          0.7789317507418403,
+          0.7789317507418403
+        ],
+        [
+          2.0897185845639488,
+          0.0,
+          2.11758149902479,
+          0.8637503482864295
+        ],
+        [
+          0.920370875374954,
+          0.3204254158712727,
+          1.5748568311971578,
+          1.370329970002726
+        ],
+        [
+          0.29872760709852564,
+          -0.22404570532389423,
+          0.8532407277751286,
+          0.8663100605856844
+        ],
+        [
+          0.9272292602274579,
+          3.867551444466777,
+          5.395804008311567,
+          5.547735549746413
+        ],
+        [
+          2.8040352688855297,
+          0.00794344268806313,
+          2.2003336245928873,
+          0.5560409881642636
+        ],
+        [
+          1.58974823948983,
+          0.5379756399794378,
+          2.167014235198117,
+          1.650194940611116
+        ],
+        [
+          2.033342970029861,
+          0.5846262567858362,
+          2.552118467122799,
+          1.573993768269566
+        ],
+        [
+          3.7868162692846985,
+          0.3740065451145247,
+          3.412809724170174,
+          1.0752688172043001
+        ]
+      ],
+      "warm": [
+        [
+          0.030119272318396284,
+          0.1365407011766573,
+          1.2097907714549772,
+          0.7770772258142156
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.002537255366297231,
+          0.003383007155055573,
+          0.06512288773490305,
+          0.060048377002308584
+        ],
+        [
+          0.13551795118982302,
+          0.09087209555003195,
+          0.22480966246940515,
+          0.1639648680576533
+        ],
+        [
+          3.214364885834642,
+          0.1773442695632843,
+          4.522278873863894,
+          2.5714919086677
+        ],
+        [
+          1.3750165001980008,
+          0.32230386764640073,
+          2.9815857790293387,
+          2.1246754961059544
+        ],
+        [
+          3.067607038540987,
+          0.3188003134572792,
+          3.3458003846975837,
+          2.0791479660896117
+        ],
+        [
+          0.25964391691395416,
+          0.14836795252224366,
+          0.7789317507418403,
+          0.7789317507418403
+        ],
+        [
+          2.0897185845639488,
+          0.0,
+          2.11758149902479,
+          0.8637503482864295
+        ],
+        [
+          0.920370875374954,
+          0.3204254158712727,
+          1.5748568311971578,
+          1.370329970002726
+        ],
+        [
+          0.29872760709852564,
+          -0.22404570532389423,
+          0.8532407277751286,
+          0.8663100605856844
+        ],
+        [
+          0.9272292602274579,
+          3.867551444466777,
+          5.395804008311567,
+          5.547735549746413
+        ],
+        [
+          2.8040352688855297,
+          0.00794344268806313,
+          2.2003336245928873,
+          0.5560409881642636
+        ],
+        [
+          1.58974823948983,
+          0.5379756399794378,
+          2.167014235198117,
+          1.650194940611116
+        ],
+        [
+          2.033342970029861,
+          0.5846262567858362,
+          2.552118467122799,
+          1.573993768269566
+        ],
+        [
+          3.7868162692846985,
+          0.3740065451145247,
+          3.412809724170174,
+          1.0752688172043001
+        ]
+      ]
+    },
+    "cohort_timeout_comparisons": {
+      "cold": [
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ]
+      ],
+      "warm": [
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false,
+          false
+        ]
+      ]
+    },
+    "timeout_policy": "independently verified saved output on optimizer deadline under the campaign selection policy; dagger marks either compared run interrupted"
+  },
+  "oracle_time_share": {
+    "cohort_stage_seconds": {
+      "cold": {
+        "secs_stage1": 601.852282,
+        "secs_stage2": 200.57857495899998,
+        "secs_synth": 684.200633275,
+        "secs_egg": 1511.19152864,
+        "secs_care": 62.215049915,
+        "secs_chain": 0.28050365
+      },
+      "warm": {
+        "secs_stage1": 602.4447588939998,
+        "secs_stage2": 201.75637493399998,
+        "secs_synth": 684.4732236360001,
+        "secs_egg": 250.30645205999997,
+        "secs_care": 61.504622958,
+        "secs_chain": 0.265436816
+      }
+    },
+    "completed_full_runs": {
+      "cold": 16,
+      "warm": 16
+    },
+    "denominator": "sum of listed phases from completed full-ablation runs only; interrupted phase counters are unavailable; excludes CEC and unmeasured phases"
+  },
+  "_provenance": {
+    "verified_metrics_sha256": "8eb7eab191beaf8398bed073718fd0d2e8ad5c111d3f59bd33b64450aeb26e69",
+    "root": "/home/flynn/workplace/MIGBalance/results_v28_three_parts_query_budget/cold",
+    "whole_window_synthesis": false,
+    "vector_pdf_sha256": {
+      "abc_comparison.pdf": "382788f93d3caa388f1384a1794b02e365baf1379acf5a13e69048a1aafa64b2",
+      "ablation_effects.pdf": "90792a686faffc8a00b826aa1ea0747a841ce9922d519cf46e1147bf1bdef4f0",
+      "build_ablation.pdf": "5d2620eb7c708792cc0c6a1ece6dba4fdd97800bbc588f170a596f8e35e0ce96",
+      "cache_runtime.pdf": "605ef0569d4b1b7e9c6a7fc2caebb80b9a4361107a656660341f9dc3d6bbfff7",
+      "oracle_time_share.pdf": "0ddeb523904259f817bc04ceba9bdf6e3a6f883c1fc70000225957a47493b1fe",
+      "round_progress.pdf": "58cb0a1444c924aded24669f0c6ca3eb790a747f22f2cd990538455e71e692ff"
+    }
+  },
+  "_cofactor_provenance": {
+    "verified_profiles_sha256": "5020a0b13bbee872fefcf393ae8f65d3a1f004130749b5fbbfba6bfc09891603"
+  },
+  "cache_runtime": {
+    "designs": [
+      "aes_core",
+      "arbiter",
+      "div",
+      "ethernet",
+      "iwls05_i2c",
+      "mem_ctrl",
+      "RISC",
+      "sasc",
+      "simple_spi",
+      "spi",
+      "sqrt",
+      "systemcaes",
+      "systemcdes",
+      "tv80",
+      "usb_funct",
+      "usb_phy"
+    ],
+    "seconds": {
+      "tab_mfs3": {
+        "cold": {
+          "aes_core": 186.0308088,
+          "arbiter": 6.646422162,
+          "div": 407.0801476,
+          "ethernet": 150.7644516,
+          "iwls05_i2c": 14.80995543,
+          "mem_ctrl": 376.182914,
+          "RISC": 341.8189706,
+          "sasc": 1.62556866,
+          "simple_spi": 6.558444374,
+          "spi": 24.35682449,
+          "sqrt": 90.11157977,
+          "systemcaes": 34.96620202,
+          "systemcdes": 23.29082731,
+          "tv80": 85.9365759,
+          "usb_funct": 93.78790483,
+          "usb_phy": 4.253082804
+        },
+        "warm": {
+          "aes_core": 59.67282187,
+          "arbiter": 6.490278734,
+          "div": 342.4326236,
+          "ethernet": 69.8488796,
+          "iwls05_i2c": 2.358329299,
+          "mem_ctrl": 174.5868336,
+          "RISC": 128.1772001,
+          "sasc": 0.785089175,
+          "simple_spi": 1.365459353,
+          "spi": 8.147485795,
+          "sqrt": 80.90648058,
+          "systemcaes": 17.33135199,
+          "systemcdes": 13.02754253,
+          "tv80": 26.6499074,
+          "usb_funct": 26.52765363,
+          "usb_phy": 1.092989692
+        }
+      },
+      "tab_main": {
+        "cold": {
+          "aes_core": 420.5901515,
+          "arbiter": 19.54153345,
+          "div": 210.1930283,
+          "ethernet": 466.772507,
+          "iwls05_i2c": 18.82360674,
+          "mem_ctrl": 713.5067684,
+          "RISC": 517.4399316,
+          "sasc": 2.976220762,
+          "simple_spi": 7.966061734,
+          "spi": 56.98699749,
+          "sqrt": 221.8286074,
+          "systemcaes": 112.813005,
+          "systemcdes": 75.76239599,
+          "tv80": 159.5605673,
+          "usb_funct": 207.8837538,
+          "usb_phy": 9.331114242
+        },
+        "warm": {
+          "aes_core": 156.3505006,
+          "arbiter": 19.71980282,
+          "div": 170.0769394,
+          "ethernet": 330.5756343,
+          "iwls05_i2c": 4.878223048,
+          "mem_ctrl": 463.8677512,
+          "RISC": 267.7812804,
+          "sasc": 1.379133046,
+          "simple_spi": 3.100557991,
+          "spi": 21.10403572,
+          "sqrt": 206.6642854,
+          "systemcaes": 58.13402848,
+          "systemcdes": 24.99304962,
+          "tv80": 63.80218488,
+          "usb_funct": 105.6084844,
+          "usb_phy": 1.948525369
+        }
+      }
+    },
+    "timeouts": [],
+    "note": "Crosses at 1000 s denote optimizer timeouts, not completion times. Lines join distinct circuits to aid reading; no continuous workload interpolation is implied."
+  },
+  "_profile_provenance": {
+    "verified_profiles_sha256": "5020a0b13bbee872fefcf393ae8f65d3a1f004130749b5fbbfba6bfc09891603",
+    "cohort_certificate_sha256": {
+      "cold": "8eb7eab191beaf8398bed073718fd0d2e8ad5c111d3f59bd33b64450aeb26e69",
+      "warm": "37adb4a98553b7bb9a72bc81384c6ad7030584c66b820cf9d0869a31383d06bf"
+    },
+    "vector_pdf_sha256": {
+      "abc_comparison.pdf": "382788f93d3caa388f1384a1794b02e365baf1379acf5a13e69048a1aafa64b2",
+      "ablation_effects.pdf": "90792a686faffc8a00b826aa1ea0747a841ce9922d519cf46e1147bf1bdef4f0",
+      "build_ablation.pdf": "5d2620eb7c708792cc0c6a1ece6dba4fdd97800bbc588f170a596f8e35e0ce96",
+      "cache_runtime.pdf": "605ef0569d4b1b7e9c6a7fc2caebb80b9a4361107a656660341f9dc3d6bbfff7",
+      "oracle_time_share.pdf": "0ddeb523904259f817bc04ceba9bdf6e3a6f883c1fc70000225957a47493b1fe",
+      "round_progress.pdf": "58cb0a1444c924aded24669f0c6ca3eb790a747f22f2cd990538455e71e692ff"
+    }
+  },
+  "build_ablation": {
+    "arms": [
+      "noQUERY",
+      "noTRUTH",
+      "allPIVOTS"
+    ],
+    "designs": [
+      "aes_core",
+      "arbiter",
+      "div",
+      "ethernet",
+      "iwls05_i2c",
+      "mem_ctrl",
+      "RISC",
+      "sasc",
+      "simple_spi",
+      "spi",
+      "sqrt",
+      "systemcaes",
+      "systemcdes",
+      "tv80",
+      "usb_funct",
+      "usb_phy"
+    ],
+    "runtime_ratio": {
+      "cold": [
+        [
+          1.0921953582439639,
+          1.0158872001490862,
+          1.320665532280119
+        ],
+        [
+          1.036855675368832,
+          1.0887572313874097,
+          1.0375308605036953
+        ],
+        [
+          4.864540658218039,
+          1.0566451933129348,
+          1.1403976274171956
+        ],
+        [
+          1.2272889956760955,
+          1.0158758701359,
+          1.0156099867345978
+        ],
+        [
+          1.016750082119172,
+          1.0028139644328553,
+          1.2631471239095922
+        ],
+        [
+          1.3507229638375167,
+          1.0040773694208702,
+          1.4165817255106075
+        ],
+        [
+          1.2016620218204568,
+          1.040630979419878,
+          1.2975561400224145
+        ],
+        [
+          1.0262860630077264,
+          1.0044804955625615,
+          1.6702133183916807
+        ],
+        [
+          1.026899111047997,
+          1.0066472965226811,
+          1.3630366613362033
+        ],
+        [
+          1.2796756291570295,
+          1.0134534277490372,
+          1.4486759147313828
+        ],
+        [
+          4.3382229513629715,
+          1.0361026297984768,
+          1.3684557030457654
+        ],
+        [
+          1.1381573995352063,
+          1.018386713506433,
+          1.4481389552664523
+        ],
+        [
+          1.1143226131660058,
+          1.0041477687463998,
+          1.3448836412871137
+        ],
+        [
+          1.204985177644183,
+          1.0155488322357142,
+          1.2701361695575966
+        ],
+        [
+          1.067124525928891,
+          1.0152941228868,
+          1.1456558162549988
+        ],
+        [
+          1.0072563335722564,
+          0.9955037033083329,
+          1.2589936721390567
+        ]
+      ],
+      "warm": [
+        [
+          1.2017474327853832,
+          1.0011518011238607,
+          1.7353179073291798
+        ],
+        [
+          1.0490554612972365,
+          1.1064463464792191,
+          1.0343801514677238
+        ],
+        [
+          6.142344211749862,
+          1.054104458778092,
+          1.125434139737197
+        ],
+        [
+          1.2709964396487745,
+          1.02014324564955,
+          0.9940547485018475
+        ],
+        [
+          1.0681144210783853,
+          1.0202950469284375,
+          1.9869667825158976
+        ],
+        [
+          1.575708768153732,
+          1.0456779774957796,
+          2.151265149719572
+        ],
+        [
+          1.3130624527412202,
+          1.050557607966709,
+          1.5640695751464484
+        ],
+        [
+          1.0569480770508501,
+          1.0198887133259817,
+          2.5439280529235293
+        ],
+        [
+          1.0944710999418406,
+          1.041414395700524,
+          2.001852073703621
+        ],
+        [
+          1.6740444291737355,
+          0.9971113363716437,
+          1.9953274947085606
+        ],
+        [
+          4.824070153422725,
+          0.95179917278244,
+          1.3358121941634498
+        ],
+        [
+          1.282507306909526,
+          1.0430213057236248,
+          1.545716731641884
+        ],
+        [
+          1.350213594343242,
+          1.029929976086984,
+          1.958210180007444
+        ],
+        [
+          1.5180825476572564,
+          1.0191696054577903,
+          1.6550191029831944
+        ],
+        [
+          1.1160878604579965,
+          0.9931208138210895,
+          1.2491482900073607
+        ],
+        [
+          1.0205680201407068,
+          0.9806165499242387,
+          2.150955499512166
+        ]
+      ]
+    },
+    "aggregate_runtime_ratio": {
+      "cold": [
+        1.6736910643198948,
+        1.0212577528726332,
+        1.2779723145924005
+      ],
+      "warm": [
+        2.1457784942954743,
+        1.0245101663297522,
+        1.5502505236161985
+      ]
+    },
+    "timeout_comparisons": {
+      "cold": [
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          true,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          true
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          true,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ]
+      ],
+      "warm": [
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          true,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          true
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          true,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ],
+        [
+          false,
+          false,
+          false
+        ]
+      ]
+    },
+    "note": "Ratios use optimizer elapsed budget; dagger denotes at least one incomplete run. A ratio of one for two timeouts is not evidence of equal completed work.",
+    "verified_profiles_sha256": "5020a0b13bbee872fefcf393ae8f65d3a1f004130749b5fbbfba6bfc09891603",
+    "pdf_sha256": "5d2620eb7c708792cc0c6a1ece6dba4fdd97800bbc588f170a596f8e35e0ce96"
+  }
+}

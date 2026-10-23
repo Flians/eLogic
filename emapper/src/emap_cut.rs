@@ -1,4 +1,8 @@
-use std::{cmp::Ordering, collections::HashMap, usize};
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+    usize,
+};
 
 use crate::aig_graph::{Aig as AigGraph, AigNode};
 
@@ -47,25 +51,34 @@ impl Cut {
 
     /// Merge two cuts into a new cut, rooted at `output`.
     ///
-    /// This method is linear in the number of nodes in `x`, `y` and `z`.
+    /// Both `inputs` and `nodes` come out sorted and deduplicated, and `nodes` **contains the new
+    /// root** -- which [`Cut::new`] asserts and which `emap::cut_expr_size` relies on (it looks the
+    /// root up in the node-size map, so a root-less `nodes` silently collapsed every merged cut's
+    /// size to 1 and disabled the `max_cover_nodes` pre-filter for the egg path).
+    ///
+    /// The previous implementation fed `[x.output, y.output]` into `itertools::merge`, which
+    /// requires **each** input to be sorted on its own; `[x.output, y.output]` is only sorted when
+    /// `x.output <= y.output`, so the merged vector could come out unsorted with duplicates that
+    /// `dedup` (which only removes *consecutive* repeats) then failed to remove. Unsorted, duplicated
+    /// `nodes` also breaks the derived `Hash`/`Eq`, so structurally identical cuts could both survive
+    /// the `HashSet` dedup in `enumerate_merged_cuts_mockturtle` and waste the cut budget.
     #[must_use]
     pub fn union2(x: &Self, y: &Self, output: usize) -> Self {
-        let nodes = [x.output, y.output];
-        let inputs = x
-            .inputs
-            .iter()
-            .merge(&y.inputs)
-            .dedup()
-            .copied()
-            .collect::<Vec<_>>();
-        let nodes = x
-            .nodes
-            .iter()
-            .merge(&y.nodes)
-            .merge(&nodes)
-            .dedup()
-            .copied()
-            .collect::<Vec<_>>();
+        let mut inputs = Vec::with_capacity(x.inputs.len() + y.inputs.len());
+        inputs.extend_from_slice(&x.inputs);
+        inputs.extend_from_slice(&y.inputs);
+        inputs.sort_unstable();
+        inputs.dedup();
+
+        let mut nodes = Vec::with_capacity(x.nodes.len() + y.nodes.len() + 3);
+        nodes.extend_from_slice(&x.nodes);
+        nodes.extend_from_slice(&y.nodes);
+        nodes.push(x.output);
+        nodes.push(y.output);
+        nodes.push(output);
+        nodes.sort_unstable();
+        nodes.dedup();
+
         Self {
             inputs,
             output,
@@ -90,6 +103,152 @@ impl Cut {
     pub fn nodes(&self) -> impl Iterator<Item = NodeIndex> + '_ {
         self.nodes.iter().map(|node| NodeIndex::new(*node))
     }
+}
+
+/// Combinational depth from PIs / const (AND depth = 1 + max(children); outputs match driver).
+#[must_use]
+pub fn compute_aig_comb_depth(aig: &AigGraph, len: usize) -> Vec<u32> {
+    let mut d = vec![0u32; len];
+    let mut topo = petgraph::visit::Topo::new(aig.graph());
+    while let Some(node) = topo.next(aig.graph()) {
+        let idx = node.index();
+        if idx >= len {
+            continue;
+        }
+        d[idx] = match aig.node_type(node) {
+            AigNode::Zero | AigNode::Input(_) => 0,
+            AigNode::And => {
+                let Some((xe, ye)) = aig.try_unwrap_and(node) else {
+                    continue;
+                };
+                let x = aig.edge_source(xe).index();
+                let y = aig.edge_source(ye).index();
+                let dx = d.get(x).copied().unwrap_or(0);
+                let dy = d.get(y).copied().unwrap_or(0);
+                dx.max(dy).saturating_add(1)
+            }
+            AigNode::Output(_) => aig
+                .graph()
+                .edges_directed(node, Incoming)
+                .next()
+                .map(|e| d.get(e.source().index()).copied().unwrap_or(0))
+                .unwrap_or(0),
+        };
+    }
+    d
+}
+
+/// Structural ordering for cut sets before tech mapping (cf. mockturtle cut prioritization):
+/// ascending Σ `est_ref` over the cone, then max combinational depth, then cone size, then leaves.
+pub fn sort_cuts_by_flow_depth_cone(est_refs: &[f32], comb_depth: &[u32], cuts: &mut [Cut]) {
+    fn metrics(est_refs: &[f32], comb_depth: &[u32], c: &Cut) -> (f32, u32, usize) {
+        let mut sum_flow = 0.0f32;
+        let mut max_dep = 0u32;
+        for n in c.nodes() {
+            let i = n.index();
+            sum_flow += est_refs.get(i).copied().unwrap_or(1.0);
+            max_dep = max_dep.max(comb_depth.get(i).copied().unwrap_or(0));
+        }
+        (sum_flow, max_dep, c.node_count())
+    }
+    cuts.sort_by(|a, b| {
+        let ma = metrics(est_refs, comb_depth, a);
+        let mb = metrics(est_refs, comb_depth, b);
+        ma.0.total_cmp(&mb.0)
+            .then_with(|| ma.1.cmp(&mb.1))
+            .then_with(|| ma.2.cmp(&mb.2))
+            .then_with(|| a.input_indices().cmp(b.input_indices()))
+    });
+}
+
+/// Drop every cut whose leaf set is a **superset** of another cut's leaf set.
+///
+/// This is mockturtle's cut-dominance rule (`cut_enumeration.hpp`: "A cut `C'` dominates another cut
+/// `C` if `C'` is a subset of `C`", implemented there as a bitset subset test): a cut that merely
+/// extends the boundary of another cut carries no function the narrower one cannot express at least
+/// as cheaply, and keeping it pushes the genuine alternatives out of the fixed-size cut set.
+///
+/// Without this the pool becomes wide-biased, and because each node's candidates are the cross
+/// product of its fanins' pools, wide cuts merge into cuts with more than `max_inputs` leaves and
+/// get filtered: measured on c432 the pool was 89 % 6..9-input cuts while the candidate count stayed
+/// pinned at ~12 per node no matter how large `max_cuts` was. mockturtle's antichain keeps the cut
+/// set narrow and lets it grow.
+///
+/// Cuts with equal leaf sets are collapsed to the one with the fewest nodes.
+fn prune_dominated(cuts: Vec<Cut>) -> Vec<Cut> {
+    let mut sorted = cuts;
+    sorted.sort_by(|a, b| {
+        a.input_count()
+            .cmp(&b.input_count())
+            .then_with(|| a.node_count().cmp(&b.node_count()))
+            .then_with(|| a.input_indices().cmp(b.input_indices()))
+    });
+    let mut kept: Vec<Cut> = Vec::with_capacity(sorted.len());
+    for cut in sorted {
+        let dominated = kept.iter().any(|k| {
+            k.input_indices()
+                .iter()
+                .all(|i| cut.input_indices().binary_search(i).is_ok())
+        });
+        if !dominated {
+            kept.push(cut);
+        }
+    }
+    kept
+}
+
+/// Mockturtle [`cut_enumeration`](https://github.com/lsils/mockturtle/blob/master/include/mockturtle/algorithms/cut_enumeration.hpp)-style
+/// merge for one AND: take **all** pairs of child cuts, merge with [`Cut::union2`], add `trivial`,
+/// deduplicate, structurally sort, then keep the best `cut_limit` (same role as
+/// `cut_enumeration_params::cut_limit`).
+///
+/// This replaces a blind Cartesian **enumeration order** cap: every distinct merged cut from the
+/// full child cross-product is considered before the limit (child lists should stay bounded by the
+/// same limit from the previous level, as in mockturtle).
+#[must_use]
+pub fn enumerate_merged_cuts_mockturtle(
+    left: &[Cut],
+    right: &[Cut],
+    output_idx: usize,
+    trivial: Cut,
+    max_inputs: usize,
+    cut_limit: usize,
+    est_refs: &[f32],
+    comb_depth: &[u32],
+) -> Vec<Cut> {
+    let cut_limit = cut_limit.max(1);
+    /* Deduplicate by **leaf set**, not by the whole `Cut`.
+    A cut's function is determined by its root and its boundary leaves, and so is its cone; but
+    `union2` only records the union of the two child cones, so the *same* boundary reached through
+    different child-cut pairs produces the same function with a different `nodes` vector. `Cut`
+    derives `Hash`/`Eq` over `nodes`, so those function-duplicates all survived and ate both the
+    `HashSet` and the caller's fixed-size pool: c880 enumerated 7.9 "distinct" candidates per node
+    for 4.4 pool slots while the real leaf sets were far fewer. mockturtle deduplicates on the leaf
+    bitset for exactly this reason (`cut_t` is the leaf set). */
+    let mut seen: HashSet<Vec<usize>> = HashSet::new();
+    let mut out = Vec::new();
+    if seen.insert(trivial.input_indices().to_vec()) {
+        out.push(trivial);
+    }
+    for (xc, yc) in left.iter().cartesian_product(right.iter()) {
+        let cut = Cut::union2(xc, yc, output_idx);
+        if cut.input_count() <= max_inputs && seen.insert(cut.input_indices().to_vec()) {
+            out.push(cut);
+        }
+    }
+    // Dominance pruning *before* the flow ordering and truncation, exactly as mockturtle does: the
+    // dominated (superset) cuts must not be able to crowd the width the caller actually wanted.
+    // `EMAPPER_NO_DOMINANCE=1` disables it (diagnostic: dominance is a heuristic that assumes a
+    // narrower leaf set is never worse, and it can in principle drop the only cut whose *function*
+    // a compound cell matches).
+    let mut out = if std::env::var("EMAPPER_NO_DOMINANCE").is_ok_and(|v| v == "1") {
+        out
+    } else {
+        prune_dominated(out)
+    };
+    sort_cuts_by_flow_depth_cone(est_refs, comb_depth, &mut out);
+    out.truncate(cut_limit);
+    out
 }
 
 pub struct Mapper<'a> {

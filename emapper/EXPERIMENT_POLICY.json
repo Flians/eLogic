@@ -1,0 +1,21 @@
+{
+  "policy": "time-only600-v1",
+  "effective_date": "2026-10-22",
+  "active_experiment_entry": "scripts/experiments/campaigns/run_time_only600.py",
+  "scope": "New eGraphMap experiments; frozen legacy commands and results remain unchanged",
+  "mapping_seconds_per_design_method": 600,
+  "source_construction_and_export_included": true,
+  "independent_cec_included": false,
+  "node_limit": null,
+  "extra_search_ratio": null,
+  "retained_candidate_limit": null,
+  "cut_count_limit": null,
+  "iteration_limit": null,
+  "native_subguard_seconds": null,
+  "stage_time_limits": null,
+  "address_space_limit_bytes": null,
+  "baseline_algorithms_changed": false,
+  "old_results_relabelled": false,
+  "new_mapper_source": "results_v2/time_only_600_20261022/source",
+  "main_algorithm_adoption": "Separate from this execution-policy change; no PPA improvement claimed"
+}

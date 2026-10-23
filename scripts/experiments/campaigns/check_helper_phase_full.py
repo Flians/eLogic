@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+"""Verify fixed full/repeat physical-budget evidence; never treat failed imports as covers."""
+import argparse,json,hashlib,re
+from pathlib import Path
+p=argparse.ArgumentParser();p.add_argument('--campaign',type=Path,required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args();c=json.loads(a.campaign.read_text());sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+assert c['status']=='attempted' and len(c['jobs'])==c['expected_jobs']
+errors=[];success=[];failed=[]
+for file,digest in c['fingerprint'].items():
+ if sha(Path(file))!=digest:errors.append(['frozen-source',file])
+for j in c['jobs']:
+ assert j.get('new_mapper_run',True) is not False and not j.get('adopted_from')
+ for key in ['report','audit','pool','candidates','trace','pool_frontier','pool_guard','helper_allocation','diagnostic_profile']:
+  if key in j and sha(Path(j[key]))!=j[key+'_sha256']:errors.append(['artifact',j['name'],key])
+ rr=json.loads(Path(j['report']).read_text());assert len(rr['results'])==1;r=rr['results'][0];settings=r['settings'];on=int(j['profile']=='protected_area')
+ assert settings['EGM_IMPORT_HELPER_FILL']==str(on) and settings['EGM_INTRODUCE_PHASE_INVERTERS']==str(on)
+ for key in ['EGM_SHARED_AREA_BOUND','EGM_FUSED_COVER_SCORING','EGM_PRESERVE_SHARED_TRAJECTORY','EGM_ONLINE_AREA','EGM_ACTIVATE_DEFERRED','EGM_TIMING_WITNESS_POOL']:
+  assert settings[key]=='1'
+ assert settings['EGM_LIBRARY_TIMING']=='0' and settings['EGM_CANONICAL_SOURCE_INPUTS']=='0'
+ assert r['preprocessing']['source_report_sha256']==c['fingerprint'][str(Path('results_v2/epfl_resyn2_subjects_20261012/report.json').resolve())]
+ helper_path=Path(j['helper_allocation']) if 'helper_allocation' in j else Path(j['report']).parent/(r['bench']+'.'+r['method'])/'pool-diagnostics.helper-allocation.json'
+ h=json.loads(helper_path.read_text()) if helper_path.exists() else None
+ if h:
+  assert set(h['old_helper_sources'])<=set(h['actual_helper_sources'])
+  assert h['initial_node_ceiling']==18000 and h['global_node_allowance']==20000
+ else:
+  plan=Path(j['report']).parent/(r['bench']+'.'+r['method'])/'pool-diagnostics.import-plan.json';ipolicy=json.loads(plan.read_text());assert ipolicy['xor_import'] is False and ipolicy['node_limit']==20000 and ipolicy['compact_upper']<=18000
+ folder=Path(j['report']).parent/(r['bench']+'.'+r['method']);ip=folder/'pool-diagnostics.import.json'
+ if r['status']!='ok':
+  assert not r.get('partial_status') and not r.get('partial_measured')
+  ledger=json.loads(ip.read_text()) if ip.exists() else None
+  failed.append(dict(job=j['name'],error=r.get('error'),import_ledger=ledger,report=j['report']))
+  if ledger and not ledger.get('import_complete',True):
+   assert ledger['node_allowance']==20000 and ledger['cumulative_import_admitted_enodes']<=20000
+  continue
+ n=r['native'];m=r['measured'];trace=json.loads(Path(j['trace']).read_text());totals=[e['seconds'] for e in trace['events'] if e['stage']=='global_total'];assert len(totals)==1
+ assert m['cec']==1 and j['exit_code']==0 and n['enodes']<=20000 and n['imported_enodes']<=20000 and n['max_cuts_per_class']<=16 and n['instances']<=100000 and n['heuristic_secs']<=2 and totals[0]<=2 and r['mapping_wall_secs']<=300
+ assert abs(n['area']-m['area'])<=1e-6 and abs(n['delay']-m['delay'])<=1e-6
+ ledger=json.loads(ip.read_text()) if ip.exists() else None
+ if ledger:assert ledger['import_complete'] and ledger['pre_rebuild_import_enodes']<=20000
+ success.append(dict(job=j['name'],k=j['k'],bench=j['bench'],profile=j['profile'],area=m['area'],delay=m['delay'],enodes=n['enodes'],retained=n['instances'],generated=n['generated_instances'],recovery=totals[0],oldhelpers=len(h['old_helper_sources']) if h else None,actualhelpers=len(h['actual_helper_sources']) if h else None,helper_branch_executed=h is not None,helper_metadata_sha256=sha(helper_path) if h else None,helper_metadata_first_captured_by_audit=h is not None and 'helper_allocation' not in j,phase_accepted=n['phase_accepted']))
+assert not errors,errors
+result=dict(status_slots=len(c['jobs']),fresh_native_attempts=len(c['jobs']),direct_original_cec=len(success),failures=failed,successful_cases=success,source_or_artifact_errors=errors,actual_success_budgets_pass=True,production_promoted=False,baseline_algorithms_changed=False,scope='Fixed full/repeated uniform compound method, not designwise selection. All failures retained, no partial incumbents accepted. Generated transient candidates not retained-memory limit; richer scalar function nodes not expanded-AND work units.')
+a.output.write_text(json.dumps(result,indent=2)+'\n');print('slots',len(c['jobs']),'directCEC',len(success),'failed',len(failed),'integrity errors',errors)

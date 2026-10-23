@@ -1,0 +1,14 @@
+# Synthetic library only; TRIPLE is one physical cell with three independent outputs.
+GATE INV 0.2 Y=!A;
+PIN A INV 1 99 0.2 0 0.2 0
+GATE AND 1 Y=A*B;
+PIN A NONINV 1 99 1 0 1 0
+PIN B NONINV 1 99 1 0 1 0
+GATE BUF 0.1 Y=A;
+PIN A NONINV 1 99 0.1 0 0.1 0
+GATE TRIPLE 0.4 Y=!A;
+PIN A INV 1 99 1 0 1 0
+GATE TRIPLE 0.4 Z=!B;
+PIN B INV 1 99 2 0 2 0
+GATE TRIPLE 0.4 W=!C;
+PIN C INV 1 99 3 0 3 0

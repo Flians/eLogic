@@ -1,0 +1,8 @@
+{
+  "verified_paths": 2112,
+  "verified_canonical_groups": 664,
+  "unresolved_prepared_entries": 0,
+  "released_bytes": 12525944832,
+  "released_gib": 11.665695190429688,
+  "verification": "All merged paths share the expected canonical inode and size; merge completed with SHA-256 assertions for each canonical group."
+}

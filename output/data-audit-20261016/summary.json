@@ -1,0 +1,236 @@
+{
+  "scope": "results*, research, tmp, data, res; excludes source/build/Git directories",
+  "inventory_is_snapshot": true,
+  "files": 507961,
+  "unique_inodes": 503562,
+  "unique_inode_bytes": 106698702848,
+  "directories": {
+    "results_v2": {
+      "files": 157086,
+      "allocated_bytes": 94680772608,
+      "unique_inode_bytes": 94680772608
+    },
+    "results_v27_three_parts_build_reuse": {
+      "files": 115748,
+      "allocated_bytes": 4320837632,
+      "unique_inode_bytes": 2404237312
+    },
+    "research": {
+      "files": 22066,
+      "allocated_bytes": 1956257792,
+      "unique_inode_bytes": 1956257792
+    },
+    "results_v26_three_parts_cofactor_shared": {
+      "files": 80840,
+      "allocated_bytes": 1673576448,
+      "unique_inode_bytes": 1673576448
+    },
+    "results_v25_three_parts_progressive_phase": {
+      "files": 68038,
+      "allocated_bytes": 1557872640,
+      "unique_inode_bytes": 1557872640
+    },
+    "results_v23_three_parts_profiles": {
+      "files": 55105,
+      "allocated_bytes": 1326120960,
+      "unique_inode_bytes": 1326120960
+    },
+    "results_v20_three_parts_chain": {
+      "files": 1573,
+      "allocated_bytes": 492105728,
+      "unique_inode_bytes": 492105728
+    },
+    "results_v10_three_parts_1000": {
+      "files": 981,
+      "allocated_bytes": 297123840,
+      "unique_inode_bytes": 297123840
+    },
+    "results": {
+      "files": 1533,
+      "allocated_bytes": 285495296,
+      "unique_inode_bytes": 285495296
+    },
+    "results_v4_cut_only": {
+      "files": 986,
+      "allocated_bytes": 256843776,
+      "unique_inode_bytes": 256843776
+    },
+    "results_v3_audit": {
+      "files": 881,
+      "allocated_bytes": 254398464,
+      "unique_inode_bytes": 254398464
+    },
+    "results_v6_cut_search": {
+      "files": 549,
+      "allocated_bytes": 240422912,
+      "unique_inode_bytes": 240422912
+    },
+    "results_v5_objectives": {
+      "files": 172,
+      "allocated_bytes": 166715392,
+      "unique_inode_bytes": 166715392
+    },
+    "results_v9_three_parts": {
+      "files": 282,
+      "allocated_bytes": 136024064,
+      "unique_inode_bytes": 136024064
+    },
+    "results_v14_global_divisors": {
+      "files": 48,
+      "allocated_bytes": 122732544,
+      "unique_inode_bytes": 122732544
+    },
+    "results_v7_path_objective": {
+      "files": 248,
+      "allocated_bytes": 119996416,
+      "unique_inode_bytes": 119996416
+    },
+    "results_v8_area_bound": {
+      "files": 211,
+      "allocated_bytes": 112607232,
+      "unique_inode_bytes": 112607232
+    },
+    "results_v13_dependency_method": {
+      "files": 54,
+      "allocated_bytes": 112021504,
+      "unique_inode_bytes": 112021504
+    },
+    "results_v3_parallel": {
+      "files": 352,
+      "allocated_bytes": 111603712,
+      "unique_inode_bytes": 111603712
+    },
+    "results_v15_observability": {
+      "files": 30,
+      "allocated_bytes": 78086144,
+      "unique_inode_bytes": 78086144
+    },
+    "results_v11_arbiter": {
+      "files": 83,
+      "allocated_bytes": 47239168,
+      "unique_inode_bytes": 47239168
+    },
+    "results_v12_nonlocal_arbiter": {
+      "files": 47,
+      "allocated_bytes": 46534656,
+      "unique_inode_bytes": 46534656
+    },
+    "results_v17_chain_factor": {
+      "files": 42,
+      "allocated_bytes": 37953536,
+      "unique_inode_bytes": 37953536
+    },
+    "results_v18_chain_controls": {
+      "files": 35,
+      "allocated_bytes": 36802560,
+      "unique_inode_bytes": 36802560
+    },
+    "results_v16_observability_depth": {
+      "files": 28,
+      "allocated_bytes": 36790272,
+      "unique_inode_bytes": 36790272
+    },
+    "results_v19_arbiter_confirmation": {
+      "files": 28,
+      "allocated_bytes": 36167680,
+      "unique_inode_bytes": 36167680
+    },
+    "tmp": {
+      "files": 144,
+      "allocated_bytes": 28340224,
+      "unique_inode_bytes": 28340224
+    },
+    "results_v22_profile_lazy_cache": {
+      "files": 210,
+      "allocated_bytes": 12296192,
+      "unique_inode_bytes": 12296192
+    },
+    "results_v21_profile_cache": {
+      "files": 210,
+      "allocated_bytes": 12275712,
+      "unique_inode_bytes": 12275712
+    },
+    "results_v3_controls": {
+      "files": 197,
+      "allocated_bytes": 10256384,
+      "unique_inode_bytes": 10256384
+    },
+    "results_v24_usb_profile_diagnosis": {
+      "files": 116,
+      "allocated_bytes": 8622080,
+      "unique_inode_bytes": 8622080
+    },
+    "results_v3_cache_final": {
+      "files": 8,
+      "allocated_bytes": 270336,
+      "unique_inode_bytes": 270336
+    },
+    "res": {
+      "files": 30,
+      "allocated_bytes": 139264,
+      "unique_inode_bytes": 139264
+    }
+  },
+  "extensions_by_unique_inode_bytes": {
+    ".json": 84724203520,
+    ".v": 13807108096,
+    "(none)": 1752944640,
+    ".dot": 1637339136,
+    ".gz": 1483980800,
+    ".eqn": 914333696,
+    ".aig": 485679104,
+    ".bundle": 370282496,
+    ".log": 363212800,
+    ".super": 324079616,
+    ".csv": 195313664,
+    ".png": 111230976,
+    ".lib": 107741184,
+    ".bin": 86339584,
+    ".rs": 85045248,
+    ".hpp": 65916928,
+    ".genlib": 53473280,
+    ".txt": 38162432,
+    ".pdf": 23150592,
+    ".h": 12791808,
+    ".tsv": 11104256,
+    ".sexpr": 8957952,
+    ".before": 8642560,
+    ".after": 4730880,
+    ".cls": 3674112,
+    ".tex": 3088384,
+    ".py": 2916352,
+    ".cpp": 2433024,
+    ".md": 2162688,
+    ".jsonl": 1445888,
+    ".lock": 1433600,
+    ".patch": 1277952,
+    ".bib": 798720,
+    ".toml": 552960,
+    ".sh": 532480,
+    ".rc": 491520,
+    ".secs": 491520,
+    ".diff": 356352,
+    ".measured": 262144,
+    ".aag": 258048,
+    ".pyc": 204800,
+    ".aux": 172032,
+    ".html": 102400,
+    ".out": 69632,
+    ".orig": 57344,
+    ".bbl": 45056,
+    ".specs": 45056,
+    ".inc": 36864,
+    ".table": 16384,
+    ".sha256": 8192,
+    ".partial": 4096
+  },
+  "changes_applied_to_original_data": [
+    {
+      "action": "hardlink_identical_frozen_copies",
+      "merged_files": 2112,
+      "released_bytes": 12525944832,
+      "details": "merge-result.json",
+      "verification": "verification.json"
+    }
+  ]
+}

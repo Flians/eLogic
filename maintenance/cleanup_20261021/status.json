@@ -1,0 +1,16 @@
+{
+  "phase": "completed",
+  "cache_files_removed": 15940,
+  "duplicate_paths_linked": 15997,
+  "data_paths_sha256_verified": 19040,
+  "observed_free_space_increase_bytes": 20887257088,
+  "original_allocated_bytes_removed_or_replaced": 21831553024,
+  "accounting_note": "Observed free space can be affected by filesystem sharing and concurrent activity; allocated-byte counts are recorded separately.",
+  "protected_checks_passed": true,
+  "git_trees_not_modified": true,
+  "baseline_algorithms_not_changed": true,
+  "raw_failures_cec_reports_retained": true,
+  "current_experiments_idle": true,
+  "new_experiments_launched_during_cleanup": false,
+  "latest_experiment_resume": "results_v2/search_resources_20261021/cleanup_resume_checkpoint.json"
+}

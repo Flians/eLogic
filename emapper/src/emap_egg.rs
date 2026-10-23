@@ -1,9 +1,17 @@
 use egg::Id;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 use crate::techlib::{Cell, Expr, TechLib};
+use crate::tt9::{
+    tt9_all_ones, tt9_and_masked, tt9_bit_get, tt9_bit_set, tt9_from_hex, tt9_from_u64,
+    tt9_not_masked, tt9_to_hex, tt9_zero, Tt9,
+};
+
+thread_local! {
+    static EGG_GATE_TT_N: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
+}
 
 egg::define_language! {
     pub enum AIG {
@@ -14,78 +22,124 @@ egg::define_language! {
     }
 }
 
-/// Compute a 64-bit truth table for an expression with up to 6 variables.
-///
-/// Variables are expected to be single-letter symbols in `a`..`f` (case-sensitive).
-/// Returns `(n_inputs, tt64)` where bit `k` corresponds to assignment `k` (LSB first).
+/// Truth table for an AIG s-expression; variables `a`..=`i` (up to **9** inputs).
 #[must_use]
-pub fn sexp_to_tt64(sexp: &str) -> Option<(u8, u64)> {
+pub fn sexp_to_tt9(sexp: &str) -> Option<(u8, Tt9)> {
     let expr: egg::RecExpr<AIG> = sexp.parse().ok()?;
     let mut n_inputs = 0u8;
 
-    // Determine number of inputs used (max letter index + 1).
     for node in expr.as_ref() {
         if let AIG::Symbol(sym) = node {
-            let s = sym.as_str().as_bytes();
-            if s.len() != 1 {
+            let s = sym.as_str();
+            // `0`/`1` are parsed as plain symbols (the `Bool` variant has no op string).
+            if s == "0" || s == "1" {
+                continue;
+            }
+            let bytes = s.as_bytes();
+            if bytes.len() != 1 {
                 return None;
             }
-            let c = s[0];
-            if !(b'a'..=b'f').contains(&c) {
+            let c = bytes[0];
+            if !(b'a'..=b'i').contains(&c) {
                 return None;
             }
             n_inputs = n_inputs.max((c - b'a' + 1) as u8);
         }
     }
 
-    if n_inputs > 6 {
+    if n_inputs > 9 {
         return None;
     }
 
-    let mask = match n_inputs {
-        0 => 1u64,
-        6 => u64::MAX, // 2^64 bits cannot be represented as (1<<64)
-        _ => (1u64 << (1u32 << n_inputs)) - 1,
-    };
+    let mask_ones = tt9_all_ones(n_inputs);
 
-    let var_tt = |idx: u8, n: u8| -> u64 {
-        let mut tt = 0u64;
-        let n = n as usize;
-        for a in 0..(1u64 << n) {
-            if ((a >> (idx as u64)) & 1) == 1 {
-                tt |= 1u64 << a;
+    let var_tt = |idx: u8, n: u8| -> Tt9 {
+        let mut tt = tt9_zero();
+        for a in 0..(1usize << usize::from(n)) {
+            if ((a >> usize::from(idx)) & 1) == 1 {
+                tt9_bit_set(&mut tt, a);
             }
         }
         tt
     };
 
-    let mut values = Vec::<u64>::with_capacity(expr.as_ref().len());
+    let mut values = Vec::<Tt9>::with_capacity(expr.as_ref().len());
     for node in expr.as_ref() {
         let v = match node {
-            AIG::Bool(0) => 0u64,
-            AIG::Bool(1) => mask,
+            AIG::Bool(0) => tt9_zero(),
+            AIG::Bool(1) => mask_ones,
             AIG::Bool(_) => return None,
             AIG::Symbol(sym) => {
-                let c = sym.as_str().as_bytes()[0];
-                var_tt((c - b'a') as u8, n_inputs) & mask
+                let s = sym.as_str();
+                match s {
+                    "0" => tt9_zero(),
+                    "1" => mask_ones,
+                    _ => {
+                        let bytes = s.as_bytes();
+                        if bytes.len() != 1 {
+                            return None;
+                        }
+                        let c = bytes[0];
+                        if !(b'a'..=b'i').contains(&c) {
+                            return None;
+                        }
+                        var_tt((c - b'a') as u8, n_inputs)
+                    }
+                }
             }
-            AIG::Not(a) => (!values[usize::from(*a)]) & mask,
-            AIG::And([a, b]) => values[usize::from(*a)] & values[usize::from(*b)],
+            AIG::Not(a) => tt9_not_masked(&values[usize::from(*a)], n_inputs),
+            AIG::And([a, b]) => {
+                tt9_and_masked(&values[usize::from(*a)], &values[usize::from(*b)], n_inputs)
+            }
         };
         values.push(v);
     }
 
     let root = *values.last()?;
-    Some((n_inputs, root & mask))
+    Some((n_inputs, root))
+}
+
+/// Compute a 64-bit truth table for an expression with up to 6 variables (compat).
+///
+/// Variables `a`..`f`. Returns `None` if the expression uses more than 6 inputs.
+#[must_use]
+pub fn sexp_to_tt64(sexp: &str) -> Option<(u8, u64)> {
+    let (n, tt) = sexp_to_tt9(sexp)?;
+    if n > 6 {
+        return None;
+    }
+    let mask = match n {
+        0 => 1u64,
+        6 => u64::MAX,
+        _ => (1u64 << (1u32 << n)) - 1,
+    };
+    Some((n, tt[0] & mask))
 }
 
 pub type GateLang = egg::SymbolLang;
 pub type GateEGraph = egg::EGraph<GateLang, GateTtFold>;
 type GateRewrite = egg::Rewrite<GateLang, GateTtFold>;
 
+/// Infer `n` from single-letter ops `a`..=`i` in a gate-level `RecExpr`.
+fn gate_expr_n_inputs(expr: &egg::RecExpr<GateLang>) -> u8 {
+    let mut n = 0u8;
+    for node in expr.as_ref() {
+        let op = node.op.as_str();
+        if op.len() == 1 {
+            let b = op.as_bytes()[0];
+            if (b'a'..=b'i').contains(&b) {
+                n = n.max(b - b'a' + 1);
+            }
+        }
+    }
+    n
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TtData {
-    pub tt: u64,
+    /// Number of Boolean inputs (`a`..) this TT is defined over (same for all nodes in one run).
+    pub n: u8,
+    pub tt: Tt9,
 }
 
 #[derive(Default)]
@@ -95,82 +149,141 @@ impl egg::Analysis<GateLang> for GateTtFold {
 
     fn merge(&mut self, to: &mut Self::Data, from: Self::Data) -> egg::DidMerge {
         egg::merge_option(to, from, |a, b| {
+            assert_eq!(a.n, b.n, "TT merge n mismatch");
             assert_eq!(a.tt, b.tt, "Merged non-equal truth tables");
             egg::DidMerge(false, false)
         })
     }
 
     fn make(egraph: &mut GateEGraph, enode: &GateLang, _id: Id) -> Self::Data {
-        let x = |i: &egg::Id| egraph[*i].data.as_ref().map(|c| c.tt);
+        let n = EGG_GATE_TT_N.get();
+        if n > 9 {
+            return None;
+        }
+        let x = |i: &egg::Id| egraph[*i].data.as_ref();
         let op = enode.op.as_str();
-        let tt = match (op, enode.children.as_slice()) {
-            ("0", []) => 0u64,
-            ("1", []) => u64::MAX,
-            ("~", [a]) => !x(a)?,
-            ("&", [a, b]) => x(a)? & x(b)?,
-            _ if op.len() == 1 => {
-                let bytes = op.as_bytes();
-                if !(b'a'..=b'f').contains(&bytes[0]) || !enode.children.is_empty() {
+        let data = match (op, enode.children.as_slice()) {
+            ("0", []) => TtData { n, tt: tt9_zero() },
+            ("1", []) => TtData {
+                n,
+                tt: tt9_all_ones(n),
+            },
+            ("~", [a]) => {
+                let ca = x(a)?;
+                if ca.n != n {
                     return None;
                 }
-                gate_var_tt(bytes[0] - b'a')
+                TtData {
+                    n,
+                    tt: tt9_not_masked(&ca.tt, n),
+                }
+            }
+            ("&", [a, b]) => {
+                let ca = x(a)?;
+                let cb = x(b)?;
+                if ca.n != n || cb.n != n {
+                    return None;
+                }
+                TtData {
+                    n,
+                    tt: tt9_and_masked(&ca.tt, &cb.tt, n),
+                }
+            }
+            _ if op.len() == 1 && enode.children.is_empty() => {
+                let bytes = op.as_bytes();
+                if !(b'a'..=b'i').contains(&bytes[0]) {
+                    return None;
+                }
+                let idx = bytes[0] - b'a';
+                if idx >= n {
+                    return None;
+                }
+                TtData {
+                    n,
+                    tt: gate_var_tt9(idx, n),
+                }
             }
             _ => {
-                let (_, gate_tt) = parse_gate_symbol(op)?;
-                let children = enode
+                let (arity, gate_tt) = parse_gate_symbol_full(op)?;
+                let children: Vec<&TtData> = enode
                     .children
                     .iter()
                     .map(|id| x(id))
                     .collect::<Option<Vec<_>>>()?;
-                compose_tt(gate_tt, &children)
+                TtData {
+                    n,
+                    tt: compose_tt9(&gate_tt, arity, &children, n)?,
+                }
             }
         };
-        Some(TtData { tt })
+        Some(data)
     }
 }
 
-fn gate_var_tt(idx: u8) -> u64 {
-    let mut tt = 0u64;
-    for a in 0..64u64 {
-        if ((a >> idx) & 1) == 1 {
-            tt |= 1u64 << a;
+fn gate_var_tt9(idx: u8, n: u8) -> Tt9 {
+    let mut tt = tt9_zero();
+    for a in 0..(1usize << usize::from(n)) {
+        if ((a >> usize::from(idx)) & 1) == 1 {
+            tt9_bit_set(&mut tt, a);
         }
     }
     tt
 }
 
-fn compose_tt(gate_tt: u64, children: &[u64]) -> u64 {
-    let mut out = 0u64;
-    for assign in 0..64u64 {
-        let mut idx = 0u64;
-        for (bit, child_tt) in children.iter().enumerate() {
-            if ((child_tt >> assign) & 1) == 1 {
-                idx |= 1u64 << bit;
-            }
-        }
-        if ((gate_tt >> idx) & 1) == 1 {
-            out |= 1u64 << assign;
+fn compose_tt9(gate_tt: &Tt9, arity: usize, children: &[&TtData], n: u8) -> Option<Tt9> {
+    if children.len() != arity {
+        return None;
+    }
+    for c in children {
+        if c.n != n {
+            return None;
         }
     }
-    out
+    let mut out = tt9_zero();
+    for assign in 0..(1usize << usize::from(n)) {
+        let mut idx = 0usize;
+        for (bit, ch) in children.iter().enumerate() {
+            if tt9_bit_get(&ch.tt, assign) {
+                idx |= 1usize << bit;
+            }
+        }
+        if tt9_bit_get(gate_tt, idx) {
+            tt9_bit_set(&mut out, assign);
+        }
+    }
+    Some(out)
+}
+
+fn parse_gate_symbol_full(op: &str) -> Option<(usize, Tt9)> {
+    let rest = op.strip_prefix("gate:")?;
+    let (arity_s, after_first) = rest.split_once(':')?;
+    let arity: usize = arity_s.parse().ok()?;
+    if after_first.len() >= 128 {
+        let tt = tt9_from_hex(&after_first[..128])?;
+        return Some((arity, tt));
+    }
+    let (hex_s, _) = after_first.split_once(':')?;
+    let lo = u64::from_str_radix(hex_s, 16).ok()?;
+    Some((arity, tt9_from_u64(lo)))
 }
 
 fn make_gate_symbol(cell: &Cell) -> String {
     format!(
-        "gate:{}:{:016x}:{}:{}",
+        "gate:{}:{}:{}:{}",
         cell.vars.len(),
-        cell.tt64,
+        tt9_to_hex(&cell.tt),
         cell.name,
         cell.out_pin
     )
 }
 
-fn parse_gate_symbol(op: &str) -> Option<(usize, u64)> {
-    let rest = op.strip_prefix("gate:")?;
-    let mut parts = rest.splitn(3, ':');
-    let arity = parts.next()?.parse::<usize>().ok()?;
-    let tt = u64::from_str_radix(parts.next()?, 16).ok()?;
-    Some((arity, tt))
+/// Public wrapper around the internal gate-symbol encoding (`gate:arity:tt:name:pin`).
+///
+/// `map_egg` uses this to translate a cell-name gate-level subgraph into the operator strings
+/// understood by [`GateTtFold`].
+#[must_use]
+pub fn gate_symbol_for_cell(cell: &Cell) -> String {
+    make_gate_symbol(cell)
 }
 
 fn base_gate_pattern(cell: &Cell) -> String {
@@ -186,7 +299,7 @@ fn base_gate_pattern(cell: &Cell) -> String {
     }
 }
 
-fn expr_to_aig_pattern(expr: &Expr, vars: &HashMap<&str, String>) -> Option<String> {
+pub(crate) fn expr_to_aig_pattern(expr: &Expr, vars: &HashMap<&str, String>) -> Option<String> {
     match expr {
         Expr::Const(false) => Some("0".to_string()),
         Expr::Const(true) => Some("1".to_string()),
@@ -205,7 +318,7 @@ fn expr_to_aig_pattern(expr: &Expr, vars: &HashMap<&str, String>) -> Option<Stri
     }
 }
 
-fn base_aig_pattern(cell: &Cell) -> Option<String> {
+pub(crate) fn base_aig_pattern(cell: &Cell) -> Option<String> {
     let mut vars = HashMap::<&str, String>::new();
     for (idx, name) in cell.vars.iter().enumerate() {
         vars.insert(name.as_str(), format!("?i{idx}"));
@@ -213,13 +326,79 @@ fn base_aig_pattern(cell: &Cell) -> Option<String> {
     expr_to_aig_pattern(&cell.expr, &vars)
 }
 
+/// Expand a cell-name gate-level s-expression into an AIG s-expression.
+///
+/// Accepted leaf ops are single letters `a`..`i` (cut variables) and constants `0`/`1`;
+/// `&`/`~` are kept as-is; any other op is looked up by **standard-cell name** in `tech` and
+/// replaced by that cell's [`Expr`] lowered to `&`/`~` with the op's children substituted for
+/// the cell variables. This is the `gate-level subgraph -> AIG` step of the `map_egg` flow.
+#[must_use]
+pub fn gate_expr_to_aig_sexp(expr_str: &str, tech: &TechLib) -> Option<String> {
+    let expr: egg::RecExpr<GateLang> = expr_str.trim().parse().ok()?;
+    if expr.as_ref().is_empty() {
+        return None;
+    }
+    let by_name: HashMap<&str, &Cell> = tech.cells.iter().map(|c| (c.name.as_str(), c)).collect();
+    expand_gate_rec_to_aig(&expr, &by_name)
+}
+
+fn expand_gate_rec_to_aig(
+    expr: &egg::RecExpr<GateLang>,
+    by_name: &HashMap<&str, &Cell>,
+) -> Option<String> {
+    let mut memo: Vec<Option<String>> = Vec::with_capacity(expr.as_ref().len());
+    for node in expr.as_ref() {
+        let mut child_strs = Vec::<String>::with_capacity(node.children.len());
+        let mut ok = true;
+        for child in &node.children {
+            match memo.get(usize::from(*child)).and_then(Clone::clone) {
+                Some(s) => child_strs.push(s),
+                None => {
+                    ok = false;
+                    break;
+                }
+            }
+        }
+        if !ok {
+            memo.push(None);
+            continue;
+        }
+        memo.push(expand_gate_op(node.op.as_str(), &child_strs, by_name));
+    }
+    memo.into_iter().last().flatten()
+}
+
+fn expand_gate_op(op: &str, children: &[String], by_name: &HashMap<&str, &Cell>) -> Option<String> {
+    match (op, children.len()) {
+        ("0", 0) => Some("0".to_string()),
+        ("1", 0) => Some("1".to_string()),
+        ("~", 1) => Some(format!("(~ {})", children[0])),
+        ("&", 2) => Some(format!("(& {} {})", children[0], children[1])),
+        (sym, 0) if sym.len() == 1 && (b'a'..=b'i').contains(&sym.as_bytes()[0]) => {
+            Some(sym.to_string())
+        }
+        (sym, _) => {
+            let cell = by_name.get(sym)?;
+            if cell.vars.len() != children.len() {
+                return None;
+            }
+            let mut vars = HashMap::<&str, String>::new();
+            for (idx, name) in cell.vars.iter().enumerate() {
+                vars.insert(name.as_str(), children[idx].clone());
+            }
+            expr_to_aig_pattern(&cell.expr, &vars)
+        }
+    }
+}
+
 fn dynamic_gate_rewrites(
     tech: &TechLib,
     gate_cells: &mut HashMap<String, Cell>,
+    cover_only: bool,
 ) -> Vec<GateRewrite> {
     let mut rules = Vec::<GateRewrite>::new();
     for cell in &tech.cells {
-        if cell.vars.is_empty() || cell.vars.len() > 6 {
+        if cell.vars.is_empty() || cell.vars.len() > 9 {
             continue;
         }
         let gate_symbol = make_gate_symbol(cell);
@@ -239,9 +418,12 @@ fn dynamic_gate_rewrites(
             Err(_) => continue,
         };
 
-        if let Ok(rw) = egg::Rewrite::new(format!("expand-{gate_symbol}"), lhs.clone(), rhs.clone())
-        {
-            rules.push(rw);
+        if !cover_only {
+            if let Ok(rw) =
+                egg::Rewrite::new(format!("expand-{gate_symbol}"), lhs.clone(), rhs.clone())
+            {
+                rules.push(rw);
+            }
         }
         if let Ok(rw) = egg::Rewrite::new(format!("cover-{gate_symbol}"), rhs, lhs) {
             rules.push(rw);
@@ -284,10 +466,8 @@ pub struct EggRewriteBundle {
 }
 
 impl EggRewriteBundle {
-    #[must_use]
-    pub fn new(tech: &TechLib) -> Self {
-        let mut gate_cells = HashMap::<String, Cell>::new();
-        let mut rules = vec![
+    fn static_rules() -> Vec<GateRewrite> {
+        vec![
             gate_double_neg(),
             gate_double_neg_flip(),
             gate_associ_and(),
@@ -296,8 +476,35 @@ impl EggRewriteBundle {
             gate_dup_and(),
             gate_and_true(),
             gate_and_false(),
-        ];
-        rules.extend(dynamic_gate_rewrites(tech, &mut gate_cells));
+        ]
+    }
+
+    #[must_use]
+    pub fn new(tech: &TechLib) -> Self {
+        let mut gate_cells = HashMap::<String, Cell>::new();
+        let mut rules = Self::static_rules();
+        rules.extend(dynamic_gate_rewrites(tech, &mut gate_cells, false));
+        Self {
+            rules,
+            gate_cells: Arc::new(gate_cells),
+        }
+    }
+
+    /// Rewrites for an **AIG** input: the static AIG rules plus only the one-way
+    /// `AIG -> gate` (cover) rules. Starting from AIG this is sufficient to reach every cell
+    /// cover, and it avoids the gate -> AIG expansion that makes saturation blow up.
+    ///
+    /// The direction is what makes extraction return *gate-level* solutions: an e-node stays an
+    /// AIG `(& a b)` / `(~ a)` until a cover rule turns it into a library cell, and the cover DP
+    /// prices a surviving raw AIG node with the library's own AND2 / inverter cell (area and delay
+    /// taken from the library; unit delay under the node-depth objective). If the library has no
+    /// such cell, that node has no cover choice at all -- effectively infinite cost -- so a
+    /// successful extraction is always directly materializable, never a hidden AIG-only cover.
+    #[must_use]
+    pub fn new_cover_only(tech: &TechLib) -> Self {
+        let mut gate_cells = HashMap::<String, Cell>::new();
+        let mut rules = Self::static_rules();
+        rules.extend(dynamic_gate_rewrites(tech, &mut gate_cells, true));
         Self {
             rules,
             gate_cells: Arc::new(gate_cells),
@@ -307,6 +514,12 @@ impl EggRewriteBundle {
     pub(crate) fn rules(&self) -> &[GateRewrite] {
         &self.rules
     }
+
+    /// Gate-symbol (`gate:arity:tt:name:pin`) -> [`Cell`] map used by the egg rewrites.
+    #[must_use]
+    pub fn gate_cells(&self) -> &HashMap<String, Cell> {
+        &self.gate_cells
+    }
 }
 
 impl TechLib {
@@ -314,17 +527,81 @@ impl TechLib {
     /// that needs [`EggRewriteBundle`].
     #[must_use]
     pub fn egg_rewrite_bundle(&self) -> &Arc<EggRewriteBundle> {
-        self.egg_bundle_cache.get_or_init(|| Arc::new(EggRewriteBundle::new(self)))
+        self.egg_bundle_cache
+            .get_or_init(|| Arc::new(EggRewriteBundle::new(self)))
     }
+
+    /// Lazily builds and caches the cover-only (**AIG -> library cell**) rewrite bundle.
+    #[must_use]
+    pub fn egg_cover_bundle(&self) -> &Arc<EggRewriteBundle> {
+        self.egg_cover_bundle_cache
+            .get_or_init(|| Arc::new(EggRewriteBundle::new_cover_only(self)))
+    }
+
+    /// Bundle the **mapper** saturates with (distinct from the standalone cut helpers, which pick
+    /// via [`crate::emap_cover`]'s `MAP_EGG_FULL_BUNDLE`).
+    ///
+    /// The full bidirectional bundle adds `cell -> AIG` expansion on top of `AIG -> cell` cover
+    /// rules: strictly more search, because saturation can take a library cell apart and re-cover it
+    /// differently. It also lets the e-graph build `cell -> AIG -> cell'` round trips, which can
+    /// leave e-classes that the extraction DP cannot price (cycles), so it is worth testing both.
+    ///
+    /// `EMAPPER_EGG_BUNDLE=cover` selects the one-way rule set; anything else keeps the full bundle
+    /// (the historical default).
+    #[must_use]
+    pub fn egg_mapping_bundle(&self) -> &Arc<EggRewriteBundle> {
+        static COVER_ONLY: OnceLock<bool> = OnceLock::new();
+        let cover_only = *COVER_ONLY.get_or_init(|| {
+            std::env::var("EMAPPER_EGG_BUNDLE").is_ok_and(|v| v.eq_ignore_ascii_case("cover"))
+        });
+        if cover_only {
+            self.egg_cover_bundle()
+        } else {
+            self.egg_rewrite_bundle()
+        }
+    }
+}
+
+/// Equality-saturation limits for [`egg::Runner`] (defaults match egg 0.11: 30 iters, 10k nodes).
+///
+/// Override with `EMAPPER_EGG_ITER_LIMIT` / `EMAPPER_EGG_NODE_LIMIT` — lower values **speed up** mapping
+/// at the risk of missing rewrites that need more saturation.
+fn egg_runner_limits_from_env() -> (usize, usize) {
+    fn usize_env(key: &str, default: usize) -> usize {
+        std::env::var(key)
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(default)
+    }
+    (
+        usize_env("EMAPPER_EGG_ITER_LIMIT", 30),
+        usize_env("EMAPPER_EGG_NODE_LIMIT", 10_000),
+    )
 }
 
 pub fn rewrite_to_gategraph(
     s: &str,
     tech: &TechLib,
-    _n_inputs: usize,
+    n_inputs: usize,
     bundle: Option<&EggRewriteBundle>,
 ) -> Option<(GateEGraph, egg::Id, Arc<HashMap<String, Cell>>)> {
-    let profile = std::env::var("EMAP_PROFILE_REWRITE")
+    rewrite_to_gategraph_with_limits(s, tech, n_inputs, bundle, 0, 0)
+}
+
+/// [`rewrite_to_gategraph`] with explicit equality-saturation limits.
+///
+/// A limit of `0` falls back to the `EMAPPER_EGG_*_LIMIT` environment default. Cut mapping passes
+/// small values because a cut AIG is tiny: running the default 30 iterations over 10k nodes can
+/// take seconds per cut while producing the same extracted cover.
+pub fn rewrite_to_gategraph_with_limits(
+    s: &str,
+    tech: &TechLib,
+    _n_inputs: usize,
+    bundle: Option<&EggRewriteBundle>,
+    iter_limit: usize,
+    node_limit: usize,
+) -> Option<(GateEGraph, egg::Id, Arc<HashMap<String, Cell>>)> {
+    let profile = std::env::var("EMAPPER_PROFILE_REWRITE")
         .ok()
         .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
     let t0 = Instant::now();
@@ -338,9 +615,33 @@ pub fn rewrite_to_gategraph(
     if expr.as_ref().is_empty() {
         return None;
     }
+    let n_inputs = gate_expr_n_inputs(&expr);
+    EGG_GATE_TT_N.set(n_inputs);
+    struct EggTtNReset;
+    impl Drop for EggTtNReset {
+        fn drop(&mut self) {
+            EGG_GATE_TT_N.set(0);
+        }
+    }
+    let _egg_tt_n_reset = EggTtNReset;
+
     let t_after_parse = Instant::now();
 
-    let mut runner = egg::Runner::<GateLang, GateTtFold, ()>::default().with_expr(&expr);
+    let (env_iter, env_node) = egg_runner_limits_from_env();
+    let iter_limit = if iter_limit == 0 {
+        env_iter
+    } else {
+        iter_limit
+    };
+    let node_limit = if node_limit == 0 {
+        env_node
+    } else {
+        node_limit
+    };
+    let mut runner = egg::Runner::<GateLang, GateTtFold, ()>::default()
+        .with_iter_limit(iter_limit)
+        .with_node_limit(node_limit)
+        .with_expr(&expr);
     let root = runner.roots[0];
     let t_after_runner_init = Instant::now();
 
@@ -366,7 +667,7 @@ pub fn rewrite_to_gategraph(
         let run_ms = t_end.duration_since(t_after_rules).as_secs_f64() * 1000.0;
         let total_ms = t_end.duration_since(t0).as_secs_f64() * 1000.0;
         eprintln!(
-            "EMAP_PROFILE_REWRITE rewrite_to_gategraph: parse={parse_ms:.3}ms init_runner={init_ms:.3}ms \
+            "EMAPPER_PROFILE_REWRITE rewrite_to_gategraph: parse={parse_ms:.3}ms init_runner={init_ms:.3}ms \
              build_rules(static={N_STATIC}+dynamic={n_dynamic})={build_rules_ms:.3}ms \
              runner.run(saturate)={run_ms:.3}ms total={total_ms:.3}ms"
         );
@@ -388,12 +689,18 @@ mod rewrite_to_gategraph_tests {
             .join("../tools/mockturtle/experiments/cell_libraries/asap7.genlib")
     }
 
-    fn tt_at_root(egraph: &super::GateEGraph, root: egg::Id) -> u64 {
-        egraph[root]
+    fn tt_at_root_u64(egraph: &super::GateEGraph, root: egg::Id) -> u64 {
+        let d = egraph[root]
             .data
             .as_ref()
-            .expect("root eclass should have TT analysis")
-            .tt
+            .expect("root eclass should have TT analysis");
+        let n = d.n;
+        let mask = if n >= 6 {
+            u64::MAX
+        } else {
+            (1u64 << (1u32 << n)) - 1
+        };
+        d.tt[0] & mask
     }
 
     #[test]
@@ -409,7 +716,7 @@ mod rewrite_to_gategraph_tests {
         let tech = TechLib::default();
         let (egraph, root, _) =
             rewrite_to_gategraph("(& a b)", &tech, 2, None).expect("parse & rewrite");
-        let tt = tt_at_root(&egraph, root);
+        let tt = tt_at_root_u64(&egraph, root);
         assert_eq!(tt & 0xF, 0x8, "a&b over 2 minterms: only ab=11 is 1");
     }
 
@@ -417,10 +724,9 @@ mod rewrite_to_gategraph_tests {
     fn prebuilt_bundle_matches_scratch_rules() {
         let tech = TechLib::default();
         let cached = tech.egg_rewrite_bundle();
-        let (e1, r1, _) =
-            rewrite_to_gategraph("(& a b)", &tech, 2, Some(cached.as_ref())).unwrap();
+        let (e1, r1, _) = rewrite_to_gategraph("(& a b)", &tech, 2, Some(cached.as_ref())).unwrap();
         let (e2, r2, _) = rewrite_to_gategraph("(& a b)", &tech, 2, None).unwrap();
-        assert_eq!(tt_at_root(&e1, r1), tt_at_root(&e2, r2));
+        assert_eq!(tt_at_root_u64(&e1, r1), tt_at_root_u64(&e2, r2));
     }
 
     #[test]
@@ -428,7 +734,7 @@ mod rewrite_to_gategraph_tests {
         let tech = TechLib::default();
         let (e1, r1, _) = rewrite_to_gategraph("(& a b)", &tech, 2, None).unwrap();
         let (e2, r2, _) = rewrite_to_gategraph("(& b a)", &tech, 2, None).unwrap();
-        assert_eq!(tt_at_root(&e1, r1), tt_at_root(&e2, r2));
+        assert_eq!(tt_at_root_u64(&e1, r1), tt_at_root_u64(&e2, r2));
     }
 
     #[test]
@@ -436,7 +742,45 @@ mod rewrite_to_gategraph_tests {
         let tech = TechLib::default();
         let (e1, r1, _) = rewrite_to_gategraph("a", &tech, 1, None).unwrap();
         let (e2, r2, _) = rewrite_to_gategraph("(~ (~ a))", &tech, 1, None).unwrap();
-        assert_eq!(tt_at_root(&e1, r1), tt_at_root(&e2, r2));
+        assert_eq!(tt_at_root_u64(&e1, r1), tt_at_root_u64(&e2, r2));
+    }
+
+    /// `GateTtFold` uses `Tt9` + thread-local `n`; check 7 inputs (`a`..=`g`) match [`sexp_to_tt9`].
+    #[test]
+    fn seven_inputs_tt_fold_matches_sexp_to_tt9() {
+        let tech = TechLib::default();
+        let s = "(& a g)";
+        let (n, tt_ref) = super::sexp_to_tt9(s).expect("sexp_to_tt9");
+        assert_eq!(n, 7);
+        let (egraph, root, _) = rewrite_to_gategraph(s, &tech, 7, None).expect("rewrite");
+        let d = egraph[root]
+            .data
+            .as_ref()
+            .expect("root should have TT analysis");
+        assert_eq!(d.n, 7);
+        assert_eq!(
+            d.tt, tt_ref,
+            "egg analysis must match direct sexp TT for 7 inputs"
+        );
+    }
+
+    /// Same for 9 inputs (`a`..=`i`).
+    #[test]
+    fn nine_inputs_tt_fold_matches_sexp_to_tt9() {
+        let tech = TechLib::default();
+        let s = "(& a i)";
+        let (n, tt_ref) = super::sexp_to_tt9(s).expect("sexp_to_tt9");
+        assert_eq!(n, 9);
+        let (egraph, root, _) = rewrite_to_gategraph(s, &tech, 9, None).expect("rewrite");
+        let d = egraph[root]
+            .data
+            .as_ref()
+            .expect("root should have TT analysis");
+        assert_eq!(d.n, 9);
+        assert_eq!(
+            d.tt, tt_ref,
+            "egg analysis must match direct sexp TT for 9 inputs"
+        );
     }
 
     /// Loads the real `asap7.genlib` from the workspace (fast; no egg saturation).

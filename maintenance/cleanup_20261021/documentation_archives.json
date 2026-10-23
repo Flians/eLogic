@@ -1,0 +1,17 @@
+{
+  "emapper/BASELINES.md": {
+    "archive": "emapper/docs/history/BASELINES-through-20261021.md",
+    "sha256": "9bc7d2a9a596daa8da9f9801021b97e1bcd5a8e0568a21014f5a82f89441dd12",
+    "bytes": 380412
+  },
+  "epmapping/README.md": {
+    "archive": "epmapping/docs/history/README-through-20261021.md",
+    "sha256": "ff8581a8e799346217176a5a33ee743d201fb786d512adc608597903063dad45",
+    "bytes": 202061
+  },
+  "emapper/readme.md": {
+    "archive": "emapper/docs/history/legacy-mapper-notes.md",
+    "sha256": "87962416aea2e7f96aaaeb4484b7c44f34fe32d92a800bb5c324eeb7d1570542",
+    "bytes": 11146
+  }
+}

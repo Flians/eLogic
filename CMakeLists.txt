@@ -41,6 +41,8 @@ if(APPLE)
 endif()
 
 add_subdirectory(tools)
+add_executable(baseline_mapper emapper/baseline_mapper.cpp)
+target_link_libraries(baseline_mapper PRIVATE mockturtle fmt)
 add_subdirectory(map_egg)
 add_subdirectory(epmapping)
 #add_subdirectory(emig)

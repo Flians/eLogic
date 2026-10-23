@@ -1,0 +1,15 @@
+aag 3 3 0 3 0
+2
+4
+6
+3
+5
+7
+i0 a
+i1 b
+i2 c
+o0 y
+o1 z
+o2 w
+c
+Three independent inverted primary outputs; synthetic multi-output coverage test.

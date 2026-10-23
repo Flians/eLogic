@@ -1,0 +1,30 @@
+{
+  "overlay_unit_tests": 3,
+  "compatibility_patch_test": "passed",
+  "project_cpp_targets_built": [
+    "epmapping_check",
+    "baseline_mapper"
+  ],
+  "rust_egraph_tests": {
+    "passed": 188,
+    "failed": 0,
+    "ignored": 5,
+    "filtered": 16
+  },
+  "rust_all_bins_check": "passed after removing obsolete CLI-only EmapResult.extra_inv_count display",
+  "python_syntax_checked": 660,
+  "python_syntax_errors": 0,
+  "initial_environment_failures": [
+    "FindPython3 interpreter-only made new pybind11 lack python3_add_library; fixed by requesting Development.Module",
+    "existing dangling target/debug cache symlink; tests used separate /tmp build target"
+  ],
+  "baseline_algorithms_changed_by_packaging": false,
+  "native_project_overlay": "copies of four already existing headers, not new algorithms",
+  "paper_directories": [
+    "emapper_paper",
+    "epmapping_paper"
+  ],
+  "data_export_scope": "compact records and selected final evidence; local raw data not deleted",
+  "existing_local_shell_editor_files": "not selected for GitHub",
+  "github_push": "pending"
+}

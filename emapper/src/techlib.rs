@@ -3,17 +3,37 @@ use std::{
     fs,
     path::Path,
     sync::{Arc, OnceLock},
+    time::UNIX_EPOCH,
 };
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::emap_egg::EggRewriteBundle;
+use crate::tt9::{
+    permute_negate_tt9, tt9_bit_get, tt9_bit_set, tt9_from_hex, tt9_to_hex, tt9_zero, Tt9,
+};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
 pub enum MappingObjective {
     AreaFirst,
     #[default]
     DelayFirst,
+}
+
+/// How candidate variants are ranked by **area** during mapping.
+///
+/// - [`MappingAreaCost::Physical`]: [`TechLib::variant_area_physical_invs`] (netlist-accurate invs).
+/// - [`MappingAreaCost::Flow`]: mockturtle-style `gate.area + Σ leaf_flow[pin]` (area-flow proxy).
+///
+/// Final `NodeBinding.area` in emap is always **physical** for reporting; flow is for comparison only.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
+pub enum MappingAreaCost {
+    /// Physical inverter + cell area (matches emitted Verilog).
+    Physical,
+    /// Gate area plus per-pin accumulated flow (matches mockturtle/ABC-style mapper).
+    #[default]
+    Flow,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -29,10 +49,14 @@ pub enum GenlibError {
     #[error("parse error on line {line}: {msg}")]
     Parse { line: usize, msg: String },
     #[error("expression uses too many inputs ({inputs} > {max}) for cell {cell}")]
-    TooManyInputs { cell: String, inputs: usize, max: usize },
+    TooManyInputs {
+        cell: String,
+        inputs: usize,
+        max: usize,
+    },
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Expr {
     Const(bool),
     Var(String),
@@ -67,7 +91,7 @@ impl Expr {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Cell {
     pub name: String,
     pub area: f32,
@@ -76,13 +100,13 @@ pub struct Cell {
     pub expr: Expr,
     /// Pin block delay (max of rise/fall block).
     pub pin_delay: BTreeMap<String, f32>,
-    /// Ordered variable names used by `tt64` (sorted).
+    /// Ordered variable names (sorted) for the truth table / pin order.
     pub vars: Vec<String>,
-    /// Truth table for `expr` with `vars` order (LSB is assignment 0).
-    pub tt64: u64,
+    /// Truth table for `expr` with `vars` order (LSB is assignment 0); up to 9 inputs (512 bits).
+    pub tt: Tt9,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CellVariant {
     pub cell_name: String,
     /// Output pin name.
@@ -127,16 +151,137 @@ pub struct TechLib {
     pub const1_cell: Option<String>,
     pub const1_out_pin: Option<String>,
     /// Index from (n_inputs, truth_table) to possible implementations.
-    pub index: HashMap<(u8, u64), Vec<CellVariant>>,
+    pub index: HashMap<(u8, Tt9), Vec<CellVariant>>,
     /// Lazy egg rewrite rules + gate symbol table; see [`TechLib::egg_rewrite_bundle`] in `emap_egg`.
     pub(crate) egg_bundle_cache: OnceLock<Arc<EggRewriteBundle>>,
+    /// Lazy cover-only (`AIG -> gate`) egg rules; see [`TechLib::egg_cover_bundle`].
+    pub(crate) egg_cover_bundle_cache: OnceLock<Arc<EggRewriteBundle>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct TechLibCacheIndexEntry {
+    n_inputs: u8,
+    tt_hex: String,
+    variants: Vec<CellVariant>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct TechLibCacheSnapshot {
+    version: u32,
+    max_inputs: usize,
+    genlib_size: u64,
+    genlib_mtime_secs: u64,
+    cells: Vec<Cell>,
+    inv_area: f32,
+    inv_delay: f32,
+    inv_cell: Option<String>,
+    inv_in_pin: Option<String>,
+    inv_out_pin: Option<String>,
+    inv_variant: Option<CellVariant>,
+    and2_area: f32,
+    and2_delay: [f32; 2],
+    and2_variant: Option<CellVariant>,
+    buf_area: f32,
+    buf_delay: f32,
+    buf_cell: Option<String>,
+    buf_in_pin: Option<String>,
+    buf_out_pin: Option<String>,
+    const0_cell: Option<String>,
+    const0_out_pin: Option<String>,
+    const1_cell: Option<String>,
+    const1_out_pin: Option<String>,
+    index: Vec<TechLibCacheIndexEntry>,
+}
+
+const TECHLIB_CACHE_VERSION: u32 = 1;
+
+/// Cell-name substrings excluded from matching via `EMAPPER_BAN_CELL` (diagnostic only).
+fn banned_cells() -> &'static [String] {
+    static V: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    V.get_or_init(|| {
+        std::env::var("EMAPPER_BAN_CELL")
+            .ok()
+            .map(|s| {
+                s.split(',')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default()
+    })
 }
 
 impl TechLib {
-    /// Parse a genlib file and build a TT index for cells with up to `max_inputs`.
+    /// Parse a genlib file and build a TT index for cells with up to `max_inputs` variables.
     ///
-    /// For each cell, the index stores NP (+ output inversion) variants, similar in spirit to
-    /// mockturtle's `tech_library`.
+    /// Truth tables use **512 bits** (`Tt9`); cells with more than **9** inputs are skipped.
+    /// For each cell, the index stores NP (+ output inversion) variants, similar to mockturtle's
+    /// `tech_library`.
+    /// A copy of this library in which every timing number is 1.0 (see [`Self::unit_delays`]).
+
+    /// Built by cloning the already-parsed cells and truth-table index — **no genlib re-parse and no
+    /// index rebuild** — with fresh (empty) egg rewrite caches that fill lazily.
+    #[must_use]
+    pub fn unit_delay_variant(&self) -> Self {
+        let mut lib = Self {
+            cells: self.cells.clone(),
+            inv_area: self.inv_area,
+            inv_delay: self.inv_delay,
+            inv_cell: self.inv_cell.clone(),
+            inv_in_pin: self.inv_in_pin.clone(),
+            inv_out_pin: self.inv_out_pin.clone(),
+            inv_variant: self.inv_variant.clone(),
+            and2_area: self.and2_area,
+            and2_delay: self.and2_delay,
+            and2_variant: self.and2_variant.clone(),
+            buf_area: self.buf_area,
+            buf_delay: self.buf_delay,
+            buf_cell: self.buf_cell.clone(),
+            buf_in_pin: self.buf_in_pin.clone(),
+            buf_out_pin: self.buf_out_pin.clone(),
+            const0_cell: self.const0_cell.clone(),
+            const0_out_pin: self.const0_out_pin.clone(),
+            const1_cell: self.const1_cell.clone(),
+            const1_out_pin: self.const1_out_pin.clone(),
+            index: self.index.clone(),
+            egg_bundle_cache: OnceLock::new(),
+            egg_cover_bundle_cache: OnceLock::new(),
+        };
+        lib.unit_delays();
+        lib
+    }
+
+    /// Rewrite every timing number to **1.0** so that the mapper's "delay" becomes a *unit node
+    /// depth* (one level per cell, one more for a materialized inverter), independent of arrival
+    /// times. Used by the unit-depth + area cost mode.
+    pub fn unit_delays(&mut self) {
+        let unit = |v: &mut Vec<f32>| {
+            for d in v.iter_mut() {
+                *d = 1.0;
+            }
+        };
+        for cell in self.cells.iter_mut() {
+            for d in cell.pin_delay.values_mut() {
+                *d = 1.0;
+            }
+        }
+        for (_, variants) in self.index.iter_mut() {
+            for v in variants.iter_mut() {
+                unit(&mut v.pin_delay);
+            }
+        }
+        self.inv_delay = 1.0;
+        self.buf_delay = 1.0;
+        self.and2_delay = [1.0, 1.0];
+        if let Some(v) = self.inv_variant.as_mut() {
+            unit(&mut v.pin_delay);
+        }
+        if let Some(v) = self.and2_variant.as_mut() {
+            unit(&mut v.pin_delay);
+        }
+    }
+
     pub fn from_genlib<P: AsRef<Path>>(path: P, max_inputs: usize) -> Result<Self, GenlibError> {
         let contents = fs::read_to_string(path)?;
         let mut lib = Self {
@@ -155,6 +300,138 @@ impl TechLib {
         Ok(lib)
     }
 
+    /// Load techlib from cache when possible; otherwise parse/build and refresh cache.
+    ///
+    /// Cache is automatically invalidated when the source genlib file size or mtime changes,
+    /// or when `max_inputs` differs.
+    pub fn from_genlib_cached<P: AsRef<Path>, Q: AsRef<Path>>(
+        path: P,
+        max_inputs: usize,
+        cache_path: Q,
+    ) -> Result<Self, GenlibError> {
+        let genlib_path = path.as_ref();
+        let cache_path = cache_path.as_ref();
+        if let Some(lib) = Self::try_load_cache(genlib_path, max_inputs, cache_path) {
+            return Ok(lib);
+        }
+        let lib = Self::from_genlib(genlib_path, max_inputs)?;
+        lib.try_store_cache(genlib_path, max_inputs, cache_path);
+        Ok(lib)
+    }
+
+    fn genlib_fingerprint(path: &Path) -> Option<(u64, u64)> {
+        let md = fs::metadata(path).ok()?;
+        let mtime = md
+            .modified()
+            .ok()?
+            .duration_since(UNIX_EPOCH)
+            .ok()?
+            .as_secs();
+        Some((md.len(), mtime))
+    }
+
+    fn try_load_cache(path: &Path, max_inputs: usize, cache_path: &Path) -> Option<Self> {
+        let (genlib_size, genlib_mtime_secs) = Self::genlib_fingerprint(path)?;
+        let text = fs::read_to_string(cache_path).ok()?;
+        let snap: TechLibCacheSnapshot = serde_json::from_str(&text).ok()?;
+        if snap.version != TECHLIB_CACHE_VERSION
+            || snap.max_inputs != max_inputs
+            || snap.genlib_size != genlib_size
+            || snap.genlib_mtime_secs != genlib_mtime_secs
+        {
+            return None;
+        }
+        Self::from_snapshot(snap)
+    }
+
+    fn try_store_cache(&self, path: &Path, max_inputs: usize, cache_path: &Path) {
+        let Some((genlib_size, genlib_mtime_secs)) = Self::genlib_fingerprint(path) else {
+            return;
+        };
+        let snap = self.to_snapshot(max_inputs, genlib_size, genlib_mtime_secs);
+        let Ok(text) = serde_json::to_string(&snap) else {
+            return;
+        };
+        if let Some(parent) = cache_path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = fs::write(cache_path, text);
+    }
+
+    fn to_snapshot(
+        &self,
+        max_inputs: usize,
+        genlib_size: u64,
+        genlib_mtime_secs: u64,
+    ) -> TechLibCacheSnapshot {
+        let mut index = Vec::with_capacity(self.index.len());
+        for ((n_inputs, tt), variants) in &self.index {
+            index.push(TechLibCacheIndexEntry {
+                n_inputs: *n_inputs,
+                tt_hex: tt9_to_hex(tt),
+                variants: variants.clone(),
+            });
+        }
+        TechLibCacheSnapshot {
+            version: TECHLIB_CACHE_VERSION,
+            max_inputs,
+            genlib_size,
+            genlib_mtime_secs,
+            cells: self.cells.clone(),
+            inv_area: self.inv_area,
+            inv_delay: self.inv_delay,
+            inv_cell: self.inv_cell.clone(),
+            inv_in_pin: self.inv_in_pin.clone(),
+            inv_out_pin: self.inv_out_pin.clone(),
+            inv_variant: self.inv_variant.clone(),
+            and2_area: self.and2_area,
+            and2_delay: self.and2_delay,
+            and2_variant: self.and2_variant.clone(),
+            buf_area: self.buf_area,
+            buf_delay: self.buf_delay,
+            buf_cell: self.buf_cell.clone(),
+            buf_in_pin: self.buf_in_pin.clone(),
+            buf_out_pin: self.buf_out_pin.clone(),
+            const0_cell: self.const0_cell.clone(),
+            const0_out_pin: self.const0_out_pin.clone(),
+            const1_cell: self.const1_cell.clone(),
+            const1_out_pin: self.const1_out_pin.clone(),
+            index,
+        }
+    }
+
+    fn from_snapshot(snap: TechLibCacheSnapshot) -> Option<Self> {
+        let mut index = HashMap::with_capacity(snap.index.len());
+        for e in snap.index {
+            let tt = tt9_from_hex(&e.tt_hex)?;
+            index.insert((e.n_inputs, tt), e.variants);
+        }
+        Some(Self {
+            cells: snap.cells,
+            inv_area: snap.inv_area,
+            inv_delay: snap.inv_delay,
+            inv_cell: snap.inv_cell,
+            inv_in_pin: snap.inv_in_pin,
+            inv_out_pin: snap.inv_out_pin,
+            inv_variant: snap.inv_variant,
+            and2_area: snap.and2_area,
+            and2_delay: snap.and2_delay,
+            and2_variant: snap.and2_variant,
+            buf_area: snap.buf_area,
+            buf_delay: snap.buf_delay,
+            buf_cell: snap.buf_cell,
+            buf_in_pin: snap.buf_in_pin,
+            buf_out_pin: snap.buf_out_pin,
+            const0_cell: snap.const0_cell,
+            const0_out_pin: snap.const0_out_pin,
+            const1_cell: snap.const1_cell,
+            const1_out_pin: snap.const1_out_pin,
+            index,
+            egg_bundle_cache: OnceLock::new(),
+            egg_cover_bundle_cache: OnceLock::new(),
+        })
+    }
+
     fn detect_inverter(&mut self) {
         // Pick smallest-area 1-input cell whose function is NOT (tt = 10b).
         // vars[0] assignment order: 0->0,1->1 so NOT is 0b01? Actually output bits [a=0, a=1]
@@ -164,7 +441,7 @@ impl TechLib {
             if c.vars.len() != 1 {
                 continue;
             }
-            if c.tt64 != 0b01 {
+            if (c.tt[0] & 0x3) != 0b01 {
                 continue;
             }
             let pin = c.vars[0].clone();
@@ -198,7 +475,7 @@ impl TechLib {
     fn detect_and2(&mut self) {
         let mut best: Option<(&Cell, [f32; 2])> = None;
         for c in &self.cells {
-            if c.vars.len() != 2 || c.tt64 != 0b1000 {
+            if c.vars.len() != 2 || (c.tt[0] & 0xF) != 0b1000 {
                 continue;
             }
             let d0 = c.pin_delay.get(&c.vars[0]).copied().unwrap_or(0.0);
@@ -233,7 +510,7 @@ impl TechLib {
             if c.vars.len() != 1 {
                 continue;
             }
-            if c.tt64 != 0b10 {
+            if (c.tt[0] & 0x3) != 0b10 {
                 continue;
             }
             let pin = c.vars[0].clone();
@@ -254,16 +531,15 @@ impl TechLib {
     }
 
     fn detect_constants(&mut self) {
-        // CONST0: 0-input, tt64==0
-        // CONST1: 0-input, tt64==1 (single bit)
+        // CONST0: 0-input, bit0==0; CONST1: bit0==1
         for c in &self.cells {
             if !c.vars.is_empty() {
                 continue;
             }
-            if c.tt64 == 0 {
+            if (c.tt[0] & 1) == 0 {
                 self.const0_cell = Some(c.name.clone());
                 self.const0_out_pin = Some(c.out_pin.clone());
-            } else if c.tt64 == 1 {
+            } else if (c.tt[0] & 1) == 1 {
                 self.const1_cell = Some(c.name.clone());
                 self.const1_out_pin = Some(c.out_pin.clone());
             }
@@ -274,11 +550,7 @@ impl TechLib {
         self.index.clear();
         for cell in &self.cells {
             let n = cell.vars.len();
-            if n == 0 || n > 15 {
-                continue;
-            }
-            if n > 6 {
-                // Egg-side TT analysis will be limited to 6 inputs for now.
+            if n == 0 || n > 9 {
                 continue;
             }
 
@@ -298,10 +570,12 @@ impl TechLib {
                     permuted_pin_names[i] = pin_names[src as usize].clone();
                 }
 
-                let neg_limit = 1u16 << n;
+                // For wide-input cells, skip input-phase enumeration to control index explosion.
+                // Keep only the non-inverted input phase (neg_mask = 0) when n > 6.
+                let neg_limit = if n <= 6 { 1u16 << n } else { 1 };
                 for neg_mask in 0..neg_limit {
                     for out_neg in [false, true] {
-                        let tt = permute_negate_tt64(cell.tt64, n as u8, &perm, neg_mask, out_neg);
+                        let tt = permute_negate_tt9(&cell.tt, n as u8, &perm, neg_mask, out_neg);
                         let v = CellVariant {
                             cell_name: cell.name.clone(),
                             out_pin: cell.out_pin.clone(),
@@ -321,8 +595,8 @@ impl TechLib {
     }
 
     #[must_use]
-    pub fn candidates(&self, n_inputs: u8, tt64: u64) -> Option<&[CellVariant]> {
-        self.index.get(&(n_inputs, tt64)).map(Vec::as_slice)
+    pub fn candidates(&self, n_inputs: u8, tt: Tt9) -> Option<&[CellVariant]> {
+        self.index.get(&(n_inputs, tt)).map(Vec::as_slice)
     }
 
     #[must_use]
@@ -335,20 +609,103 @@ impl TechLib {
         self.and2_variant.as_ref()
     }
 
+    /// `cell.area` plus physical input inverters and optional output inversion (`out_neg`).
+    /// `pin_count` is usually `v.n_inputs` / `arrivals.len()`; when `native_phases` lengths differ,
+    /// falls back to counting `neg_mask` bits (legacy proxy).
+    pub(crate) fn variant_area_physical_invs(
+        &self,
+        v: &CellVariant,
+        pin_count: usize,
+        native_phases: Option<(&[bool], &[bool])>,
+    ) -> f32 {
+        let inv_area = self.inv_area;
+        let input_phys_inv = if let Some((np, nn)) = native_phases {
+            if np.len() != pin_count || nn.len() != pin_count {
+                (0..pin_count)
+                    .filter(|&i| ((v.neg_mask >> i) & 1) == 1)
+                    .count() as f32
+            } else {
+                let mut c = 0.0f32;
+                for i in 0..pin_count {
+                    let need_neg = ((v.neg_mask >> i) & 1) == 1;
+                    let needs_inv = if need_neg { !nn[i] } else { !np[i] };
+                    if needs_inv {
+                        c += 1.0;
+                    }
+                }
+                c
+            }
+        } else {
+            (0..pin_count)
+                .filter(|&i| ((v.neg_mask >> i) & 1) == 1)
+                .count() as f32
+        };
+        v.area + input_phys_inv * inv_area + if v.out_neg { inv_area } else { 0.0 }
+    }
+
+    /// Returns `(mapping_area, physical_area)` for variant selection vs reporting.
+    pub(crate) fn mapping_and_physical_area(
+        &self,
+        v: &CellVariant,
+        pin_count: usize,
+        native_phases: Option<(&[bool], &[bool])>,
+        leaf_flow: Option<(&[f32], &[f32])>,
+        area_cost: MappingAreaCost,
+    ) -> (f32, f32) {
+        let physical = self.variant_area_physical_invs(v, pin_count, native_phases);
+        let mapping = match area_cost {
+            MappingAreaCost::Physical => physical,
+            MappingAreaCost::Flow => {
+                if let Some((fp, fn_)) = leaf_flow {
+                    if fp.len() == pin_count && fn_.len() == pin_count {
+                        let mut s = v.area;
+                        for i in 0..pin_count {
+                            s += if ((v.neg_mask >> i) & 1) == 1 {
+                                fn_[i]
+                            } else {
+                                fp[i]
+                            };
+                        }
+                        s
+                    } else {
+                        physical
+                    }
+                } else {
+                    physical
+                }
+            }
+        };
+        (mapping, physical)
+    }
+
     fn best_variant_from_candidates<'a>(
         &self,
         cands: impl IntoIterator<Item = &'a CellVariant>,
-        tt64: u64,
+        target_tt: Tt9,
         arrivals: &[PhaseArrival],
         objective: MappingObjective,
-    ) -> Option<(f32, f32, &'a CellVariant)> {
-        let inv_area = self.inv_area;
-
-        let mut best: Option<(f32, f32, &'a CellVariant)> = None;
+        // When `Some`, area counts only physical input inverters: each pin needs an extra
+        // inverter iff the logical phase required by `neg_mask` is not already available on the
+        // net (see `emap` native pos/neg flags). When `None`, use the legacy proxy
+        // `inv_area * (#neg_mask bits)` for inputs.
+        native_phases: Option<(&[bool], &[bool])>,
+        leaf_flow: Option<(&[f32], &[f32])>,
+        area_cost: MappingAreaCost,
+    ) -> Option<(f32, f32, f32, &'a CellVariant)> {
+        /* `EMAPPER_BAN_CELL` (comma-separated substrings): diagnostic knob that removes cells from
+        matching. Used to measure how much of the delay gap is a *cell choice* rather than a
+        structural one -- e.g. banning `XOR`/`XNOR` shows whether the mapper has a cheaper
+        multi-level alternative for those cones or is forced onto the slowest cells in the
+        library (XOR2x2/XNOR2x2 carry the highest pin delays in asap7: 36.3/36.9). */
+        let banned = banned_cells();
+        let mut best: Option<(f32, f32, f32, &'a CellVariant)> = None;
         for v in cands {
-            // Semantic guard: ensure this variant really realizes `tt64` under
+            if banned.iter().any(|b| v.cell_name.contains(b.as_str())) {
+                continue;
+            }
+            // Semantic guard: ensure this variant really realizes `target_tt` under
             // the same pin/negation wiring semantics used by netlist emission.
-            if self.variant_tt_wiring(v).map_or(true, |t| t != tt64) {
+            if self.variant_tt_wiring(v).map_or(true, |t| t != target_tt) {
                 continue;
             }
             let mut delay = 0.0f32;
@@ -365,21 +722,34 @@ impl TechLib {
                 delay += self.inv_delay;
             }
 
-            let invs = (0..arrivals.len())
-                .filter(|&i| ((v.neg_mask >> i) & 1) == 1)
-                .count() as f32
-                + if v.out_neg { 1.0 } else { 0.0 };
-            let area = v.area + invs * inv_area;
+            let (mapping_area, physical_area) = self.mapping_and_physical_area(
+                v,
+                arrivals.len(),
+                native_phases,
+                leaf_flow,
+                area_cost,
+            );
 
+            /* `physical_area` (cell + charged input/output inverters) is the final tie-break for
+            **both** objectives. `mapping_area` is the `Flow` proxy by default, which adds the
+            leaves' flow and never an `inv_area` -- so with only `(delay, mapping_area)` as the
+            key, two variants of the same truth table that differ solely in how many inverters
+            they need compare equal and the first one wins. Measured on c432/c5315 that left
+            ~half of the total inversion overhead on `AND2x2` instances that each carry exactly
+            one input inverter, while `emap` on the same AIG instantiates no `AND2` at all. */
+            let cand_key = match objective {
+                MappingObjective::DelayFirst => (delay, mapping_area, physical_area),
+                MappingObjective::AreaFirst => (mapping_area, delay, physical_area),
+            };
             match best {
-                None => best = Some((delay, area, v)),
-                Some((bd, ba, _)) => {
-                    let better = match objective {
-                        MappingObjective::DelayFirst => (delay, area) < (bd, ba),
-                        MappingObjective::AreaFirst => (area, delay) < (ba, bd),
+                None => best = Some((delay, mapping_area, physical_area, v)),
+                Some((bd, ba_map, bp, _)) => {
+                    let best_key = match objective {
+                        MappingObjective::DelayFirst => (bd, ba_map, bp),
+                        MappingObjective::AreaFirst => (ba_map, bd, bp),
                     };
-                    if better {
-                        best = Some((delay, area, v));
+                    if cand_key < best_key {
+                        best = Some((delay, mapping_area, physical_area, v));
                     }
                 }
             }
@@ -391,13 +761,15 @@ impl TechLib {
     ///
     /// - **Delay model**: \( \max_i(arrival[i] + pinDelay[i] + invDelay_if_input_negated) \) plus
     ///   `inv_delay` if output is negated.
-    /// - **Area model**: `cell.area + inv_area * (#neg_inputs + out_neg)`.
+    /// - **Area model**: `cell.area + inv_area * (physical_input_inverters + out_neg)`.
+    ///   With `native_phases` in [`Self::best_for_tt_phase_arrivals`], physical input inverters
+    ///   are counted only when the required phase is not already available on the net.
     ///
     /// Returns `(best_delay, best_area, best_variant)`.
     pub fn best_for_tt(
         &self,
         n_inputs: u8,
-        tt64: u64,
+        tt: Tt9,
         arrivals: &[f32],
         objective: MappingObjective,
     ) -> Option<(f32, f32, &CellVariant)> {
@@ -408,21 +780,41 @@ impl TechLib {
                 neg: a + self.inv_delay,
             })
             .collect::<Vec<_>>();
-        self.best_for_tt_phase_arrivals(n_inputs, tt64, &phase_arrivals, objective)
+        self.best_for_tt_phase_arrivals(
+            n_inputs,
+            tt,
+            &phase_arrivals,
+            objective,
+            None,
+            None,
+            MappingAreaCost::Physical,
+        )
+        .map(|(d, _, p, v)| (d, p, v))
     }
 
     pub fn best_for_tt_phase_arrivals(
         &self,
         n_inputs: u8,
-        tt64: u64,
+        tt: Tt9,
         arrivals: &[PhaseArrival],
         objective: MappingObjective,
-    ) -> Option<(f32, f32, &CellVariant)> {
-        let cands = self.candidates(n_inputs, tt64)?;
+        native_phases: Option<(&[bool], &[bool])>,
+        leaf_flow: Option<(&[f32], &[f32])>,
+        area_cost: MappingAreaCost,
+    ) -> Option<(f32, f32, f32, &CellVariant)> {
+        let cands = self.candidates(n_inputs, tt)?;
         if arrivals.len() != n_inputs as usize {
             return None;
         }
-        self.best_variant_from_candidates(cands.iter(), tt64, arrivals, objective)
+        self.best_variant_from_candidates(
+            cands.iter(),
+            tt,
+            arrivals,
+            objective,
+            native_phases,
+            leaf_flow,
+            area_cost,
+        )
     }
 
     /// Pick the best variant for a specific base standard cell.
@@ -440,7 +832,15 @@ impl TechLib {
                 neg: a + self.inv_delay,
             })
             .collect::<Vec<_>>();
-        self.best_for_cell_phase_arrivals(cell, &phase_arrivals, objective)
+        self.best_for_cell_phase_arrivals(
+            cell,
+            &phase_arrivals,
+            objective,
+            None,
+            None,
+            MappingAreaCost::Physical,
+        )
+        .map(|(d, _, p, v)| (d, p, v))
     }
 
     #[must_use]
@@ -449,21 +849,32 @@ impl TechLib {
         cell: &Cell,
         arrivals: &[PhaseArrival],
         objective: MappingObjective,
-    ) -> Option<(f32, f32, &CellVariant)> {
+        native_phases: Option<(&[bool], &[bool])>,
+        leaf_flow: Option<(&[f32], &[f32])>,
+        area_cost: MappingAreaCost,
+    ) -> Option<(f32, f32, f32, &CellVariant)> {
         let n_inputs = cell.vars.len();
         if arrivals.len() != n_inputs {
             return None;
         }
         let cands = self
-            .candidates(n_inputs as u8, cell.tt64)?
+            .candidates(n_inputs as u8, cell.tt)?
             .iter()
             .filter(|v| v.cell_name == cell.name);
-        self.best_variant_from_candidates(cands, cell.tt64, arrivals, objective)
+        self.best_variant_from_candidates(
+            cands,
+            cell.tt,
+            arrivals,
+            objective,
+            native_phases,
+            leaf_flow,
+            area_cost,
+        )
     }
 
-    fn variant_tt_wiring(&self, v: &CellVariant) -> Option<u64> {
+    pub(crate) fn variant_tt_wiring(&self, v: &CellVariant) -> Option<Tt9> {
         let n = v.n_inputs as usize;
-        if n == 0 || n > 6 {
+        if n == 0 || n > 9 {
             return None;
         }
         let cell = self.cells.iter().find(|c| c.name == v.cell_name)?;
@@ -471,10 +882,10 @@ impl TechLib {
         for (i, name) in cell.vars.iter().enumerate() {
             var_pos.insert(name.clone(), i);
         }
-        let mut out = 0u64;
-        for a in 0..(1u64 << n) {
+        let mut out = tt9_zero();
+        for a in 0..(1usize << n) {
             // Build assignment in original cell var space.
-            let mut old_bits = 0u64;
+            let mut old_bits = 0usize;
             for i in 0..n {
                 let mut bit = ((a >> i) & 1) == 1;
                 if ((v.neg_mask >> i) & 1) == 1 {
@@ -483,15 +894,15 @@ impl TechLib {
                 let pin = v.pin_names.get(i)?;
                 let &old_idx = var_pos.get(pin)?;
                 if bit {
-                    old_bits |= 1u64 << (old_idx as u64);
+                    old_bits |= 1usize << old_idx;
                 }
             }
-            let mut y = ((cell.tt64 >> old_bits) & 1) == 1;
+            let mut y = tt9_bit_get(&cell.tt, old_bits);
             if v.out_neg {
                 y = !y;
             }
             if y {
-                out |= 1u64 << a;
+                tt9_bit_set(&mut out, a);
             }
         }
         Some(out)
@@ -510,10 +921,9 @@ fn parse_genlib(contents: &str, max_inputs: usize) -> Result<Vec<Cell>, GenlibEr
         }
 
         if let Some(rest) = line.strip_prefix("GATE") {
-            if let Some((name, area, out_pin, expr)) = parse_gate_line(rest).map_err(|msg| GenlibError::Parse {
-                line: line_no,
-                msg,
-            })? {
+            if let Some((name, area, out_pin, expr)) =
+                parse_gate_line(rest).map_err(|msg| GenlibError::Parse { line: line_no, msg })?
+            {
                 if let Some((n, a, e, p)) = cur.take() {
                     if let Some(cell) = finalize_cell(n, a, e, p, max_inputs)? {
                         cells.push(cell);
@@ -531,10 +941,8 @@ fn parse_genlib(contents: &str, max_inputs: usize) -> Result<Vec<Cell>, GenlibEr
                 line: line_no,
                 msg: "PIN line before any GATE".to_string(),
             })?;
-            let (pin, delay) = parse_pin_line(rest).map_err(|msg| GenlibError::Parse {
-                line: line_no,
-                msg,
-            })?;
+            let (pin, delay) =
+                parse_pin_line(rest).map_err(|msg| GenlibError::Parse { line: line_no, msg })?;
             pin_delays.insert(pin, delay);
             continue;
         }
@@ -573,7 +981,10 @@ fn finalize_cell(
         // For MVP we silently skip cells wider than `max_inputs`.
         return Ok(None);
     }
-    let tt64 = expr_to_tt64(&expr, &vars);
+    if vars.len() > 9 {
+        return Ok(None);
+    }
+    let tt = expr_to_tt9(&expr, &vars);
     Ok(Some(Cell {
         name,
         area,
@@ -581,7 +992,7 @@ fn finalize_cell(
         expr,
         pin_delay,
         vars,
-        tt64,
+        tt,
     }))
 }
 
@@ -625,58 +1036,49 @@ fn parse_pin_line(rest: &str) -> Result<(String, f32), String> {
     }
     let pin = parts[0].to_string();
     // Take rise_block (parts[4]) and fall_block (parts[6])
-    let rise_block: f32 = parts[4].parse().map_err(|_| "invalid PIN rise block delay")?;
-    let fall_block: f32 = parts[6].parse().map_err(|_| "invalid PIN fall block delay")?;
+    let rise_block: f32 = parts[4]
+        .parse()
+        .map_err(|_| "invalid PIN rise block delay")?;
+    let fall_block: f32 = parts[6]
+        .parse()
+        .map_err(|_| "invalid PIN fall block delay")?;
     Ok((pin, rise_block.max(fall_block)))
 }
 
-fn expr_to_tt64(expr: &Expr, vars: &[String]) -> u64 {
+fn expr_to_tt9(expr: &Expr, vars: &[String]) -> Tt9 {
     let n = vars.len();
+    debug_assert!(n <= 9);
     let mut env: HashMap<&str, bool> = HashMap::new();
-    let mut tt = 0u64;
-    for a in 0..(1u64 << n) {
+    let mut tt = tt9_zero();
+    for a in 0..(1usize << n) {
         env.clear();
         for (i, v) in vars.iter().enumerate() {
             env.insert(v.as_str(), ((a >> i) & 1) == 1);
         }
-        // Constants are looked up by name; set them explicitly.
         env.insert("CONST0", false);
         env.insert("CONST1", true);
         if expr.eval(&env) {
-            tt |= 1u64 << a;
+            tt9_bit_set(&mut tt, a);
         }
     }
     tt
 }
 
-/// Permute and negate a truth table with `n` variables.
-///
-/// `perm[i] = src` means new variable i maps to old variable `src`.
-/// `neg_mask` inverts new variable i when bit i is 1.
-/// `out_neg` inverts the output.
+/// Permute and negate a truth table with `n` variables (for tests; `n <= 6` fits in `u64`).
+#[cfg(test)]
 fn permute_negate_tt64(tt: u64, n: u8, perm: &[u8], neg_mask: u16, out_neg: bool) -> u64 {
+    let t = permute_negate_tt9(&crate::tt9::tt9_from_u64(tt), n, perm, neg_mask, out_neg);
     let n = n as usize;
-    let mut out = 0u64;
-    for a in 0..(1u64 << n) {
-        let mut old = 0u64;
-        for i in 0..n {
-            let mut bit = ((a >> i) & 1) == 1;
-            if ((neg_mask >> i) & 1) == 1 {
-                bit = !bit;
-            }
-            if bit {
-                old |= 1u64 << (perm[i] as u64);
-            }
-        }
-        let mut v = ((tt >> old) & 1) == 1;
-        if out_neg {
-            v = !v;
-        }
-        if v {
-            out |= 1u64 << a;
+    if n >= 6 {
+        t[0]
+    } else {
+        let bits = 1u32 << n;
+        if bits >= 64 {
+            t[0]
+        } else {
+            t[0] & ((1u64 << bits) - 1)
         }
     }
-    out
 }
 
 fn all_permutations(n: u8) -> Vec<Vec<u8>> {
@@ -850,9 +1252,9 @@ mod tests {
     fn parse_and_eval_tt() {
         let e = parse_bool_expr("(A * B) + (!A * !B)").unwrap();
         let vars = vec!["A".to_string(), "B".to_string()];
-        let tt = expr_to_tt64(&e, &vars);
+        let tt = expr_to_tt9(&e, &vars);
         // XNOR: 00->1, 01->0, 10->0, 11->1 => bits 0..3 => 1001b
-        assert_eq!(tt & 0xF, 0b1001);
+        assert_eq!(tt[0] & 0xF, 0b1001);
     }
 
     #[test]
@@ -869,4 +1271,3 @@ mod tests {
         assert_eq!(tt3, 0b1110);
     }
 }
-

@@ -1,0 +1,14 @@
+{
+  "campaign": "results_v28_three_parts_query_budget",
+  "source_sha256": {
+    "verified_profiles.json": "5020a0b13bbee872fefcf393ae8f65d3a1f004130749b5fbbfba6bfc09891603",
+    "paired_results.tsv": "9041044a7bac00c5b9c96bb7d2c31ba79f69063dbff6d69b95d5e674298aeb12",
+    "query_budget_analysis.json": "c7cd98705e1cc24a73cb57d6984630394c428727cc607fdbcfa062e47786a2f0"
+  },
+  "constraints": {
+    "original_inputs_unchanged": true,
+    "delay_bound": "fixed initial mapping, 0.001 ps native comparison tolerance",
+    "whole_window_synthesis": false,
+    "post_mapping_seconds": 1000
+  }
+}

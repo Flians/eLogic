@@ -1,0 +1,136 @@
+\section{Staged Post-Mapping Rewriting}
+
+\subsection{Overview}
+The two stages address different optimization scopes. Chain composition is evaluated jointly across roots; cut rewriting selects a cover for one root at a time. After the chain stage, live gates are visited in reverse topological order using a lazy structural-cut manager. Each substitution updates fanouts, levels and arrivals and invalidates affected cuts.
+
+\input{doc/fig_layers}
+
+\begin{algorithm}[t]
+  \footnotesize
+  \caption{A round of ePMapping.}\label{alg_epmapping}
+  \KwIn{Mapped netlist $N$, initial delay bound $D_0$, library $\mathcal L$, maximum cut leaves $K$, retained-cut limit $B$, e-graph threshold $\theta$.}
+  save a round backup of $N$ and its $(A,D)$ pair\;
+  compose and share eligible AO21 chain blocks\;
+  commit the transaction only if rebuilt area decreases and $D\le D_0$\;
+  initialize a lazy cut manager for $N$ with bounds $K,B$\;
+  \ForEach{live gate $x$ in reverse topological order}{
+    $\mathit{best}\leftarrow\emptyset$\;
+    \ForEach{nontrivial structural cut $\mathcal C=(x,L)$, $|L|\le K$}{
+      compute $f_{\mathcal C}$ and its care mask\;
+      $S\leftarrow\Call{SingleCell}{\mathcal C}\cup\Call{Database}{\mathcal C}\cup\Call{EligibleSynthesis}{\mathcal C}$\;
+      $V\leftarrow$ proposals passing live phase, cost and timing checks\;
+      \If{$V=\emptyset$ and $\mathcal C$ is the MFFC boundary cut and $A_{\rm rem}(x,L)\ge\theta$}{
+        load or construct profiles; add feasible covers to $V$\;
+      }
+      update $\mathit{best}$ with the best proposal in $V$\;
+    }
+    \If{$\mathit{best}\ne\emptyset$ and it passes functional and cycle checks}{
+      substitute $x$; update fanouts and timing; invalidate affected cuts\;
+    }
+  }
+  rebuild $N$; restore the round backup if $D>D_0$ or $(A,D)$ worsens\;
+\end{algorithm}
+
+\subsection{Chain Blocks and Shared Factors}\label{sec:chain}
+The chain stage exposes reuse that cannot be priced adequately by independent root substitutions. Consider a positive AO21 chain. An AO21 cell implements $y=(a\wedge b)\vee c$. Each chain step is $F_i(z)=(p_i\wedge z)\vee q_i$. A segment represents $(P,Q)$ with $F(z)=(P\wedge z)\vee Q$, and exact composition is
+\begin{equation}
+ (P,Q)\circ(p,q)=(P\wedge p,\;Q\vee(P\wedge q)).\label{eq:chain}
+\end{equation}
+Equation~\eqref{eq:chain} follows from Boolean distributivity and remains valid when coefficient signals are dependent. The optimization opportunity arises when identical products or segments can be reused by different roots.
+
+Chains follow an AND input through single-fanout internal AO21 cells and stop at outputs or branching boundaries. Complemented fanin edges are excluded, although coefficient signals may be driven by explicit inverter cells. Traversal collects 6--64 steps per eligible segment, ordered from the root toward the boundary. Recursion splits off two-step blocks with balanced subdivision inside a block, terminating at $(0,z)$. This construction balances each block rather than the entire chain. Products use AND2--AND5 cells with arrival-aware physical pin assignment.
+
+Product memo keys contain sorted unique factor signals; segment keys contain ordered coefficient pairs. Memoization spans roots, so identical factors and segments can be reused. All root proposals are constructed before substitution and treated as one transaction. Rebuilding counts every surviving cell, including the shared factors and residual functions. The transaction is retained only if total area strictly decreases and $D\le D_0$; otherwise the original netlist is restored. Subsequent cut rewriting may further simplify the resulting structures.
+
+\subsection{Cover Representation and Feasibility}
+All generators return a cell DAG with explicit polarities and physical pin assignments. Before phase resolution, a node $v$ with fanins $u_i$, pin delays $d_{v,i}$, input inversions $b_{v,i}$ and output inversion $o_v$ has arrival
+\begin{equation}
+ \tau_H(v)=\max_i\{\tau_H(u_i)+d_{v,i}+b_{v,i}d_{\rm inv}\}
+                  +o_vd_{\rm inv}.\label{eq:delay}
+\end{equation}
+Here $\tau_H(\ell)=\tau(\ell)$ is the current arrival of leaf $\ell$. The binary flags $b_{v,i}$ and $o_v$ indicate input and output inversion, respectively, and $d_{\rm inv}$ is inverter delay. Pin delays are resolved by physical pin name, including permuted variants. Polarity flags describe inversions before emission; explicit inverter nodes are not charged a second time. Shared cover nodes are emitted once. Final area is the live-cell sum in \Cref{eq_area}. Area and timing are evaluated in the library model of \Cref{eq_area}.
+
+Symbolic phase resolution precedes local selection and follows the same rules as materialization. If $u=\neg v$, a request for $\neg u$ uses $v$. An existing INV fanout can also supply $\neg u$, including a shared gate inside the root's fanin. It must have a live path to an output and must not depend on the replacement root. Explicit INV nodes and polarity flags use the same resolver; no cut is widened.
+
+Let $M$ be the cut's removable cells, $J_H$ the existing cells retained by the resolved cover, and $V_H^{\rm new}$ its reachable new cells. The incremental implementation estimate is
+\begin{equation}
+ \widehat A_{\rm ctx}(H)=\sum_{v\in V_H^{\rm new}}a(v)+\sum_{v\in J_H\cap M}a(v).\label{eq:context_area}
+\end{equation}
+Existing shared cells outside $M$ add no area; retaining a removable gate is charged. Cancelled and unreachable new nodes are excluded. Timing is propagated on the resolved DAG using actual arrivals at reused signals. Rebuilt netlist measurements guard the combined result. The winning cover is checked on care minterms; final CEC validates rewrite interactions.
+
+Care computation projects a bounded reconvergence simulation onto cut leaves. Free inputs over-approximate surrounding logic, so only conservatively unreachable minterms become DCs. Cuts outside the window remain fully specified. SAT refinement is disabled. L1, L2 and SOP factoring can exploit partial functions; cofactor candidates and L4 use the fully specified function.
+
+\subsection{Four Complementary Cover Generators}
+\begin{table}[t]
+  \centering\footnotesize
+  \caption{Cover generators and their practical limits. L1--L3 compete on eligible cuts; L4 is a fallback after acceptance filtering.}\label{tab:layers}
+  \tabcolsep=3pt
+  \begin{tabular}{@{}l >{\raggedright\arraybackslash}p{3.05cm} >{\raggedright\arraybackslash}p{3.05cm}@{}}
+    \toprule
+    Generator & Mechanism & Limit \\
+    \midrule
+    L1 single cell & indexed function, input phases and permutations & one cell; bounded DC completions \\
+    L2 database & pre-mapped four-input cell DAGs & stored functions and entry limits \\
+    L3 synthesis & SOP/DSD, Shannon and Davio decompositions & bounded support and heuristic mapping \\
+    L4 e-graph & AIG rewrites and library cover rules & rewrite reachability, saturation budget and heuristic extraction \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{L1: indexed single-cell matching}
+The library index includes input permutations and polarities and probes both output phases. Partial-function matching enumerates completions under free-minterm and entry caps.
+
+\paragraph{L2: mapped sub-network lookup}
+ABC's \texttt{super} builds the database offline. A separate library supplies lookup and internal cut mapping without changing initial \texttt{emap}; noDB removes both uses.
+
+\paragraph{L3: structural synthesis}
+Sum-of-products (SOP) factoring and disjoint-support decomposition (DSD) build AIGs and map them to the library. A compact factorization is only one choice. For $f=f_{\mathcal C}$ and a retained pivot $\ell\in L$, let $f_b=f|_{\ell=b}$. We independently construct and map
+\begin{align}
+ f&=(\ell\wedge f_1)\vee(\neg\ell\wedge f_0),\nonumber\\
+ f&=f_0\oplus[\ell\wedge(f_0\oplus f_1)]\nonumber\\
+  &=f_1\oplus[\neg\ell\wedge(f_0\oplus f_1)].\label{eq:decomp}
+\end{align}
+The first is Shannon decomposition; the latter two are positive/negative Davio forms. Cofactors and Boolean differences are SOP-factored before mapping. These candidates implement the fully specified cut function and are checked over its entire truth table. They compete with the other sources under the same timing bound.
+
+We retain two pivots per decomposition family. Let $s(g)$ be the number of variables in the support of $g$, and let $\Delta_\ell=f_0\oplus f_1$. Shannon ranks pivots by $s(f_0)+s(f_1)$; positive and negative Davio use $s(f_0)+s(\Delta_\ell)$ and $s(f_1)+s(\Delta_\ell)$, respectively. Ties follow leaf order; retained pivots are processed in their original order. This structural budget reduces candidate construction but can omit useful covers. Timing feasibility is checked after mapping, not inferred from support size.
+
+For example, $d\wedge(\neg c\vee a)\wedge(c\vee b)$ equals $(d\wedge c\wedge a)\vee(d\wedge\neg c\wedge b)$. The latter can use an AO33 with $d$ connected to two pins. The six-pin cell then implements a four-variable function, a binding not enumerated by the direct single-cell matcher. Decomposition changes the available library covers rather than just enlarging an extraction front.
+
+\subsection{Equality Saturation for Cover Generation}\label{sec:egg}
+\paragraph{Language and rules}
+Each input cell is expanded through its genlib expression into an AIG. Gate symbols and AIG nodes coexist; truth-table analysis checks merged e-classes. Static rules cover double-negation elimination/insertion, AND commutativity and reassociation, complements, idempotence and constants. Library rules replace matching AIG expressions with cells. Cell-to-AIG expansion is omitted because the seed is already expanded. The budget is two iterations and 500 e-nodes; this local search does not systematically enumerate the decompositions in \Cref{eq:decomp}.
+
+\paragraph{Extraction}
+Extraction is independent of current leaf arrivals. A worklist retains cell DAGs with alternative pins and child realizations. A narrow pass first keeps one area-oriented realization per e-class, using at most one quarter of the combination allowance and half the visit allowance. The wider pass starts from these realizations and receives all unused work. Both passes together obey the original limits; the narrow pass reserves inexpensive coverage before wider Cartesian enumeration. Structural interning shares identical nodes. Child dependencies containing the current e-class are excluded to bound recursive unrolling. Raw AIG nodes require AND and inverter cells.
+
+For a cover $H$, let $U_H\subseteq L$ be its used inputs and $p_i(H)$ the longest input-to-root delay, including polarity costs. Its current arrival is
+\begin{equation}\label{eq:profile}
+T(H;\boldsymbol{\tau})=\max_{i\in U_H}\{\tau(\ell_i)+p_i(H)\}.
+\end{equation}
+Constant covers have zero arrival in this model. The stored profile is $(\widehat A(H),p_0(H),\ldots,p_{|L|-1}(H))$. Unused coordinates are ignored in timing and treated as $-\infty$ for dominance. Root pruning compares area and every delay coordinate, avoiding scalar zero-arrival pruning. Distinct intermediate structures can survive standalone dominance because parents may share their nodes. Caps make this an incomplete candidate pool; intrinsic profiles also omit external reuse.
+
+Persistent keys include the expanded AIG seed, variable order, library, extraction version, limits and retention settings, excluding arrivals and required times. Hits load DAGs and vectors; misses saturate and extract. Pin variants are enumerated only for cells in the bounded DAG; invalid records are rebuilt. Empty pools retry single-realization extraction. With contextual pricing, intrinsic rounded-arrival filtering is bypassed: phase resolution may improve timing. Selection uses unrounded live costs; bounded intrinsic pruning can still omit useful context-dependent covers.
+
+\subsection{Acceptance and Iteration}\label{sec:accept}
+Backward required times implement \Cref{eq:objective}. For an output, $R(o)=D_0$; for an internal signal,
+\begin{equation}
+ R(u)=\min_{(u,v,i)}\{R(v)-d_{v,i}-b_{v,i}d_{\rm inv}\},\label{eq:required}
+\end{equation}
+with output inversions deducted at the boundary. The minimum ranges over live fanout pins. A cover is timing-feasible when its recomputed root arrival does not exceed $R(x)$ within tolerance. Required-time caches are invalidated after substitution, so a noncritical rewrite may consume current slack without relaxing $D_0$.
+
+Across cuts, candidates rank by $\widehat A_{\rm ctx}(H)-A_{\rm rem}(x,L)$, then root arrival and structural level. Here $A_{\rm rem}=\sum_{v\in M}a(v)$; shared existing logic is not assumed removable. Functional and cycle checks precede substitution. A rebuilt round must respect $D_0$ and not worsen the quantized $(A,D)$ pair, or it is restored.
+
+The bound spans all rounds. A faster but larger result is rejected; delay and then level break area ties. Area and delay keys are quantized to $10^{-4}$ and $10^{-3}$, respectively. Roots without admissible covers are skipped. The evaluated method uses neither whole-window synthesis nor unmap/remap exploration. Reconvergence-window simulation is used only to compute cut care sets.
+
+Rounds stop on no substitution, no objective progress, or the round cap.
+
+\subsection{Reusing Construction Work}\label{sec:buildreuse}
+Native synthesis caches support, ordered truth tables, mode and objective; SOP keys include DCs and cofactor keys the pivot. A second cache reuses mapped DAGs and full-function proofs across cofactor requests with identical pre-mapping AIG states. Keys preserve PI/PO order, every node slot, edge phases, reference counts and traversal state. Library and mapper settings are fixed. No contextual price is cached across network changes. Request caches retain entries across rounds; transient mapped networks share an owned immutable library.
+
+For an area-first cut, sum root-reachable non-inverter cell areas, counting shared nodes once. This lower bound excludes inverter costs and retained removable gates; other cells are emitted anew. Live pricing is omitted only when the bound exceeds a feasible incumbent area by more than $10^{-3}$, or the original cone area if no incumbent exists. Area ties remain eligible. Fresh SOP/DSD and cofactor covers are priced once per unchanged cut.
+
+Inverse-phase queries cache both a reusable live inverter and a negative result. Entries are valid only for one root, network revision and node-slot count; substitution, rebuilding or candidate-node insertion invalidates them. An inverter at a strictly lower structural level cannot depend on the root; remaining cases retain the dependency traversal. Cut simulation decodes gate functions and fanins once, reuses scratch storage, and supplies the cached truth table to repeated requests. These mechanisms reuse computation; the pivot budget separately restricts search.
+
+Every statistical deferral is rechecked in its original position before root commitment. Only strict area dominance skips live pricing among the generated covers.
+
+Periodically after substitutions and at round ends, a rebuilt copy is saved if it meets the original area/delay bounds and improves the best quantized objective. The initial mapping is saved first. A deadline leaves the search incomplete; independent CEC and serialized-netlist audits admit the saved output. Snapshot construction and writing consume the post-mapping budget.

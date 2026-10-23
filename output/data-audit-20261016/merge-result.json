@@ -1,0 +1,8 @@
+{
+  "merged_files": 2112,
+  "released_bytes": 12525944832,
+  "skipped_files_last_run": 0,
+  "cutoff": "2026-10-15T00:00:00+08:00",
+  "min_size": 1048576,
+  "note": "Merged paths share an inode. Copy a file to a new inode before editing it."
+}

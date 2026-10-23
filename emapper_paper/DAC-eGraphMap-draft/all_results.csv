@@ -1,0 +1,241 @@
+library_max_inputs,design,method,status,area,delay,cec,mapping_seconds,mapping_time_exact,method_display,area_display,delay_display,mapping_seconds_display,source_only
+3,adder,abc_map_delay_resyn2,ok,80.70999925583601,2585.4799938201904,1,0.0598217559963814,True,ABC map,80.71,2585.48,0.06,False
+3,adder,mockturtle_emap_delay_resyn2,ok,90.33000010997057,2585.459997177124,1,0.034053418996336404,True,emap,90.33,2585.46,0.03,False
+3,adder,eqmap_lut_amap,ok,222.33000469952822,7485.9601039886475,1,3.006350139992719,False,EqMap,222.33,7485.96,$\leq$3.01,False
+3,adder,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+3,adder,emorphic_final_sa,ok,91.47000021487474,3536.7999629974365,1,7.61,False,E-morphic,91.47,3536.80,7.61,False
+3,adder,eGraphMap,ok,89.50000017881393,2585.459997177124,1,1.1719937389716506,False,eGraphMap,89.50,2585.46,$\leq$1.18,False
+3,bar,abc_map_delay_resyn2,ok,241.2700005248189,190.87000274658203,1,0.09788372200273443,True,ABC map,241.27,190.87,0.10,False
+3,bar,mockturtle_emap_delay_resyn2,ok,238.65000052005053,190.87000274658203,1,0.05178178699861746,True,emap,238.65,190.87,0.05,False
+3,bar,eqmap_lut_amap,ok,214.59000655263662,453.1800079345703,1,3.1561782819990185,False,EqMap,214.59,453.18,$\leq$3.16,False
+3,bar,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+3,bar,emorphic_final_sa,ok,284.67999739199877,194.42000007629395,1,14.73,False,E-morphic,284.68,194.42,14.73,False
+3,bar,eGraphMap,ok,239.91000082343817,190.87000274658203,1,3.1049635719973594,False,eGraphMap,239.91,190.87,$\leq$3.11,False
+3,div,abc_map_delay_resyn2,ok,3043.4899975135922,43602.19998168945,1,1.4042559079971397,True,ABC map,3043.49,43602.20,1.40,False
+3,div,mockturtle_emap_delay_resyn2,ok,2931.670012637973,43594.08997917175,1,0.9360440309974365,True,emap,2931.67,43594.09,0.93,False
+3,div,eqmap_lut_amap,failed,,,,,False,EqMap,F,F,--,False
+3,div,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+3,div,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+3,div,eGraphMap,ok,4016.3099709674716,43594.07997894287,1,16.36784019198967,False,eGraphMap,4016.31,43594.08,$\leq$16.37,False
+3,hyp,abc_map_delay_resyn2,ok,15069.909912914038,233873.89586639404,1,9.231156953996106,True,ABC map,15069.91,233873.90,9.24,False
+3,hyp,mockturtle_emap_delay_resyn2,ok,14349.979872465134,233105.9457511902,1,4.474215157999424,True,emap,14349.98,233105.95,4.48,False
+3,hyp,eqmap_lut_amap,unmeasured,,,,,False,EqMap,F,F,--,False
+3,hyp,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+3,hyp,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+3,hyp,eGraphMap,ok,22414.780679889023,667115.2042598724,1,65.97197496402077,False,eGraphMap,22414.78$^{s}$,667115.20,$\leq$65.98,True
+3,log2,abc_map_delay_resyn2,ok,1947.5700245425105,4225.919979095459,1,1.3080456480020075,True,ABC map,1947.57,4225.92,1.31,False
+3,log2,mockturtle_emap_delay_resyn2,ok,1865.9600180834532,4189.369987487793,1,0.7066104260011343,True,emap,1865.96,4189.37,0.70,False
+3,log2,eqmap_lut_amap,unmeasured,,,,,False,EqMap,F,F,--,False
+3,log2,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+3,log2,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+3,log2,eGraphMap,ok,2248.4300022646785,4189.369987487793,1,13.761595467978623,False,eGraphMap,2248.43,4189.37,$\leq$13.77,False
+3,max,abc_map_delay_resyn2,ok,220.97000212967396,2111.029998779297,1,0.10000569200201426,True,ABC map,220.97,2111.03,0.10,False
+3,max,mockturtle_emap_delay_resyn2,ok,213.1300025358796,2111.029998779297,1,0.061603342001035344,True,emap,213.13,2111.03,0.06,False
+3,max,eqmap_lut_amap,ok,382.230010189116,5559.4999923706055,1,6.299956537004618,False,EqMap,382.23,5559.50,$\leq$6.30,False
+3,max,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+3,max,emorphic_final_sa,ok,212.86000268161297,1726.0300006866455,1,20.43,False,E-morphic,212.86,1726.03,20.43,False
+3,max,eGraphMap,ok,232.37000256031752,2111.029998779297,1,2.949864936002996,False,eGraphMap,232.37,2111.03,$\leq$2.95,False
+3,multiplier,abc_map_delay_resyn2,ok,1721.2200070098042,2688.1199951171875,1,0.9557630920025986,True,ABC map,1721.22,2688.12,0.95,False
+3,multiplier,mockturtle_emap_delay_resyn2,ok,1704.19000800699,2678.1199951171875,1,0.5108842109984835,True,emap,1704.19,2678.12,0.51,False
+3,multiplier,eqmap_lut_amap,failed,,,,,False,EqMap,F,F,--,False
+3,multiplier,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+3,multiplier,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+3,multiplier,eGraphMap,ok,2009.7899882048368,2805.499984741211,1,9.416679190995637,False,eGraphMap,2009.79,2805.50,$\leq$9.42,False
+3,sin,abc_map_delay_resyn2,ok,385.0600058287382,2076.779998779297,1,0.2901523049949901,True,ABC map,385.06,2076.78,0.29,False
+3,sin,mockturtle_emap_delay_resyn2,ok,372.3800049647689,2049.520008087158,1,0.13324981299956562,True,emap,372.38,2049.52,0.13,False
+3,sin,eqmap_lut_amap,ok,839.1000223904848,4880.690061569214,1,10.840705504007929,False,EqMap,839.10,4880.69,$\leq$10.85,False
+3,sin,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+3,sin,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+3,sin,eGraphMap,ok,453.38000321388245,2050.8200073242188,1,6.707380670995917,False,eGraphMap,453.38,2050.82,$\leq$6.71,False
+3,sqrt,abc_map_delay_resyn2,ok,1675.8899998292327,60089.98038673401,1,0.7568438870075624,True,ABC map,1675.89,60089.98,0.75,False
+3,sqrt,mockturtle_emap_delay_resyn2,ok,1644.870003670454,60087.260389328,1,0.4206188139942242,True,emap,1644.87,60087.26,0.42,False
+3,sqrt,eqmap_lut_amap,failed,,,,,False,EqMap,F,F,--,False
+3,sqrt,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+3,sqrt,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+3,sqrt,eGraphMap,ok,1586.2599952816963,60061.59086608887,1,9.841615120996721,False,eGraphMap,1586.26,60061.59,$\leq$9.85,False
+3,square,abc_map_delay_resyn2,ok,1187.5800010636449,2540.249994277954,1,0.6849064279958839,True,ABC map,1187.58,2540.25,0.68,False
+3,square,mockturtle_emap_delay_resyn2,ok,1116.6599954888225,2535.2499961853027,1,0.3522460780077381,True,emap,1116.66,2535.25,0.35,False
+3,square,eqmap_lut_amap,ok,3189.8900804519653,6550.050050735474,1,23.62531796901021,False,EqMap,3189.89,6550.05,$\leq$23.63,False
+3,square,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+3,square,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+3,square,eGraphMap,ok,1430.1399954035878,2535.2499961853027,1,9.200931686966214,False,eGraphMap,1430.14,2535.25,$\leq$9.21,False
+3,arbiter,abc_map_delay_resyn2,ok,751.0499856844544,900.5499973297119,1,0.4109442829940235,True,ABC map,751.05,900.55,0.41,False
+3,arbiter,mockturtle_emap_delay_resyn2,ok,750.0199856162071,900.5499973297119,1,0.26000683500024024,True,emap,750.02,900.55,0.26,False
+3,arbiter,eqmap_lut_amap,ok,1152.4300387725234,2024.2799949645996,1,19.389261030984926,False,EqMap,1152.43,2024.28,$\leq$19.39,False
+3,arbiter,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+3,arbiter,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+3,arbiter,eGraphMap,ok,762.6199869289994,900.5499973297119,1,5.791990278987214,False,eGraphMap,762.62,900.55,$\leq$5.80,False
+3,cavlc,abc_map_delay_resyn2,ok,41.65000107139349,197.5900001525879,1,0.057225262993597426,True,ABC map,41.65,197.59,0.06,False
+3,cavlc,mockturtle_emap_delay_resyn2,ok,41.57000097632408,197.5900001525879,1,0.018091974998242222,True,emap,41.57,197.59,0.02,False
+3,cavlc,eqmap_lut_amap,ok,77.92000198364258,606.3000087738037,1,2.1545911749999505,False,EqMap,77.92,606.30,$\leq$2.16,False
+3,cavlc,esyn_frozen_model_amap_bounded_dag,ok,40.810001008212566,274.7800006866455,1,1.3,False,E-Syn,40.81,274.78,1.30,False
+3,cavlc,emorphic_final_sa,ok,42.92000087350607,185.0099983215332,1,5.7,False,E-morphic,42.92,185.01,5.70,False
+3,cavlc,eGraphMap,ok,41.71000097692013,197.5900001525879,1,0.6725689200102352,False,eGraphMap,41.71,197.59,$\leq$0.68,False
+3,ctrl,abc_map_delay_resyn2,ok,7.370000183582306,108.05999946594238,1,0.04631918200175278,True,ABC map,7.37,108.06,0.04,False
+3,ctrl,mockturtle_emap_delay_resyn2,ok,7.260000184178352,108.05999946594238,1,0.009727574011776596,True,emap,7.26,108.06,0.01,False
+3,ctrl,eqmap_lut_amap,ok,9.770000249147415,175.06000328063965,1,1.6109444129979238,False,EqMap,9.77,175.06,$\leq$1.62,False
+3,ctrl,esyn_frozen_model_amap_bounded_dag,ok,7.390000179409981,147.4000015258789,1,1.01,False,E-Syn,7.39,147.40,1.01,False
+3,ctrl,emorphic_final_sa,ok,8.110000133514404,91.71000099182129,1,2.89,False,E-morphic,8.11,91.71,2.89,False
+3,ctrl,eGraphMap,ok,7.150000154972076,108.05999946594238,1,0.21997437201207504,False,eGraphMap,7.15,108.06,$\leq$0.22,False
+3,dec,abc_map_delay_resyn2,ok,27.680001080036163,82.92000007629395,1,0.047425522992853075,True,ABC map,27.68,82.92,0.05,False
+3,dec,mockturtle_emap_delay_resyn2,ok,27.680001080036163,82.92000007629395,1,0.017269424002734013,True,emap,27.68,82.92,0.02,False
+3,dec,eqmap_lut_amap,ok,46.64000130444765,145.54000282287598,1,1.4712002349988325,False,EqMap,46.64,145.54,$\leq$1.48,False
+3,dec,esyn_frozen_model_amap_bounded_dag,ok,27.220001056790352,90.68000030517578,1,1.11,False,E-Syn,27.22,90.68,1.11,False
+3,dec,emorphic_final_sa,ok,27.680001080036163,84.91000175476074,1,3.51,False,E-morphic,27.68,84.91,3.51,False
+3,dec,eGraphMap,ok,27.680001080036163,82.92000007629395,1,0.3242506670067087,False,eGraphMap,27.68,82.92,$\leq$0.33,False
+3,i2c,abc_map_delay_resyn2,ok,74.3400017246604,166.7800006866455,1,0.06974794800044037,True,ABC map,74.34,166.78,0.07,False
+3,i2c,mockturtle_emap_delay_resyn2,ok,73.28000154346228,166.7800006866455,1,0.029940535008790903,True,emap,73.28,166.78,0.03,False
+3,i2c,eqmap_lut_amap,ok,105.69000247865915,452.49000358581543,1,1.9165632209915202,False,EqMap,105.69,452.49,$\leq$1.92,False
+3,i2c,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+3,i2c,emorphic_final_sa,ok,72.970001347363,149.82999992370605,1,9.36,False,E-morphic,72.97,149.83,9.36,False
+3,i2c,eGraphMap,ok,73.99000174552202,166.7800006866455,1,2.0349207089748234,False,eGraphMap,73.99,166.78,$\leq$2.04,False
+3,int2float,abc_map_delay_resyn2,ok,13.73000032454729,183.3400001525879,1,0.04101325399824418,True,ABC map,13.73,183.34,0.04,False
+3,int2float,mockturtle_emap_delay_resyn2,ok,13.500000342726707,183.3400001525879,1,0.011172623999300413,True,emap,13.50,183.34,0.01,False
+3,int2float,eqmap_lut_amap,ok,21.81000056862831,326.8100051879883,1,1.2479982689983444,False,EqMap,21.81,326.81,$\leq$1.25,False
+3,int2float,esyn_frozen_model_amap_bounded_dag,ok,13.340000323951244,221.23999786376953,1,1.18,False,E-Syn,13.34,221.24,1.18,False
+3,int2float,emorphic_final_sa,ok,14.860000252723694,145.8700008392334,1,5.42,False,E-morphic,14.86,145.87,5.42,False
+3,int2float,eGraphMap,ok,13.590000301599503,183.3400001525879,1,0.26037530798930675,False,eGraphMap,13.59,183.34,$\leq$0.27,False
+3,mem_ctrl,abc_map_delay_resyn2,ok,2733.790066830814,1231.53999710083,1,1.2219474900048226,True,ABC map,2733.79,1231.54,1.22,False
+3,mem_ctrl,mockturtle_emap_delay_resyn2,ok,2610.2100692614913,1231.53999710083,1,0.8196857180009829,True,emap,2610.21,1231.54,0.82,False
+3,mem_ctrl,eqmap_lut_amap,failed,,,,,False,EqMap,F,F,--,False
+3,mem_ctrl,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+3,mem_ctrl,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+3,mem_ctrl,eGraphMap,ok,3448.170005425811,1228.2499961853027,1,15.445769060985185,False,eGraphMap,3448.17,1228.25,$\leq$15.45,False
+3,priority,abc_map_delay_resyn2,ok,68.56999985128641,2062.1799964904785,1,0.06258470799366478,True,ABC map,68.57,2062.18,0.06,False
+3,priority,mockturtle_emap_delay_resyn2,ok,67.57999986410141,2062.1799964904785,1,0.02951492900319863,True,emap,67.58,2062.18,0.03,False
+3,priority,eqmap_lut_amap,ok,56.950001411139965,3157.0700244903564,1,2.996896441982244,False,EqMap,56.95,3157.07,$\leq$3.00,False
+3,priority,esyn_frozen_model_amap_bounded_dag,ok,49.19000130146742,2872.7900714874268,1,1.31,False,E-Syn,49.19,2872.79,1.31,False
+3,priority,emorphic_final_sa,ok,41.080000303685665,1167.5600090026855,1,15.68,False,E-morphic,41.08,1167.56,15.68,False
+3,priority,eGraphMap,ok,69.46999963372946,2062.1799964904785,1,0.8233942249789834,False,eGraphMap,69.47,2062.18,$\leq$0.83,False
+3,router,abc_map_delay_resyn2,ok,13.350000254809856,216.39999961853027,1,0.04889061799622141,True,ABC map,13.35,216.40,0.05,False
+3,router,mockturtle_emap_delay_resyn2,ok,15.070000283420086,216.39999961853027,1,0.007549677000497468,True,emap,15.07,216.40,0.01,False
+3,router,eqmap_lut_amap,ok,11.910000257194042,625.6200008392334,1,1.5474057249957696,False,EqMap,11.91,625.62,$\leq$1.55,False
+3,router,esyn_frozen_model_amap_bounded_dag,ok,12.020000226795673,390.69000244140625,1,1.2,False,E-Syn,12.02,390.69,1.20,False
+3,router,emorphic_final_sa,ok,15.180000193417072,198.42000007629395,1,3.66,False,E-morphic,15.18,198.42,3.66,False
+3,router,eGraphMap,ok,13.720000259578228,213.20000076293945,1,0.2317189949681051,False,eGraphMap,13.72,213.20,$\leq$0.24,False
+3,voter,abc_map_delay_resyn2,ok,747.4599995911121,826.689998626709,1,0.43607508100103587,True,ABC map,747.46,826.69,0.43,False
+3,voter,mockturtle_emap_delay_resyn2,ok,774.3499968722463,779.1099987030029,1,0.22650925800553523,True,emap,774.35,779.11,0.22,False
+3,voter,eqmap_lut_amap,ok,1841.6000466793776,2154.5600261688232,1,13.474326973999268,False,EqMap,1841.60,2154.56,$\leq$13.48,False
+3,voter,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+3,voter,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+3,voter,eGraphMap,ok,855.6299944743514,800.5699977874756,1,6.676161521987524,False,eGraphMap,855.63,800.57,$\leq$6.68,False
+4,adder,abc_map_delay_resyn2,ok,92.41999971866608,2574.3599967956543,1,0.07754696300253272,True,ABC map,92.42,2574.36,0.08,False
+4,adder,mockturtle_emap_delay_resyn2,ok,90.29000010341406,2569.1499977111816,1,0.03252742900804151,True,emap,90.29,2569.15,0.03,False
+4,adder,eqmap_lut_amap,ok,189.10000072419643,6503.20013999939,1,3.073962959999335,False,EqMap,189.10,6503.20,$\leq$3.08,False
+4,adder,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+4,adder,emorphic_final_sa,ok,84.90000087022781,2366.309980392456,1,7.2,False,E-morphic,84.90,2366.31,7.20,False
+4,adder,eGraphMap,ok,87.61000066250563,2569.1499977111816,1,2.656284702999983,False,eGraphMap,87.61,2569.15,$\leq$2.66,False
+4,bar,abc_map_delay_resyn2,ok,295.84000127762556,171.9000015258789,1,0.13634062399796676,True,ABC map,295.84,171.90,0.13,False
+4,bar,mockturtle_emap_delay_resyn2,ok,284.4800008535385,171.9000015258789,1,0.06312260200502351,True,emap,284.48,171.90,0.06,False
+4,bar,eqmap_lut_amap,ok,143.48999792337418,286.4900074005127,1,3.333266095010913,False,EqMap,143.49,286.49,$\leq$3.34,False
+4,bar,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+4,bar,emorphic_final_sa,ok,243.51999928057194,165.55000114440918,1,16.15,False,E-morphic,243.52,165.55,16.15,False
+4,bar,eGraphMap,ok,295.9800013974309,171.9000015258789,1,5.762346366012935,False,eGraphMap,295.98,171.90,$\leq$5.77,False
+4,div,abc_map_delay_resyn2,ok,3623.969993747771,43110.42996788025,1,1.7151093230058905,True,ABC map,3623.97,43110.43,1.71,False
+4,div,mockturtle_emap_delay_resyn2,ok,3431.460011854768,43091.199979782104,1,1.0278307629923802,True,emap,3431.46,43091.20,1.03,False
+4,div,eqmap_lut_amap,failed,,,,,False,EqMap,F,F,--,False
+4,div,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+4,div,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+4,div,eGraphMap,ok,5057.549969434738,43093.6499710083,1,33.06364923698129,False,eGraphMap,5057.55,43093.65,$\leq$33.07,False
+4,hyp,abc_map_delay_resyn2,ok,16430.320054732263,196265.72581100464,1,11.18049795400293,True,ABC map,16430.32,196265.73,11.19,False
+4,hyp,mockturtle_emap_delay_resyn2,ok,14772.789929680526,195673.03579330444,1,5.843548066986841,True,emap,14772.79,195673.04,5.85,False
+4,hyp,eqmap_lut_amap,unmeasured,,,,,False,EqMap,F,F,--,False
+4,hyp,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+4,hyp,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+4,hyp,eGraphMap,ok,22414.780679889023,667115.2042598724,1,65.94474201003322,False,eGraphMap,22414.78$^{s}$,667115.20,$\leq$65.95,True
+4,log2,abc_map_delay_resyn2,ok,2015.6900117695332,3990.610019683838,1,2.0325040519965114,True,ABC map,2015.69,3990.61,2.03,False
+4,log2,mockturtle_emap_delay_resyn2,ok,1912.0400035604835,3874.1700325012207,1,1.0124201199942036,True,emap,1912.04,3874.17,1.01,False
+4,log2,eqmap_lut_amap,unmeasured,,,,,False,EqMap,F,F,--,False
+4,log2,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+4,log2,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+4,log2,eGraphMap,ok,2722.2399948835373,3885.930025100708,1,33.22386581799947,False,eGraphMap,2722.24,3885.93,$\leq$33.23,False
+4,max,abc_map_delay_resyn2,ok,234.67000230401754,2076.2100048065186,1,0.1435651229985524,True,ABC map,234.67,2076.21,0.14,False
+4,max,mockturtle_emap_delay_resyn2,ok,215.80000300705433,2075.32000541687,1,0.08068331300455611,True,emap,215.80,2075.32,0.08,False
+4,max,eqmap_lut_amap,ok,337.0500027015805,5326.559980392456,1,6.378305680991616,False,EqMap,337.05,5326.56,$\leq$6.38,False
+4,max,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+4,max,emorphic_final_sa,ok,218.91000129282475,1674.590000152588,1,26.9,False,E-morphic,218.91,1674.59,26.90,False
+4,max,eGraphMap,ok,243.34000271558762,2075.32000541687,1,5.324648419045843,False,eGraphMap,243.34,2075.32,$\leq$5.33,False
+4,multiplier,abc_map_delay_resyn2,ok,1793.0800038799644,2662.959997177124,1,1.3188115529919742,True,ABC map,1793.08,2662.96,1.32,False
+4,multiplier,mockturtle_emap_delay_resyn2,ok,1822.5199977234006,2631.5000019073486,1,0.6561884730035672,True,emap,1822.52,2631.50,0.65,False
+4,multiplier,eqmap_lut_amap,failed,,,,,False,EqMap,F,F,--,False
+4,multiplier,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+4,multiplier,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+4,multiplier,eGraphMap,ok,2051.749991632998,2742.469997406006,1,18.025546366989147,False,eGraphMap,2051.75,2742.47,$\leq$18.03,False
+4,sin,abc_map_delay_resyn2,ok,420.61000338196754,1857.5400123596191,1,0.37937774999591056,True,ABC map,420.61,1857.54,0.38,False
+4,sin,mockturtle_emap_delay_resyn2,ok,431.79000233858824,1788.1300106048584,1,0.19283835499663837,True,emap,431.79,1788.13,0.19,False
+4,sin,eqmap_lut_amap,ok,729.7300028279424,3902.8400535583496,1,11.259148691999144,False,EqMap,729.73,3902.84,$\leq$11.26,False
+4,sin,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+4,sin,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+4,sin,eGraphMap,ok,559.2800013870001,1784.6100158691406,1,18.922418318979908,False,eGraphMap,559.28,1784.61,$\leq$18.93,False
+4,sqrt,abc_map_delay_resyn2,ok,1633.3100219666958,47071.95135498047,1,1.1304298309987644,True,ABC map,1633.31,47071.95,1.13,False
+4,sqrt,mockturtle_emap_delay_resyn2,ok,1562.460022173822,47047.281383514404,1,0.57906004099641,True,emap,1562.46,47047.28,0.58,False
+4,sqrt,eqmap_lut_amap,failed,,,,,False,EqMap,F,F,--,False
+4,sqrt,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+4,sqrt,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+4,sqrt,eGraphMap,ok,1915.4100023061037,51470.40106391907,1,28.470168033032678,False,eGraphMap,1915.41,51470.40,$\leq$28.48,False
+4,square,abc_map_delay_resyn2,ok,1183.3700001463294,2510.319999694824,1,0.8281993500131648,True,ABC map,1183.37,2510.32,0.83,False
+4,square,mockturtle_emap_delay_resyn2,ok,1097.2099873423576,2500.7199993133545,1,0.4607101579895243,True,emap,1097.21,2500.72,0.46,False
+4,square,eqmap_lut_amap,ok,2672.8099942803383,5939.370082855225,1,25.4985637540085,False,EqMap,2672.81,5939.37,$\leq$25.50,False
+4,square,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+4,square,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+4,square,eGraphMap,ok,1446.4699908196926,2498.849998474121,1,21.862564497976564,False,eGraphMap,1446.47,2498.85,$\leq$21.87,False
+4,arbiter,abc_map_delay_resyn2,ok,766.679985485971,898.7499980926514,1,0.9021234209940303,True,ABC map,766.68,898.75,0.90,False
+4,arbiter,mockturtle_emap_delay_resyn2,ok,766.679985485971,898.7499980926514,1,0.5676807849959005,True,emap,766.68,898.75,0.57,False
+4,arbiter,eqmap_lut_amap,ok,1118.070039704442,2106.9700202941895,1,20.32206936001603,False,EqMap,1118.07,2106.97,$\leq$20.33,False
+4,arbiter,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+4,arbiter,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+4,arbiter,eGraphMap,ok,761.7999867126346,899.0699996948242,1,13.662746583984699,False,eGraphMap,761.80,899.07,$\leq$13.67,False
+4,cavlc,abc_map_delay_resyn2,ok,41.31000066548586,186.01000022888184,1,0.06261447499855421,True,ABC map,41.31,186.01,0.06,False
+4,cavlc,mockturtle_emap_delay_resyn2,ok,39.830000549554825,186.01000022888184,1,0.030152564009767957,True,emap,39.83,186.01,0.03,False
+4,cavlc,eqmap_lut_amap,ok,70.3900009393692,487.44000244140625,1,2.1793295510142343,False,EqMap,70.39,487.44,$\leq$2.18,False
+4,cavlc,esyn_frozen_model_amap_bounded_dag,ok,37.710000574588776,279.64000129699707,1,1.27,False,E-Syn,37.71,279.64,1.27,False
+4,cavlc,emorphic_final_sa,ok,42.29000084847212,178.5200023651123,1,8.53,False,E-morphic,42.29,178.52,8.53,False
+4,cavlc,eGraphMap,ok,40.16000062227249,185.8700008392334,1,2.1043345520156436,False,eGraphMap,40.16,185.87,$\leq$2.11,False
+4,ctrl,abc_map_delay_resyn2,ok,7.020000115036964,103.17000198364258,1,0.051441805000649765,True,ABC map,7.02,103.17,0.05,False
+4,ctrl,mockturtle_emap_delay_resyn2,ok,7.000000096857548,103.17000198364258,1,0.010763835001853295,True,emap,7.00,103.17,0.01,False
+4,ctrl,eqmap_lut_amap,ok,8.950000137090683,181.7400016784668,1,1.5412098220112966,False,EqMap,8.95,181.74,$\leq$1.55,False
+4,ctrl,esyn_frozen_model_amap_bounded_dag,ok,6.800000078976154,148.26000213623047,1,1.08,False,E-Syn,6.80,148.26,1.08,False
+4,ctrl,emorphic_final_sa,ok,7.470000125467777,91.3799991607666,1,4.03,False,E-morphic,7.47,91.38,4.03,False
+4,ctrl,eGraphMap,ok,6.750000089406967,103.17000198364258,1,0.32062542403582484,False,eGraphMap,6.75,103.17,$\leq$0.33,False
+4,dec,abc_map_delay_resyn2,ok,30.830000288784504,65.72000122070312,1,0.053992860004655086,True,ABC map,30.83,65.72,0.05,False
+4,dec,mockturtle_emap_delay_resyn2,ok,30.830000288784504,65.72000122070312,1,0.028076051006792113,True,emap,30.83,65.72,0.03,False
+4,dec,eqmap_lut_amap,ok,40.55000038444996,117.96000289916992,1,1.461639061992173,False,EqMap,40.55,117.96,$\leq$1.47,False
+4,dec,esyn_frozen_model_amap_bounded_dag,ok,27.00000098347664,92.76000022888184,1,1.24,False,E-Syn,27.00,92.76,1.24,False
+4,dec,emorphic_final_sa,ok,33.380000337958336,80.63999938964844,1,4.18,False,E-morphic,33.38,80.64,4.18,False
+4,dec,eGraphMap,ok,31.789999909698963,65.72000122070312,1,1.314083825040143,False,eGraphMap,31.79,65.72,$\leq$1.32,False
+4,i2c,abc_map_delay_resyn2,ok,72.04000104218721,165.79000091552734,1,0.0684748369967565,True,ABC map,72.04,165.79,0.07,False
+4,i2c,mockturtle_emap_delay_resyn2,ok,70.67000081390142,165.79000091552734,1,0.040719694006838836,True,emap,70.67,165.79,0.04,False
+4,i2c,eqmap_lut_amap,ok,94.43000096082687,391.13000297546387,1,1.9298191160196438,False,EqMap,94.43,391.13,$\leq$1.93,False
+4,i2c,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+4,i2c,emorphic_final_sa,ok,71.27000131458044,147.94999885559082,1,11.21,False,E-morphic,71.27,147.95,11.21,False
+4,i2c,eGraphMap,ok,70.52000092715025,165.79000091552734,1,4.557140554999933,False,eGraphMap,70.52,165.79,$\leq$4.56,False
+4,int2float,abc_map_delay_resyn2,ok,13.120000146329403,181,1,0.0513261930027511,True,ABC map,13.12,181.00,0.05,False
+4,int2float,mockturtle_emap_delay_resyn2,ok,13.050000160932541,181,1,0.012420226004905999,True,emap,13.05,181.00,0.01,False
+4,int2float,eqmap_lut_amap,ok,19.380000188946724,296.9600009918213,1,1.2378010030079167,False,EqMap,19.38,296.96,$\leq$1.24,False
+4,int2float,esyn_frozen_model_amap_bounded_dag,ok,12.590000122785568,227.09000205993652,1,1.2,False,E-Syn,12.59,227.09,1.20,False
+4,int2float,emorphic_final_sa,ok,15.080000184476376,137.19000053405762,1,7.55,False,E-morphic,15.08,137.19,7.55,False
+4,int2float,eGraphMap,ok,13.300000220537186,181,1,0.4617587749962695,False,eGraphMap,13.30,181.00,$\leq$0.47,False
+4,mem_ctrl,abc_map_delay_resyn2,ok,2691.3500585779548,1093.5700054168701,1,1.646598011997412,True,ABC map,2691.35,1093.57,1.64,False
+4,mem_ctrl,mockturtle_emap_delay_resyn2,ok,2568.8100501820445,1093.5700054168701,1,1.121945234001032,True,emap,2568.81,1093.57,1.12,False
+4,mem_ctrl,eqmap_lut_amap,failed,,,,,False,EqMap,F,F,--,False
+4,mem_ctrl,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+4,mem_ctrl,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+4,mem_ctrl,eGraphMap,ok,3802.979998126626,1087.0900058746338,1,34.794924282003194,False,eGraphMap,3802.98,1087.09,$\leq$34.80,False
+4,priority,abc_map_delay_resyn2,ok,64.17000026255846,2045.5799980163574,1,0.057914083008654416,True,ABC map,64.17,2045.58,0.06,False
+4,priority,mockturtle_emap_delay_resyn2,ok,63.29000014811754,2045.5799980163574,1,0.03784302399435546,True,emap,63.29,2045.58,0.04,False
+4,priority,eqmap_lut_amap,ok,53.88000079989433,3008.1900310516357,1,2.918442126989248,False,EqMap,53.88,3008.19,$\leq$2.92,False
+4,priority,esyn_frozen_model_amap_bounded_dag,ok,41.889999620616436,2443.9300365448,1,1.22,False,E-Syn,41.89,2443.93,1.22,False
+4,priority,emorphic_final_sa,ok,40.81000030040741,1071.6400108337402,1,19.4,False,E-morphic,40.81,1071.64,19.40,False
+4,priority,eGraphMap,ok,64.97999995201826,2045.5799980163574,1,1.8883131920010783,False,eGraphMap,64.98,2045.58,$\leq$1.89,False
+4,router,abc_map_delay_resyn2,ok,12.410000026226044,187.47000122070312,1,0.05330746099934913,True,ABC map,12.41,187.47,0.05,False
+4,router,mockturtle_emap_delay_resyn2,ok,14.599999994039536,187.47000122070312,1,0.020695471001090482,True,emap,14.60,187.47,0.02,False
+4,router,eqmap_lut_amap,ok,10.43000004440546,540.580005645752,1,1.5619503739872016,False,EqMap,10.43,540.58,$\leq$1.57,False
+4,router,esyn_frozen_model_amap_bounded_dag,ok,10.210000030696392,345.6999969482422,1,1.23,False,E-Syn,10.21,345.70,1.23,False
+4,router,emorphic_final_sa,ok,12.720000110566616,164.23999977111816,1,4.51,False,E-morphic,12.72,164.24,4.51,False
+4,router,eGraphMap,ok,12.850000038743019,187.47000122070312,1,0.36394099198514596,False,eGraphMap,12.85,187.47,$\leq$0.37,False
+4,voter,abc_map_delay_resyn2,ok,961.4400011375546,726.2799987792969,1,0.5548108259972651,True,ABC map,961.44,726.28,0.55,False
+4,voter,mockturtle_emap_delay_resyn2,ok,1028.350000590086,687.0700054168701,1,0.3431139879976399,True,emap,1028.35,687.07,0.34,False
+4,voter,eqmap_lut_amap,ok,1530.669987730682,1531.430025100708,1,13.478798826996353,False,EqMap,1530.67,1531.43,$\leq$13.48,False
+4,voter,esyn_frozen_model_amap_bounded_dag,failed,,,,,False,E-Syn,F,F,--,False
+4,voter,emorphic_final_sa,failed,,,,,False,E-morphic,F,F,--,False
+4,voter,eGraphMap,ok,1081.8699958845973,742.9000015258789,1,12.782445386052132,False,eGraphMap,1081.87,742.90,$\leq$12.79,False

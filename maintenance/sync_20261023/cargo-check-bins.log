@@ -1,0 +1,446 @@
+    Checking crossbeam-utils v0.8.21
+    Checking foldhash v0.1.5
+    Checking equivalent v1.0.2
+    Checking allocator-api2 v0.2.21
+    Checking bitflags v2.9.0
+    Checking either v1.15.0
+    Checking log v0.4.27
+    Checking once_cell v1.21.3
+    Checking smallvec v1.15.0
+    Checking lazy_static v1.5.0
+    Checking fixedbitset v0.5.7
+    Checking itoa v1.0.15
+    Checking ryu v1.0.20
+    Checking memchr v2.7.4
+    Checking symbolic_expressions v5.0.3
+    Checking rustc-hash v2.1.1
+    Checking aiger v0.2.0
+    Checking libc v0.2.172
+    Checking num-traits v0.2.19
+    Checking coin_cbc_sys v0.1.2
+    Checking thiserror v1.0.69
+    Checking serde v1.0.219
+    Checking thiserror v2.0.17
+    Checking raw-cpuid v11.5.0
+    Checking env_logger v0.9.3
+    Checking itertools v0.14.0
+    Checking coin_cbc v0.1.8
+    Checking hashbrown v0.15.3
+    Checking crossbeam-epoch v0.9.21
+    Checking crossbeam-deque v0.8.8
+    Checking num-integer v0.1.46
+    Checking rayon-core v1.13.0
+    Checking indexmap v2.9.0
+    Checking symbol_table v0.4.0
+    Checking num-bigint v0.4.6
+    Checking rayon v1.12.0
+    Checking petgraph v0.8.3
+    Checking quanta v0.12.5
+    Checking egg v0.11.0
+    Checking serde_json v1.0.140
+    Checking emapper v0.1.0 (/home/flynn/workplace/MIGBalance/emapper)
+warning: unused import: `import_aig`
+  --> emapper/src/egraph_map.rs:16:44
+   |
+16 |     cheapest_nodes, cheapest_nodes_queued, import_aig, literal_inputs, xor_inputs, tt3_inputs, rules, AigLang, SatParams,
+   |                                            ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `IntoEdgeReferences`
+  --> emapper/src/egraph_regions.rs:69:40
+   |
+69 |     use petgraph::visit::{EdgeRef,Topo,IntoEdgeReferences};
+   |                                        ^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated module `std::usize`: all constants in this module replaced by associated constants on the type
+ --> emapper/src/emap_cut.rs:4:5
+  |
+4 |     usize,
+  |     ^^^^^
+  |
+  = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated constant `std::usize::MAX`: replaced by the `MAX` associated constant on this type
+   --> emapper/src/emap_cut.rs:323:37
+    |
+323 |             .map(|pi| (*pi, (usize::MAX, 0 as usize)))
+    |                                     ^^^
+
+warning: unused variable: `tech`
+   --> emapper/src/emap.rs:494:5
+    |
+494 |     tech: &TechLib,
+    |     ^^^^ help: if this is intentional, prefix it with an underscore: `_tech`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `tech`
+    --> emapper/src/emap.rs:1742:5
+     |
+1742 |     tech: &TechLib,
+     |     ^^^^ help: if this is intentional, prefix it with an underscore: `_tech`
+
+warning: variable does not need to be mutable
+    --> emapper/src/emap.rs:1916:18
+     |
+1916 |         neg_alt: mut stage1_neg_alt,
+     |                  ----^^^^^^^^^^^^^^
+     |                  |
+     |                  help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> emapper/src/emap.rs:4388:13
+     |
+4388 |         let mut consider = |b: &NodeBinding, pos_arr: &[f32], neg_arr: &[f32]| {
+     |             ----^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+warning: unused variable: `pre_rebuild_import_enodes`
+   --> emapper/src/egraph_regions.rs:108:9
+    |
+108 |     let pre_rebuild_import_enodes=graph.total_number_of_nodes();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_pre_rebuild_import_enodes`
+
+warning: variable does not need to be mutable
+    --> emapper/src/egraph_map.rs:1206:5
+     |
+1206 |     mut instance: Instance,
+     |     ----^^^^^^^^
+     |     |
+     |     help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> emapper/src/egraph_sat.rs:161:9
+    |
+161 |     let mut phase = |expr: &mut RecExpr<AigLang>,
+    |         ----^^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> emapper/src/ilp_cover.rs:572:9
+    |
+572 |     let mut push = |n1: usize,
+    |         ----^^^^
+    |         |
+    |         help: remove this `mut`
+
+warning: unused variable: `inv_delay`
+    --> emapper/src/ilp_cover.rs:2316:5
+     |
+2316 |     inv_delay: f32,
+     |     ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_inv_delay`
+
+warning: variable `area` is assigned to, but never used
+    --> emapper/src/ilp_cover.rs:2807:9
+     |
+2807 |     let mut area = pick_area(matches, pick);
+     |         ^^^^^^^^
+     |
+     = note: consider using `_area` instead
+
+warning: value assigned to `area` is never read
+    --> emapper/src/ilp_cover.rs:2866:9
+     |
+2856 |                     area += best_delta;
+     |                     ------------------ `area` is overwritten here before the previous value is read
+...
+2866 |         area = pick_area(matches, &st.pick);
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this value is reassigned later and never used
+     |
+     = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `area` is never read
+    --> emapper/src/ilp_cover.rs:2856:21
+     |
+2856 |                     area += best_delta;
+     |                     ^^^^^^^^^^^^^^^^^^
+     |
+     = help: maybe it is overwritten before being read?
+
+warning: unused variable: `by_out`
+    --> emapper/src/ilp_cover.rs:2888:5
+     |
+2888 |     by_out: &[Vec<usize>],
+     |     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_by_out`
+
+warning: unused variable: `dense`
+    --> emapper/src/ilp_cover.rs:3079:5
+     |
+3079 |     dense: &Dense,
+     |     ^^^^^ help: if this is intentional, prefix it with an underscore: `_dense`
+
+warning: unused variable: `dense`
+    --> emapper/src/ilp_cover.rs:3243:5
+     |
+3243 |     dense: &Dense,
+     |     ^^^^^ help: if this is intentional, prefix it with an underscore: `_dense`
+
+warning: variable does not need to be mutable
+    --> emapper/src/ilp_cover.rs:3664:9
+     |
+3664 |     let mut mo_pass = |pick: &mut Vec<Option<usize>>, w: &[f64]| {
+     |         ----^^^^^^^
+     |         |
+     |         help: remove this `mut`
+
+warning: value assigned to `best_area` is never read
+    --> emapper/src/ilp_cover.rs:3691:9
+     |
+3691 |         best_area = pick_area(matches, &best_pick);
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this value is reassigned later and never used
+...
+3764 |         best_area = besta;
+     |         ----------------- `best_area` is overwritten here before the previous value is read
+
+warning: value assigned to `best_area` is never read
+    --> emapper/src/ilp_cover.rs:3764:9
+     |
+3764 |         best_area = besta;
+     |         ^^^^^^^^^^^^^^^^^ this value is reassigned later and never used
+...
+3797 |         best_area = pick_area(matches, &best_pick);
+     |         ------------------------------------------ `best_area` is overwritten here before the previous value is read
+
+warning: value assigned to `best_area` is never read
+    --> emapper/src/ilp_cover.rs:3797:9
+     |
+3797 |         best_area = pick_area(matches, &best_pick);
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this value is reassigned later and never used
+...
+3828 |             best_area = pick_area(matches, &best_pick);
+     |             ------------------------------------------ `best_area` is overwritten here before the previous value is read
+
+warning: value assigned to `best_area` is never read
+    --> emapper/src/ilp_cover.rs:3828:13
+     |
+3828 |             best_area = pick_area(matches, &best_pick);
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: maybe it is overwritten before being read?
+
+warning: unused variable: `ps`
+    --> emapper/src/ilp_cover.rs:4318:5
+     |
+4318 |     ps: &IlpParams,
+     |     ^^ help: if this is intentional, prefix it with an underscore: `_ps`
+
+warning: unused variable: `leaves`
+   --> emapper/src/egraph_source_plan.rs:155:51
+    |
+155 |  if support==4 {for width in [3,4] {for (index,(_,leaves,i,j)) in unique.iter().enumerate().filter(|(_,x)|x.1.len()==width).take(li...
+    |                                                   ^^^^^^ help: if this is intentional, prefix it with an underscore: `_leaves`
+
+warning: function `choose_binding_for_phase` is never used
+   --> emapper/src/emap.rs:303:4
+    |
+303 | fn choose_binding_for_phase(
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `collect_required_bindings` is never used
+   --> emapper/src/emap.rs:811:4
+    |
+811 | fn collect_required_bindings(aig: &AigGraph, best: &[Option<NodeBinding>]) -> Vec<NodeBinding> {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `cut_pool_diverse_default_note` is never used
+    --> emapper/src/emap.rs:1027:4
+     |
+1027 | fn cut_pool_diverse_default_note() {}
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `cut_pool_diverse` is never used
+    --> emapper/src/emap.rs:1036:4
+     |
+1036 | fn cut_pool_diverse() -> bool {
+     |    ^^^^^^^^^^^^^^^^
+
+warning: function `diverse_cut_pool` is never used
+    --> emapper/src/emap.rs:1042:4
+     |
+1042 | fn diverse_cut_pool(kept_cuts: &[(Cut, f32, f32)], limit: usize) -> Vec<Cut> {
+     |    ^^^^^^^^^^^^^^^^
+
+warning: function `structural_cut_pool` is never used
+    --> emapper/src/emap.rs:2896:4
+     |
+2896 | fn structural_cut_pool(candidates: &[Cut], limit: usize) -> Vec<Cut> {
+     |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `enumerate` is never used
+   --> emapper/src/egraph_map.rs:710:4
+    |
+710 | fn enumerate(
+    |    ^^^^^^^^^
+
+warning: function `cap_instances` is never used
+    --> emapper/src/egraph_map.rs:3079:4
+     |
+3079 | fn cap_instances(
+     |    ^^^^^^^^^^^^^
+
+warning: function `cap_instances_impl` is never used
+    --> emapper/src/egraph_map.rs:3099:4
+     |
+3099 | fn cap_instances_impl(instances:&mut Vec<Instance>,free:&[bool],roots:&[usize],budget:usize,timing_cap:bool,queued:bool)->Result<u...
+     |    ^^^^^^^^^^^^^^^^^^
+
+warning: function `cap_instances_joint` is never used
+    --> emapper/src/egraph_map.rs:3100:4
+     |
+3100 | fn cap_instances_joint(instances:&mut Vec<Instance>,free:&[bool],roots:&[usize],budget:usize,timing_cap:bool,queued:bool,joint:boo...
+     |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `cap_instances_guarded` is never used
+    --> emapper/src/egraph_map.rs:3129:4
+     |
+3129 | fn cap_instances_guarded(instances:&mut Vec<Instance>,free:&[bool],roots:&[usize],budget:usize,timing_cap:bool,queued_witness:bool...
+     |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `import_demanded` is never used
+  --> emapper/src/egraph_regions.rs:10:15
+   |
+10 | pub(super) fn import_demanded(aig: &Aig) -> Option<(egg::EGraph<AigLang, ()>, Vec<(u32, Id)>)> {
+   |               ^^^^^^^^^^^^^^^
+
+warning: function `import_literals` is never used
+  --> emapper/src/egraph_regions.rs:64:15
+   |
+64 | pub(super) fn import_literals(aig: &Aig) -> Option<(egg::EGraph<AigLang, ()>, Vec<(u32, Id)>)> {
+   |               ^^^^^^^^^^^^^^^
+
+warning: function `import_xors` is never used
+   --> emapper/src/egraph_regions.rs:456:15
+    |
+456 | pub(super) fn import_xors(aig:&Aig)->Option<(egg::EGraph<AigLang,()>,Vec<(u32,Id)>)>{import_with_source(aig,false).map(|(g,r,_)|(g,...
+    |               ^^^^^^^^^^^
+
+warning: function `import_with_source` is never used
+   --> emapper/src/egraph_regions.rs:462:15
+    |
+462 | pub(super) fn import_with_source(aig:&Aig,keep_helpers:bool)->Option<(egg::EGraph<AigLang,()>,Vec<(u32,Id)>,Vec<SourceAnd>)>{
+    |               ^^^^^^^^^^^^^^^^^^
+
+warning: function `import_with_helpers` is never used
+   --> emapper/src/egraph_regions.rs:468:15
+    |
+468 | pub(super) fn import_with_helpers(aig:&Aig,helper_quota:usize,node_allowance:usize)->Option<(egg::EGraph<AigLang,()>,Vec<(u32,Id)>,...
+    |               ^^^^^^^^^^^^^^^^^^^
+
+warning: function `import_with_canonical_helpers` is never used
+   --> emapper/src/egraph_regions.rs:469:15
+    |
+469 | pub(super) fn import_with_canonical_helpers(aig:&Aig,helper_quota:usize,node_allowance:usize,canonical:bool)->Option<(egg::EGraph<A...
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `import_with_helper_allocation` is never used
+   --> emapper/src/egraph_regions.rs:470:15
+    |
+470 | pub(super) fn import_with_helper_allocation(aig:&Aig,helper_quota:usize,node_allowance:usize,canonical:bool,fill_unused:bool)->Opti...
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `admission_failure` is never used
+   --> emapper/src/egraph_regions.rs:528:4
+    |
+528 | fn admission_failure(limit:usize,admitted:usize){
+    |    ^^^^^^^^^^^^^^^^^
+
+warning: function `import_with_shared_helpers` is never used
+ --> emapper/src/egraph_source_import.rs:5:15
+  |
+5 | pub(super) fn import_with_shared_helpers(aig:&Aig,quota:usize,limit:usize)->Option<(egg::EGraph<AigLang,()>,Vec<(u32,Id)>,Vec<SourceA...
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `import_with_helpers` is never used
+ --> emapper/src/egraph_source_import.rs:6:15
+  |
+6 | pub(super) fn import_with_helpers(aig:&Aig,helper_quota:usize,node_allowance:usize)->Option<(egg::EGraph<AigLang,()>,Vec<(u32,Id)>,Ve...
+  |               ^^^^^^^^^^^^^^^^^^^
+
+warning: function `import_with_library_source` is never used
+ --> emapper/src/egraph_source_import.rs:9:15
+  |
+9 | pub(super) fn import_with_library_source(aig:&Aig,quota:usize,limit:usize,width:usize,tech:&TechLib)->Option<(egg::EGraph<AigLang,()>...
+  |               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `import_helpers_impl` is never used
+  --> emapper/src/egraph_source_import.rs:11:4
+   |
+11 | fn import_helpers_impl(aig:&Aig,helper_quota:usize,node_allowance:usize,shared_majority:bool,source_width:usize,source_tech:Option<&...
+   |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `import_prefix_failure` is never used
+   --> emapper/src/egraph_source_import.rs:146:4
+    |
+146 | fn import_prefix_failure(allowance:usize,source_upper:usize,planned:usize,admitted:usize){
+    |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `compact_node_upper` is never used
+   --> emapper/src/egraph_source_import.rs:151:15
+    |
+151 | pub(super) fn compact_node_upper(aig:&Aig)->Option<usize>{
+    |               ^^^^^^^^^^^^^^^^^^
+
+warning: function `merge_transaction` is never used
+   --> emapper/src/egraph_cover_exchange.rs:280:4
+    |
+280 | fn merge_transaction(old:&[Instance],additional:Vec<Instance>,saved:&ProtectedCover,next:&[BTreeSet<Cut>],free:&[bool],roots:&[usiz...
+    |    ^^^^^^^^^^^^^^^^^
+
+warning: function `import_aig` is never used
+   --> emapper/src/egraph_sat.rs:210:15
+    |
+210 | pub(crate) fn import_aig(aig: &Aig) -> Option<(egg::EGraph<AigLang, ()>, Vec<(u32, Id)>)> {
+    |               ^^^^^^^^^^
+
+warning: function `required_times` is never used
+    --> emapper/src/ilp_cover.rs:2105:4
+     |
+2105 | fn required_times(
+     |    ^^^^^^^^^^^^^^
+
+warning: function `inc_free_match` is never used
+    --> emapper/src/ilp_cover.rs:2644:4
+     |
+2644 | fn inc_free_match(
+     |    ^^^^^^^^^^^^^^
+
+warning: function `depends_on_source` is never used
+  --> emapper/src/egraph_source_plan.rs:36:4
+   |
+36 | fn depends_on_source(parents:&[Vec<usize>],inputs:&[usize],shared:usize)->bool {
+   |    ^^^^^^^^^^^^^^^^^
+
+warning: function `compress` is never used
+  --> emapper/src/source_proof.rs:28:15
+   |
+28 | pub(crate) fn compress(aig:&Aig)->Aig{compress_with_propagation(aig,false)}
+   |               ^^^^^^^^
+
+warning: `emapper` (lib) generated 57 warnings (run `cargo fix --lib -p emapper` to apply 17 suggestions)
+    Checking MIGBalance v0.1.0 (/home/flynn/workplace/MIGBalance)
+warning: unused imports: `NodeBindingKind` and `binding_as_instance`
+  --> src/main.rs:25:5
+   |
+25 |     NodeBindingKind, binding_as_instance, emap_params_from_env, emap_with_params,
+   |     ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0609]: no field `extra_inv_count` on type `EmapResult`
+  --> src/main.rs:77:13
+   |
+77 |         res.extra_inv_count,
+   |             ^^^^^^^^^^^^^^^ unknown field
+   |
+   = note: available fields are: `bindings`, `total_area`, `materialized_area`, `max_delay`, `perf`, `mapper_name`
+
+For more information about this error, try `rustc --explain E0609`.
+warning: `MIGBalance` (bin "MIGBalance") generated 1 warning
+error: could not compile `MIGBalance` (bin "MIGBalance") due to 1 previous error; 1 warning emitted

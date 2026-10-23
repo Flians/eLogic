@@ -36,10 +36,7 @@ fn parse_key_usize(line: &str, key: &str) -> Option<usize> {
     let needle = format!("{key} =");
     let i = line.find(&needle)?;
     let rest = line[i + needle.len()..].trim_start();
-    let num: String = rest
-        .chars()
-        .take_while(|c| c.is_ascii_digit())
-        .collect();
+    let num: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
     num.parse().ok()
 }
 

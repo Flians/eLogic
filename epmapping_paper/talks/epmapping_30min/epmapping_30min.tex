@@ -1,0 +1,39 @@
+\documentclass[UTF8,aspectratio=169,11pt,fontset=none]{ctexbeamer}
+\usepackage{amsmath,amssymb,booktabs,array,pgfplots}
+\pgfplotsset{compat=1.18}
+\setmainfont{TeX Gyre Heros}
+\setsansfont{TeX Gyre Heros}
+\setCJKmainfont{Noto Sans CJK SC}
+\setCJKsansfont{Noto Sans CJK SC}
+\setCJKmonofont{Noto Sans Mono CJK SC}
+\definecolor{Navy}{HTML}{17324D}
+\definecolor{Teal}{HTML}{007D8A}
+\definecolor{Orange}{HTML}{B76025}
+\setbeamercolor{normal text}{fg=Navy,bg=white}
+\setbeamercolor{frametitle}{fg=Navy}
+\setbeamercolor{structure}{fg=Teal}
+\setbeamercolor{alerted text}{fg=Orange}
+\setbeamercolor{block title}{fg=Teal,bg=white}
+\setbeamercolor{block body}{fg=Navy,bg=white}
+\setbeamerfont{frametitle}{size=\fontsize{16}{20},series=\bfseries}
+\setbeamerfont{title}{size=\fontsize{24}{29},series=\bfseries}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{frametitle}{\vspace{2mm}\usebeamerfont{frametitle}\insertframetitle\par\vspace{1.5mm}{\color{Navy!18}\hrule height .35pt}\vspace{1mm}}
+\setbeamertemplate{itemize item}{\small\textbullet}
+\setbeamertemplate{itemize subitem}{\tiny\textbullet}
+\setbeamersize{text margin left=9mm,text margin right=9mm}
+\setbeamertemplate{footline}{\hfill\usebeamerfont{footnote}\color{Navy!65}\ifnum\value{framenumber}>26 Backup \number\numexpr\value{framenumber}-26\relax/8\else\insertframenumber/26\fi\hspace{8mm}\vspace{3mm}}
+\ifdefined\printnotes\setbeameroption{show only notes}\else\setbeameroption{hide notes}\fi
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcommand{\lead}[1]{\par{\color{Teal}\bfseries\large #1}\par}
+\newcommand{\src}[1]{\par\vspace{1mm}{\fontsize{6.7}{8}\selectfont\color{Navy!65}#1}}
+\newcommand{\take}[1]{\par\vspace{3mm}{\color{Teal}\bfseries #1}\par}
+\newcommand{\talk}[4]{\begin{frame}{#1}#3\note{\textbf{建议用时：#2 秒。}\par #4}\end{frame}}
+\newcommand{\tblhead}{\small\renewcommand{\arraystretch}{1.16}\setlength{\tabcolsep}{5pt}}
+\input{assets/data.tex}
+\title{Area Optimization After Technology Mapping}
+\subtitle{Under a fixed delay bound}
+\author{}\date{}
+\begin{document}
+\input{frames.tex}
+\end{document}

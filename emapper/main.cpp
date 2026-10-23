@@ -6,14 +6,16 @@
 #endif
 #include "rust/cxx.h"
 
+#include <cstdlib>
 #include <stdio.h>
 #include <string>
 #include <vector>
 
+#define TECHLIB "asap7"
+#define EXPERIMENTS_PATH "tools/mockturtle/experiments/"
+
 #include <experiments.hpp>
 #include <mockturtle/mockturtle.hpp>
-
-#define TECHLIB "asap7"
 
 int main_mapper() {
   using namespace experiments;
@@ -71,6 +73,14 @@ int main_emapper() {
 
   fmt::print("[i] processing technology library for emapper\n");
 
+#ifdef USE_EGG
+  /* map_egg loads its own TechLib via Rust; force the same .genlib path as C++ (cwd-relative). */
+  {
+    std::string const genlib_path = cell_libraries_path(TECHLIB);
+    setenv("MAP_EGG_TECHLIB_PATH", genlib_path.c_str(), 1);
+  }
+#endif
+
   /* library to map to technology */
   std::vector<gate> gates;
   std::ifstream in(cell_libraries_path(TECHLIB));
@@ -100,26 +110,27 @@ int main_emapper() {
     ps.relax_required = 0;
 #ifdef USE_EGG
     ps.enable_egg_fallback = true;
-    ps.egg_min_cut_size = 6;
-    ps.egg_min_internal_nodes = 6;
-    ps.egg_max_per_node = 3;
+    ps.egg_only_mapping = true;
+    ps.egg_min_cut_size = 4;
+    ps.egg_min_internal_nodes = 4;
+    ps.egg_max_per_node = 0;
     ps.egg_reserved_cut_slots = 2;
-    ps.egg_cache_max_entries = 200000;
-    ps.egg_cache_max_fail_entries = 50000;
-    ps.egg_cache_file = "emapper/lib_expr2cost.jsonl";
 #endif
     emap_stats st;
     cell_view<block_network> res = emap<9>(aig, tech_lib, ps, &st);
 #ifdef USE_EGG
     fmt::print(
-        "[i] egg {}: cand={} tt_miss={} try={} solve={} cache_hit={} succ={}\n",
+        "[i] egg {}: cand={} tt_miss={} try={} solve={} succ={} reject={} "
+        "fail_rust_empty={} fail_supergate={}\n",
         benchmark,
         st.egg_candidate_cuts,
         st.egg_tt_miss_cuts,
         st.egg_try_calls,
         st.egg_solver_calls,
-        st.egg_cache_hits,
-        st.egg_successes);
+        st.egg_successes,
+        st.egg_rejected_noncompetitive,
+        st.egg_fail_rust_empty,
+        st.egg_fail_supergate);
 #endif
 
     names_view res_names{res};

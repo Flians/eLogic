@@ -1,144 +1,63 @@
-# MIG Optimization using E-graphs
+# MIGBalance
 
-This project implements and compares different approaches for Majority-Inverter Graph (MIG) optimization, including traditional methods and novel e-graph-based techniques.
+Logic synthesis and technology-mapping research with two separately evaluated projects:
 
-## Project Structure
+| Project | Scope | Entry |
+| --- | --- | --- |
+| eGraphMap / emapper | AIG-to-standard-cell mapping, currently single-output and delay/area lexicographic optimization | [emapper/README.md](emapper/README.md) |
+| ePMapping | Post-mapping area recovery under the initial mapped delay bound | [epmapping/README.md](epmapping/README.md) |
+| eGraphMap paper | DAC draft | [emapper_paper/README.md](emapper_paper/README.md) |
+| ePMapping paper | DATE paper and talk | [epmapping_paper/README.md](epmapping_paper/README.md) |
+| Experiments | Published compact records, failures, provenance and selected CEC artifacts | [data/README.md](data/README.md) |
+| Dependencies | Pinned baseline sources and the fixed project mockturtle overlay | [tools/BASELINES.md](tools/BASELINES.md) |
 
-```
-project/
-├── emig/               # C++ baseline implementation
-├── mig/                # Python frontend
-├── mig_egg/            # Rust e-graph engine
-└── emapper/            # E-Graph-based technology mapper
-```
+[WORKSPACE.md](WORKSPACE.md) gives the workspace layout.
+[Current evidence](data/CURRENT.md) explicitly separates incomplete experiments,
+search timeouts, verified incumbents and completed optimizations. Do not combine
+these two projects' objectives, budgets or results.
 
-## Requirements
+## Build
 
-* pygraphviz
-* pydot
-* circuitgraph
+Initialize the pinned submodules; E-morphic is the local name of upstream E-Syn2:
 
-
-### System Dependencies
-```bash
-# Install CBC solver
-conda install -c conda-forge coincbc coin-or-cbc
-
-# Install system dependencies
-sudo apt install coinor-libcbc-dev
-sudo apt install zlib1g-dev yosys
-
-# Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```sh
+git submodule update --init
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target epmapping_check baseline_mapper --parallel 4
+cargo build --release --bin bench_rs_egraph_map
 ```
 
-### Python Dependencies
-```bash
-# Install graphviz (for Mac users)
-export GRAPHVIZ_DIR="/opt/homebrew/opt/graphviz"
+CMake requires a C++17 compiler, Python interpreter/development module,
+Coin-OR CBC dependencies, and Rust/Cargo for the project bridge. Experiment
+scripts additionally use Yosys, ABC and the Python packages recorded in their
+source/build provenance.
 
-# Install Python packages
-python3 -m pip install \
---config-setting="--global-option=build_ext" \
---config-setting="--global-option=-I$(brew --prefix graphviz)/include/" \
---config-setting="--global-option=-L$(brew --prefix graphviz)/lib/" \
-pygraphviz --break-system-packages
+Before consumers compile, CMake verifies/applies four fixed project headers from
+[tools/mockturtle-overlay](tools/mockturtle-overlay/README.md). The corresponding
+patches are under `tools/patches/mockturtle/`. Identical installed files are not
+rewritten; conflicting extra edits stop the build. These are named project
+extensions, not an unmodified upstream baseline.
 
-pip install pydot circuitgraph
+## Verify and inspect
+
+```sh
+python3 scripts/maintenance/test_mockturtle_overlay.py
+python3 scripts/experiments/tests/test_mockturtle_patch.py
+python3 scripts/maintenance/verify_published_data.py --deep
 ```
 
-## Building
+Current eGraphMap studies use one600-second mapping-related search window;
+independent CEC is excluded. Historical budgets remain attached to their original
+cohorts. Baseline source/algorithms are not optimized; historical E-Syn source
+patches are disclosed separately from the newly registered clean upstream source.
 
-1. Build Rust e-graph engine:
-```bash
-cd mig_egg
-cargo install maturin
-maturin develop # for Python
-cargo build --release # for C++
-cargo add flussab-aiger
-```
+## Data and local files
 
-2. Set environment variables:
+The compact data export is versioned under `data/`, with per-file and per-archive
+SHA-256 manifests. Large raw experiments and build caches remain local; this is
+not a151GB raw-data mirror. The latest legacy database is exported losslessly as
+compressed parts; the older root Git LFS object retains its original history.
+Shell configuration, credentials and editor state are not publication inputs.
 
-If you need to have `cbc` first in your `PATH`, run:
-
-```bash
-echo 'export PATH="/opt/homebrew/opt/cbc/bin:$PATH"' >> ~/.zshrc
-```
-
-For compilers to find `cbc`, you may need to set:
-
-```bash
-export LDFLAGS="-L/opt/homebrew/opt/cbc/lib"
-export CPPFLAGS="-I/opt/homebrew/opt/cbc/include"
-```
-
-For `pkg-config` to find `cbc`, you may need to set:
-
-```bash
-export PKG_CONFIG_PATH="/opt/homebrew/opt/cbc/lib/pkgconfig"
-```
-
-
-## Running Experiments
-1. Build project:
-```bash
-./build.sh Release
-```
-
-2. Test extraction strategies:
-
-```bash
-cd mig_egg
-RUSTFLAGS="-Awarnings" cargo test --no-default-features -- --nocapture
-RUSTFLAGS="-Awarnings" cargo test --features ilp-cbc -- --nocapture
-```
-
-3. Run experiment:
-
-```bash
-nohup ./build/emig/emig 0 > emig_aig_k8.log 2>&1 &
-nohup ./build/emig/emig 1 > emig_mig_k8.log 2>&1 &
-```
-
-## Benchmarks
-
-The project includes various benchmark circuits from the EPFL benchmark suite:
-- Basic: adder, arbiter, bar, cavlc
-- Medium: c432, c499, c1355, c6288
-- Complex: ctrl, dec, div, i2c, int2float
-
-## Implementation Details
-
-1. **Traditional Method (Baseline)**
-- Implemented in C++ using mockturtle framework
-- Uses conventional rewriting techniques
-
-2. **E-graph Based Method**
-- Uses equality saturation for optimization
-- Implements multiple extraction strategies:
-  - Greedy DAG extraction
-  - Global greedy extraction
-  - ILP-based extraction
-
-3. **Optimization Process**
-- Circuit parsing and MIG conversion
-- K-cut decomposition
-- E-graph transformation and optimization
-- Result extraction and reconstruction
-
-## Cite
-``` bib
-@inproceedings{fu2026elogic,
-  author    = {Fu, Rongliang and Xuan, Wei and Yin, Shuo and Hu, Guangyu and Chen, Chen and Zhang, Hongce and Yu, Bei and Ho, Tsung-Yi},
-  booktitle = {Design, Automation \& Test in Europe Conference \& Exhibition (DATE)},
-  title     = {{eLogic}: An E-Graph-based Logic Rewriting Framework for Majority-Inverter Graphs},
-  year      = {2026},
-  volume    = {},
-  number    = {},
-  pages     = {1-6},
-  keywords  = {Logic synthesis; logic rewriting; majority-inverter graph; e-graph},
-  doi       = {}
-}
-```
-
+The earlier root documentation remains in
+[docs/history/README-through-20261023.md](docs/history/README-through-20261023.md).
