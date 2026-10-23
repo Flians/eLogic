@@ -1,0 +1,74 @@
+{
+  "removed": [
+    {
+      "path": "scripts/experiments/__pycache__",
+      "reason": "regenerable Python bytecode",
+      "bytes": 36039
+    },
+    {
+      "path": "scripts/experiments/campaigns/__pycache__",
+      "reason": "regenerable Python bytecode",
+      "bytes": 457599
+    },
+    {
+      "path": "scripts/experiments/prototypes/__pycache__",
+      "reason": "regenerable Python bytecode",
+      "bytes": 5552
+    },
+    {
+      "path": "scripts/maintenance/__pycache__",
+      "reason": "regenerable Python bytecode",
+      "bytes": 16414
+    },
+    {
+      "path": "tools/__pycache__",
+      "reason": "installer test bytecode",
+      "bytes": 2436
+    },
+    {
+      "path": "target/debug",
+      "reason": "dangling generated cache symlink",
+      "target": "/tmp/emapper-debug-cache-storage-20261019"
+    },
+    {
+      "path": "output/pdf/main.out",
+      "reason": "regenerable output-only TeX auxiliary",
+      "bytes": 3799,
+      "sha256": "a91f7fe28ad998baccbd4f08c2f74e699dfa9619a6f39c67b00063d52e8f5ca1"
+    },
+    {
+      "path": "output/pdf/DATE27-ePMapping.log",
+      "reason": "regenerable output-only TeX auxiliary",
+      "bytes": 49647,
+      "sha256": "196d71e5ee8954de64e4ea2b7e2ac7aa9e1de491de57dbc6b523cba389e24285"
+    },
+    {
+      "path": "output/pdf/main.log",
+      "reason": "regenerable output-only TeX auxiliary",
+      "bytes": 32356,
+      "sha256": "33ee371d7607b9bb911652d43b0d4ac96feed94bf7fa608ca64e6677e887fe5e"
+    },
+    {
+      "path": "output/pdf/texput.log",
+      "reason": "regenerable output-only TeX auxiliary",
+      "bytes": 741,
+      "sha256": "a995e814dc65ccb1241eb2ab90435ff98dbaa0fe613578bfae8809e6df668f4c"
+    },
+    {
+      "path": "output/pdf/main.aux",
+      "reason": "regenerable output-only TeX auxiliary",
+      "bytes": 6976,
+      "sha256": "731b70147b00eb43ff02fc2d906e772c03fcb78250a724922ccc7dd21ef034bf"
+    },
+    {
+      "path": "output/pdf/DATE27-ePMapping.aux",
+      "reason": "regenerable output-only TeX auxiliary",
+      "bytes": 14830,
+      "sha256": "f4d5f69ad947e02325b08615059a1d2c11ab988bcef9ab6795506dc1f92c958c"
+    }
+  ],
+  "bytes_removed": 626389,
+  "baseline_sources_modified": false,
+  "raw_experiment_outcomes_removed": false,
+  "final_evidence_removed": false
+}

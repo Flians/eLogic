@@ -1,4 +1,11 @@
-# Verified ePMapping paper experiment archive
+# Historical ePMapping paper experiment archive
+
+**2026-10-12 correction:** the DATE paper now uses `results_v4_cut_only/`,
+with whole-window synthesis disabled throughout. The old noDB arm did not
+actually disable database loading: its unset option was overridden by the
+default environment assignment. Its apparent zero marginal gain is not a valid
+database ablation. Raw historical files are preserved; corrected noDB results
+are remeasured and validated in the new archive.
 
 This directory preserves the audited measurements, raw engine/CEC logs, mapped
 netlists, input snapshots, recorded batch specifications and SHA256 manifests.
