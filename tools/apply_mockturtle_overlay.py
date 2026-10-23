@@ -7,7 +7,8 @@ import os
 from pathlib import Path
 import tempfile
 
-OVERLAY = Path(__file__).resolve().parent / 'mockturtle-overlay'
+TOOLS = Path(__file__).resolve().parent
+OVERLAY = TOOLS / 'patches' / 'mockturtle' / 'overlay'
 
 
 def sha(data):
@@ -51,7 +52,7 @@ def apply(destination, check=False):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--destination', type=Path, default=OVERLAY.parent / 'mockturtle')
+    p.add_argument('--destination', type=Path, default=TOOLS / 'mockturtle')
     p.add_argument('--check', action='store_true', help='verify installed project headers without writes')
     a = p.parse_args()
     try:

@@ -8,7 +8,7 @@
 | `epmapping_paper/DATE27-ePMapping-sub/` | ePMapping DATE论文 | [论文/讲稿入口](epmapping_paper/README.md) |
 | `results_v2/cooperative_mapping_20261022/` | 最新eGraphMap600秒流式/增量研究 | `continue_checkpoint.json`、`v9_progress/`；部分数据，未合入 |
 | `data/` | GitHub数据目录与紧凑实验归档 | 原件本地保留；同步范围、遗漏与SHA明确列出 |
-| `tools/` | 固定baseline源码及项目mockturtle覆盖层 | [来源说明](tools/BASELINES.md)、[覆盖层](tools/mockturtle-overlay/README.md) |
+| `tools/` | 固定baseline源码及项目mockturtle覆盖层 | [来源说明](tools/BASELINES.md)、[覆盖层](tools/patches/mockturtle/overlay/README.md) |
 | `results_v2/single_output_wide_20261021/` | 完整47单输出库baseline、旧对照与原始证据 | `primary_baseline120_checkpoint.json`、`full_library_baseline_A_D_T/` |
 | `results_v28_three_parts_query_budget/` | ePMapping当前论文数据 | `RESULTS.txt`、`delivery_manifest.json` |
 | `scripts/experiments/campaigns/` | 可审计的实验、计时与报告入口 | 使用各脚本`--help`；恢复以冻结manifest为准 |

@@ -19,7 +19,7 @@ with tempfile.TemporaryDirectory(prefix='epm-patch-') as directory:
         target.write_bytes((project/'tools/mockturtle'/relative).read_bytes())
     shutil.copy(project / 'scripts/apply_mockturtle_patches.sh', root / 'scripts')
     shutil.copy(project / 'tools/apply_mockturtle_overlay.py', root / 'tools')
-    shutil.copytree(project / 'tools/mockturtle-overlay', root / 'tools/mockturtle-overlay')
+    shutil.copytree(project / 'tools/patches/mockturtle/overlay', root / 'tools/patches/mockturtle/overlay')
     for patch in patches:
         shutil.copy(patch, root / 'tools/patches/mockturtle')
         subprocess.run(['git', 'apply', '--reverse', str(patch)], cwd=submodule, check=True)
