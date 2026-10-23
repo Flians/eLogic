@@ -33,7 +33,7 @@ scripts additionally use Yosys, ABC and the Python packages recorded in their
 source/build provenance.
 
 Before consumers compile, CMake verifies/applies four fixed project headers from
-[tools/mockturtle-overlay](tools/mockturtle-overlay/README.md). The corresponding
+[tools/patches/mockturtle/overlay](tools/patches/mockturtle/overlay/README.md). The corresponding
 patches are under `tools/patches/mockturtle/`. Identical installed files are not
 rewritten; conflicting extra edits stop the build. These are named project
 extensions, not an unmodified upstream baseline.

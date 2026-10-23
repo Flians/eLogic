@@ -45,7 +45,7 @@
   "experiment_policy_note": "Source registration does not silently replace frozen experiment dependencies or their parameters.",
   "reused_mockturtle": "Use existing tools/mockturtle directly; existing tracked modifications preserved and recorded, not reset or relabelled as clean upstream. Earlier stock-emap results used upstream1c9c3af; not relabelled as the current checkout.",
   "project_mockturtle_overlay": {
-    "manifest": "tools/mockturtle-overlay/manifest.json",
+    "manifest": "tools/patches/mockturtle/overlay/manifest.json",
     "patch_directory": "tools/patches/mockturtle",
     "installer": "tools/apply_mockturtle_overlay.py",
     "installed_before_project_build": true,

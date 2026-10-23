@@ -29,7 +29,7 @@ mockturtle baseline submodule is registered. Its current commit and existing
 tracked modifications are preserved and recorded in `baselines.lock.json`.
 Do not describe this modified working tree as a clean upstream checkout.
 The project's four existing modified headers are now preserved in
-[`mockturtle-overlay/`](mockturtle-overlay/README.md) and installed automatically
+[`patches/mockturtle/overlay/`](patches/mockturtle/overlay/README.md) and installed automatically
 before project compilation. This explicitly named project overlay is separate
 from an unmodified-upstream baseline; it is not pushed to the upstream repository.
 Earlier stock-emap observations used upstream commit `1c9c3af`; their recorded
