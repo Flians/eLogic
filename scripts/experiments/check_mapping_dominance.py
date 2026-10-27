@@ -18,6 +18,8 @@ def main():
     ap.add_argument("--output", type=Path, required=True)
     ap.add_argument("--objective", choices=["pareto", "area-delay", "delay-area"], default="pareto")
     ap.add_argument("--candidate-methods", nargs="+", help="Explicit candidate filter for reports with matched baseline controls")
+    ap.add_argument("--comparison", choices=["exact", "legacy-relative"], default="exact",
+                    help="exact final lexicographic/physical comparison; legacy mode only reproduces old gates")
     a = ap.parse_args()
     candidate = json.loads(a.candidate.read_text())
     methods = {}
@@ -45,7 +47,7 @@ def main():
                     for k in ["area", "delay"]))
 
     def leq(x, y):
-        return x <= y + 1e-6 * max(1, abs(y))
+        return x <= y if a.comparison == "exact" else x <= y + 1e-6 * max(1, abs(y))
 
     def wins_against(m, baseline):
         if a.objective == "pareto":
@@ -85,9 +87,9 @@ def main():
               f"dominated={len(row.get('dominated_baselines', []))}/{len(references)}")
     missing_designs = sorted({b for b, _ in methods} - {r["bench"] for r in rows})
     result = {"scope": "only measured baselines; unconnected tools are not covered",
-              "objective": a.objective,
+              "objective": a.objective, "comparison_policy": a.comparison,
               "candidate_methods_filter": a.candidate_methods,
-              "definition": "strict Pareto or named lexicographic comparison, within 1e-6 relative tolerance; lexicographic wins are not Pareto dominance",
+              "definition": ("strict Pareto or named lexicographic comparison; exact finite physical metrics" if a.comparison=="exact" else "legacy strict comparison within 1e-6 relative tolerance")+"; lexicographic wins are not Pareto dominance",
               "missing_candidate_designs": missing_designs,
               "all_passed": bool(rows) and not missing_designs and all(r["dominates_all"] for r in rows),
               "candidate_report": str(a.candidate), "baseline_reports": list(map(str, a.baselines)),

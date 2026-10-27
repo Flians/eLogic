@@ -27,3 +27,13 @@ class PublicationTests(unittest.TestCase):
   self.assertFalse(self.receipt.exists())
  def test_source_origin_survives_receipt(self):
   self.manifest(kind='complete-source-cover');self.assertEqual(self.scan()['kind'],'complete-source-cover')
+
+ def test_latest_complete_cover_dominates_old_files_before_materialization(self):
+  self.manifest(1,area=10.,delay=999999.99);self.manifest(2,area=11.,delay=999999.98)
+  self.assertEqual(self.scan()['sequence'],2);self.assertEqual(self.state.counts['netlists_checked'],1);self.assertEqual(self.state.counts['nonimproving'],1)
+ def test_bad_latest_integrity_falls_back_to_an_earlier_valid_cover(self):
+  self.manifest(1);p=self.manifest(2,delay=999998.);(p/'mapped.v').write_text('corrupt')
+  self.assertEqual(self.scan()['sequence'],1);self.assertEqual(self.state.counts['integrity_rejected'],1)
+ def test_nonmonotone_metadata_still_selects_the_older_better_cover(self):
+  self.manifest(1,delay=999998.);self.manifest(2,delay=999999.)
+  self.assertEqual(self.scan()['sequence'],1);self.assertEqual(self.state.counts['netlists_checked'],2)

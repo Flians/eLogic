@@ -12,7 +12,7 @@ class ScanState:
     def __init__(self):
         self.processed=set()
         self.counts=dict(manifests_seen=0,metadata_rejected=0,nonimproving=0,netlists_checked=0,netlist_bytes_checked=0,integrity_rejected=0,receipts_committed=0)
-    def report(self):return dict(objective_policy=OBJECTIVE_POLICY,examined_sequences=len(self.processed),counters=self.counts,internal_CEC_implied=False)
+    def report(self):return dict(publication_policy='latest-committed-first-v1',objective_policy=OBJECTIVE_POLICY,examined_sequences=len(self.processed),counters=self.counts,internal_CEC_implied=False)
 
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def fnv(data):
@@ -24,7 +24,7 @@ def atomic_json(path,value):
 def scan(root,receipt_path,deadline,provenance,source,best=None,state=None):
     """Committed transactions are examined once; rejected metadata authorizes no output."""
     state=state if state is not None else ScanState()
-    for folder in sorted(root.glob('[0-9]'*8)) if root.exists()else[]:
+    for folder in sorted(root.glob('[0-9]'*8),reverse=True) if root.exists()else[]:
         sequence=int(folder.name)
         if sequence in state.processed:continue
         if time.monotonic()>=deadline:break
@@ -41,7 +41,7 @@ def scan(root,receipt_path,deadline,provenance,source,best=None,state=None):
             record=dict(m,netlist=str(netlist.resolve()),netlist_sha256=hashlib.sha256(data).hexdigest(),manifest=str(manifest.resolve()),manifest_sha256=sha(manifest),provenance=provenance)
             observed=time.monotonic()
             if observed>=deadline:break
-            record.update(observed_monotonic=observed,deadline_monotonic=deadline,CEC='not yet checked',objective_policy=OBJECTIVE_POLICY)
+            record.update(publication_policy='latest-committed-first-v1',observed_monotonic=observed,deadline_monotonic=deadline,CEC='not yet checked',objective_policy=OBJECTIVE_POLICY)
             atomic_json(receipt_path,record);best=record;state.processed.add(sequence);state.counts['receipts_committed']+=1
         except (OSError,ValueError,KeyError,TypeError):continue
     return best
