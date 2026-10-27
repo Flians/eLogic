@@ -54,21 +54,22 @@ def select_output(raw, native_info, library, subject, native):
 
 def ablation_profile(base, ablation):
     """Explicit same-binary variants; preserve all clock/library/cut settings."""
-    if ablation not in (None, 'joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable'):
+    if ablation not in (None, 'joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable', 'source-coalesced'):
         raise ValueError('unknown explicit experimental configuration')
     profile = copy.deepcopy(base)
     if ablation is not None:
         profile['name'] += '-ablation-' + ablation
         profile['status'] = 'explicit same-binary joint-search ablation'
-        if ablation in ('functional-stream','functional-sparse','functional-fine','functional-lazy', 'source-editable'):
+        if ablation in ('functional-stream','functional-sparse','functional-fine','functional-lazy', 'source-editable', 'source-coalesced'):
             profile['environment']['EGM_FUNCTIONAL_CURSOR'] = '1'
-            if ablation in ('functional-sparse','functional-fine','functional-lazy', 'source-editable'):
+            if ablation in ('functional-sparse','functional-fine','functional-lazy', 'source-editable', 'source-coalesced'):
                 profile['environment']['EGM_PRIMITIVE_SPARSE'] = '1'
-            if ablation in ('functional-fine','functional-lazy', 'source-editable'):
+            if ablation in ('functional-fine','functional-lazy', 'source-editable', 'source-coalesced'):
                 profile['environment']['EGM_PROOF_AWARE_JOINT'] = '1'
-            if ablation in ('functional-lazy','source-editable'):
+            if ablation in ('functional-lazy','source-editable', 'source-coalesced'):
                 profile['environment']['EGM_SDC_LAZY_LAYOUT'] = '1'
-            if ablation == 'source-editable':profile['environment']['EGM_EDITABLE_SOURCE'] = '1'
+            if ablation in ('source-editable','source-coalesced'):profile['environment']['EGM_EDITABLE_SOURCE'] = '1'
+            if ablation == 'source-coalesced':profile['environment']['EGM_COALESCE_RECOVERY_PUBLICATION'] = '1'
             profile['status'] = 'experimental full-care functional cursor; full EPFL acceptance pending'
             return profile
         if ablation == 'joint-area-only':
@@ -79,13 +80,21 @@ def ablation_profile(base, ablation):
     return profile
 
 
+def search_queues_complete(queues):
+    # Internal validated state and externally receipted delivery are distinct.
+    return bool(queues) and not any([
+        queues.get('pending_small_matchers',0), queues.get('flow_pending',False),
+        queues.get('library_pending',False), queues.get('joint_windows',{}).get('pending',False),
+        queues.get('publication_state',{}).get('pending',False)])
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('aig', type=Path, help='named, combinational binary AIGER; no preprocessing is run')
     ap.add_argument('--output', type=Path, required=True, help='new directory; existing results are never overwritten')
     ap.add_argument('--golden', type=Path, help='optional original named AIG for independent CEC; default: input')
     ap.add_argument('--match-profile', action='store_true', help='explicit diagnostic matching timers; unchanged search, profiling overhead counts in mapping time')
-    ap.add_argument('--ablation', choices=['joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable'], help='explicit same-binary joint or functional-search variant; fixed global clock')
+    ap.add_argument('--ablation', choices=['joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable', 'source-coalesced'], help='explicit same-binary joint or functional-search variant; fixed global clock')
     a = ap.parse_args()
     subject = safe_path(a.aig.resolve())
     golden = safe_path((a.golden or a.aig).resolve())
@@ -167,9 +176,8 @@ def main():
             report['candidate_production_complete'] = producer['candidate_production_complete']
             queues_path = folder/'incumbents/seed-recovery.json'
             queues = json.loads(queues_path.read_text()) if queues_path.exists() else {}
-            report['search_queues_complete'] = bool(queues) and not any([
-                queues.get('pending_small_matchers',0), queues.get('flow_pending',False),
-                queues.get('library_pending',False), queues.get('joint_windows',{}).get('pending',False)])
+            report['search_queues_complete'] = search_queues_complete(queues)
+            report['native_publication_state'] = queues.get('publication_state')
             report['search_finished'] &= report['candidate_production_complete'] and report['search_queues_complete']
             report['search_timeout'] |= producer['deadline_hit']
 

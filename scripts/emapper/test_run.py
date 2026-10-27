@@ -3,7 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from run import ablation_profile, select_output
+from run import ablation_profile, select_output, search_queues_complete
 from frontend import fnv, sha
 
 
@@ -87,7 +87,22 @@ class OutputSelectionTests(unittest.TestCase):
                 self.assertEqual(self.raw.read_text(),'source cover')
                 path.write_bytes(before)
 
+class PublicationCompletionTests(unittest.TestCase):
+    def test_unpublished_internal_cover_cannot_report_finished_search(self):
+        self.assertFalse(search_queues_complete({}))
+        q=dict(pending_small_matchers=0,flow_pending=False,library_pending=False,joint_windows=dict(pending=False),publication_state=dict(pending=True))
+        self.assertFalse(search_queues_complete(q))
+        q['publication_state']['pending']=False
+        self.assertTrue(search_queues_complete(q))
+
 class AblationProfileTests(unittest.TestCase):
+    def test_coalesced_source_changes_only_publication_at_existing_recovery_yields(self):
+        base=json.loads((Path(__file__).resolve().parents[2]/'emapper/profiles/delivery.json').read_text())
+        source=ablation_profile(base,'source-editable');batched=ablation_profile(base,'source-coalesced')
+        self.assertEqual(batched['environment'],dict(source['environment'],EGM_COALESCE_RECOVERY_PUBLICATION='1'))
+        self.assertEqual(batched['mapping_seconds'],600)
+        self.assertEqual(batched['objective'],source['objective'])
+
     def test_variants_preserve_every_other_algorithm_setting_and_base(self):
         base = json.loads((Path(__file__).resolve().parents[2]/'emapper/profiles/delivery.json').read_text())
         saved = json.dumps(base, sort_keys=True)
