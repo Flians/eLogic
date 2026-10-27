@@ -6,8 +6,9 @@ from pathlib import Path
 import sys
 from aig_io import read_binary_aig, symbols, identifier
 
-def build_source_cover(data,library_json,deadline,phase_aware=False):
+def build_source_cover(data,library_json,deadline,phase_aware=False,bundle=None):
  start=time.monotonic()
+ if bundle is not None:bundle['instances']=[]
  if start>deadline:raise TimeoutError("source-cover construction exceeds mapping deadline")
  inputs,roots,gates=read_binary_aig(data);ins,outs=symbols(data,inputs,roots,gates)
  live=set();todo=list(roots)
@@ -40,6 +41,7 @@ def build_source_cover(data,library_json,deadline,phase_aware=False):
   if time.monotonic()>deadline:raise TimeoutError('source-cover construction exceeds mapping deadline')
   count+=1;inverters+=int(cell['name']==inv['name']);used_cells.add(cell['name']);areas.append(cell['area']);lines.append('wire '+out+';');pins=[f'.{identifier(p)}({net(x)})'for p,x in zip(cell['vars'],args)];pins.append(f'.{identifier(cell["out_pin"])}({out})');lines.append(f'{identifier(cell["name"])} {prefix}{label}('+', '.join(pins)+');')
   arrival[(int(out[len(prefix)+1:])*2)+(out[len(prefix)]=='m')]=max((arrival[x]+cell['pin_delay'][p]for p,x in zip(cell['vars'],args)),default=0.)
+  if bundle is not None:bundle.setdefault('instances',[]).append(dict(cell=cell['name'],inputs=list(args),output=(int(out[len(prefix)+1:])*2)+(out[len(prefix)]=='m')))
  for v in range(1,inputs+1):
   arrival[2*v]=0.
   if v in neg:emit(inv,[2*v],net(2*v+1),'i'+str(v))
@@ -61,4 +63,5 @@ def build_source_cover(data,library_json,deadline,phase_aware=False):
  if not phase_aware:assert count==len(live)+len(neg)
  stats=dict(area=math.fsum(areas),delay=max((arrival[x]for x in roots),default=0.),instances=count,live_source_ands=len(live),shared_source_inverters=inverters,source_build_secs=time.monotonic()-start,input_names=ins,output_names=outs,source_cells=sorted(used_cells),phase_aware=phase_aware,proof='Exact AND2/NAND2 per live original AIG gate, shared explicit INV for complementary demanded phase, named ports preserved; independent CEC still required',egraph_search=False)
  if time.monotonic()>deadline:raise TimeoutError('source-cover construction exceeds mapping deadline')
+ if bundle is not None:bundle.update(schema=1,input_count=inputs,input_names=ins,output_names=outs,roots=roots,gates=[[v,*gates[v]]for v in sorted(live)],area=stats['area'],delay=stats['delay'])
  return '\n'.join(lines)+'\n',stats

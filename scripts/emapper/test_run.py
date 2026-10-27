@@ -47,6 +47,10 @@ class OutputSelectionTests(unittest.TestCase):
         self.assertEqual(self.raw.read_bytes(),Path(r['netlist']).read_bytes())
         self.assertEqual(json.dumps(self.observed,sort_keys=True),saved)
 
+    def test_native_source_seed_remains_source_only(self):
+        r=self.receipt();p=Path(r['manifest']);m=json.loads(p.read_text());m['kind']='complete-source-cover';p.write_text(json.dumps(m));r.update(kind=m['kind'],manifest_sha256=sha(p));self.raw.with_suffix('.incumbent.receipt.json').write_text(json.dumps(r))
+        effective,selection=self.select();self.assertFalse(effective['optimizer_succeeded']);self.assertEqual(selection['kind'],'source_only');self.assertEqual(effective['selected'],'native_source_seed')
+
     def test_source_without_receipt_stays_source_only(self):
         effective,selection=self.select()
         self.assertFalse(effective['optimizer_succeeded'])

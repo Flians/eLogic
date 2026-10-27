@@ -10,7 +10,7 @@ import signal
 import subprocess
 import sys
 import time
-from frontend import verify_receipt
+from frontend import verify_receipt, OBJECTIVE_POLICY
 from provenance import ROOT, sha, hashes, source_files, git_revision
 from verify import verify
 
@@ -40,8 +40,9 @@ def select_output(raw, native_info, library, subject, native):
     if receipt.exists():
         chosen = verify_receipt(receipt, library, subject, native)
         shutil.copyfile(chosen['netlist'], raw)
-        effective.update(optimizer_succeeded=True, selected='validated_online_incumbent')
-        selection = dict(kind='optimized', basis='verified_predeadline_receipt',
+        generated=chosen['kind']=='complete-generated-cover'
+        effective.update(optimizer_succeeded=generated, selected='validated_online_incumbent'if generated else'native_source_seed')
+        selection = dict(kind='optimized'if generated else'source_only', basis='verified_predeadline_receipt',
                          raw_sha256=sha(raw), incumbent=chosen)
     else:
         if not raw.exists() or sha(raw) != native_info.get('source_sha256'):
@@ -53,20 +54,21 @@ def select_output(raw, native_info, library, subject, native):
 
 def ablation_profile(base, ablation):
     """Explicit same-binary variants; preserve all clock/library/cut settings."""
-    if ablation not in (None, 'joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy'):
+    if ablation not in (None, 'joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable'):
         raise ValueError('unknown explicit experimental configuration')
     profile = copy.deepcopy(base)
     if ablation is not None:
         profile['name'] += '-ablation-' + ablation
         profile['status'] = 'explicit same-binary joint-search ablation'
-        if ablation in ('functional-stream','functional-sparse','functional-fine','functional-lazy'):
+        if ablation in ('functional-stream','functional-sparse','functional-fine','functional-lazy', 'source-editable'):
             profile['environment']['EGM_FUNCTIONAL_CURSOR'] = '1'
-            if ablation in ('functional-sparse','functional-fine','functional-lazy'):
+            if ablation in ('functional-sparse','functional-fine','functional-lazy', 'source-editable'):
                 profile['environment']['EGM_PRIMITIVE_SPARSE'] = '1'
-            if ablation in ('functional-fine','functional-lazy'):
+            if ablation in ('functional-fine','functional-lazy', 'source-editable'):
                 profile['environment']['EGM_PROOF_AWARE_JOINT'] = '1'
-            if ablation == 'functional-lazy':
+            if ablation in ('functional-lazy','source-editable'):
                 profile['environment']['EGM_SDC_LAZY_LAYOUT'] = '1'
+            if ablation == 'source-editable':profile['environment']['EGM_EDITABLE_SOURCE'] = '1'
             profile['status'] = 'experimental full-care functional cursor; full EPFL acceptance pending'
             return profile
         if ablation == 'joint-area-only':
@@ -83,7 +85,7 @@ def main():
     ap.add_argument('--output', type=Path, required=True, help='new directory; existing results are never overwritten')
     ap.add_argument('--golden', type=Path, help='optional original named AIG for independent CEC; default: input')
     ap.add_argument('--match-profile', action='store_true', help='explicit diagnostic matching timers; unchanged search, profiling overhead counts in mapping time')
-    ap.add_argument('--ablation', choices=['joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy'], help='explicit same-binary joint or functional-search variant; fixed global clock')
+    ap.add_argument('--ablation', choices=['joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable'], help='explicit same-binary joint or functional-search variant; fixed global clock')
     a = ap.parse_args()
     subject = safe_path(a.aig.resolve())
     golden = safe_path((a.golden or a.aig).resolve())
@@ -151,8 +153,14 @@ def main():
         optimized = selection['kind'] == 'optimized'
         if optimized:
             report['incumbent'] = selection['incumbent']
+        elif selection.get('incumbent'):
+            report['source_incumbent'] = selection['incumbent']
+        source_audit=folder/'incumbents/source-seed.json'
+        if source_audit.exists():report['editable_source']=json.loads(source_audit.read_text())
         report['search_timeout'] |= bool(native_info.get('search_deadline_hit',False))
         report['search_finished'] = not timed_out and bool(native_info.get('search_finished',False))
+        publication_audit=folder/'publication.json'
+        if publication_audit.exists():report['publication']=json.loads(publication_audit.read_text())
         functional_audit = folder/'online.pool.functional-cursor.json'
         if functional_audit.exists():
             producer = json.loads(functional_audit.read_text())['engine']
@@ -181,15 +189,20 @@ def main():
         (folder/'measure.log').write_text(result.stdout+result.stderr)
         result.check_returncode()
         report['measured'] = json.loads(result.stdout)
+        selected_value=selection.get('incumbent',native_info.get('source',{}))
+        same_metrics=all(report['measured'][k]==selected_value.get(k) for k in ['area','delay'])
+        report['evaluation']=dict(objective_policy=OBJECTIVE_POLICY,selected_AD={k:selected_value.get(k)for k in ['area','delay']},public_AD={k:report['measured'][k]for k in ['area','delay']},exact_agreement=same_metrics)
         os.environ['EGM_YOSYS'], os.environ['BENCH_RS_EMAP_ABC'] = tools['yosys'], tools['abc']
         good = verify(library.parent/'cells.v', golden, netjson, folder/'cec')
         report['cec'] = int(good)
-        report['status'] = 'ok' if good and optimized else 'source_only' if good else 'cec_failed'
+        report['status'] = 'metric_failed' if not same_metrics else 'ok' if good and optimized else 'source_only' if good else 'cec_failed'
         report['output_sha256'] = sha(normalized)
     except KeyboardInterrupt:
         report.update(status='interrupted',error='Interrupted by user; partial artifacts retained')
     except Exception as exc:
         report.update(status='failed',error=f'{type(exc).__name__}: {exc}')
+    report['delivery_state']='optimized_verified'if report['status']=='ok'else'source_verified'if report['status']=='source_only'else'invalid'
+    report['search_state']='deadline'if report.get('search_timeout')else'finished'if report.get('search_finished')else'stopped'
     report['artifacts'] = {str(p.relative_to(folder)):sha(p) for p in folder.rglob('*') if p.is_file() and p.name!='report.json'}
     dump(folder/'report.json',report)
     print(json.dumps({k:report.get(k) for k in ['status','measured','cec','mapping_wall_secs','search_timeout','search_finished']}))
