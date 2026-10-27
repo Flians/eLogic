@@ -102,6 +102,7 @@ class AblationProfileTests(unittest.TestCase):
         self.assertEqual(batched['environment'],dict(source['environment'],EGM_COALESCE_RECOVERY_PUBLICATION='1'))
         self.assertEqual(batched['mapping_seconds'],600)
         self.assertEqual(batched['objective'],source['objective'])
+        self.assertEqual(batched['recovery_publication_policy'],'strict-delay-immediate-same-delay-area-coalesced-v1')
 
     def test_variants_preserve_every_other_algorithm_setting_and_base(self):
         base = json.loads((Path(__file__).resolve().parents[2]/'emapper/profiles/delivery.json').read_text())

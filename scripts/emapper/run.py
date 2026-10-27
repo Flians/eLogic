@@ -69,7 +69,9 @@ def ablation_profile(base, ablation):
             if ablation in ('functional-lazy','source-editable', 'source-coalesced'):
                 profile['environment']['EGM_SDC_LAZY_LAYOUT'] = '1'
             if ablation in ('source-editable','source-coalesced'):profile['environment']['EGM_EDITABLE_SOURCE'] = '1'
-            if ablation == 'source-coalesced':profile['environment']['EGM_COALESCE_RECOVERY_PUBLICATION'] = '1'
+            if ablation == 'source-coalesced':
+                profile['environment']['EGM_COALESCE_RECOVERY_PUBLICATION'] = '1'
+                profile['recovery_publication_policy'] = 'strict-delay-immediate-same-delay-area-coalesced-v1'
             profile['status'] = 'experimental full-care functional cursor; full EPFL acceptance pending'
             return profile
         if ablation == 'joint-area-only':
