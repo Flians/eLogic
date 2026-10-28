@@ -90,6 +90,16 @@ def search_queues_complete(queues):
         queues.get('publication_state',{}).get('pending',False)])
 
 
+def recovery_input_profile(base, mode):
+    """Explicit same-binary arrival-screening ablation; the clock is unchanged."""
+    if mode not in ('legacy', 'overlay'):
+        raise ValueError('unknown recovery input policy')
+    profile = copy.deepcopy(base)
+    profile['environment']['EGM_RECOVERY_INPUT_OVERLAY'] = '1' if mode == 'overlay' else '0'
+    profile['recovery_input_policy'] = mode
+    return profile
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('aig', type=Path, help='named, combinational binary AIGER; no preprocessing is run')
@@ -97,12 +107,15 @@ def main():
     ap.add_argument('--golden', type=Path, help='optional original named AIG for independent CEC; default: input')
     ap.add_argument('--match-profile', action='store_true', help='explicit diagnostic matching timers; unchanged search, profiling overhead counts in mapping time')
     ap.add_argument('--ablation', choices=['joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable', 'source-coalesced'], help='explicit same-binary joint or functional-search variant; fixed global clock')
+    ap.add_argument('--recovery-inputs', choices=['legacy', 'overlay'], default='overlay', help='accepted-cover-first arrival screening, or explicit old witness-only control')
+    ap.add_argument('--recovery-audit', action='store_true', help='diagnostic physical admission/recovery JSONL; I/O counts in the same mapping clock')
+    ap.add_argument('--recovery-audit-cells', default='', help='comma-separated exact cell names for diagnostic output only; empty logs all')
     a = ap.parse_args()
     subject = safe_path(a.aig.resolve())
     golden = safe_path((a.golden or a.aig).resolve())
     folder = safe_path(a.output.resolve())
     profile_path = ROOT/'emapper/profiles/delivery.json'
-    profile = ablation_profile(json.loads(profile_path.read_text()), a.ablation)
+    profile = recovery_input_profile(ablation_profile(json.loads(profile_path.read_text()), a.ablation), a.recovery_inputs)
     if a.match_profile:
         profile['name'] += '-match-profile'
         profile['environment']['EGM_MATCH_PROFILE'] = '1'
@@ -127,6 +140,10 @@ def main():
     env.update(profile['environment'])
     env.update(EGM_NATIVE_OPTIMIZER=str(native), EGM_YOSYS=tools['yosys'],
                EGM_RECOVERY_TRACE=str(folder/'recovery.jsonl'))
+    if a.recovery_audit:
+        env.update(EGM_RECOVERY_AUDIT=str(folder/'candidate-audit.jsonl'), EGM_RECOVERY_AUDIT_CELLS=a.recovery_audit_cells)
+    elif a.recovery_audit_cells:
+        raise ValueError('--recovery-audit-cells requires --recovery-audit')
     argv = [sys.executable, str(ROOT/'scripts/emapper/frontend.py'), str(library), str(subject), str(raw)]
     files = source_files()+list((ROOT/'scripts/emapper').glob('*.py'))+[profile_path, build_receipt,
         library, library.parent/'cells.v', library.parent/'library.json', native, measure]

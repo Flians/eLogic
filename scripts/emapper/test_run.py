@@ -3,7 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from run import ablation_profile, select_output, search_queues_complete
+from run import recovery_input_profile, ablation_profile, select_output, search_queues_complete
 from frontend import fnv, sha
 
 
@@ -96,6 +96,15 @@ class PublicationCompletionTests(unittest.TestCase):
         self.assertTrue(search_queues_complete(q))
 
 class AblationProfileTests(unittest.TestCase):
+    def test_recovery_input_ablation_changes_only_screening_and_explicit_metadata(self):
+        base=json.loads((Path(__file__).resolve().parents[2]/'emapper/profiles/delivery.json').read_text())
+        saved=json.dumps(base,sort_keys=True)
+        control=recovery_input_profile(base,'legacy');candidate=recovery_input_profile(base,'overlay')
+        self.assertEqual(candidate['environment'],dict(control['environment'],EGM_RECOVERY_INPUT_OVERLAY='1'))
+        self.assertEqual(candidate['mapping_seconds'],600)
+        self.assertEqual(json.dumps(base,sort_keys=True),saved)
+        with self.assertRaises(ValueError):recovery_input_profile(base,'unknown')
+
     def test_coalesced_source_changes_only_publication_at_existing_recovery_yields(self):
         base=json.loads((Path(__file__).resolve().parents[2]/'emapper/profiles/delivery.json').read_text())
         source=ablation_profile(base,'source-editable');batched=ablation_profile(base,'source-coalesced')
