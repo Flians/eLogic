@@ -3,7 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from run import recovery_noop_profile, recovery_input_profile, ablation_profile, select_output, search_queues_complete
+from run import recovery_cache_profile, recovery_noop_profile, recovery_input_profile, ablation_profile, select_output, search_queues_complete
 from frontend import fnv, sha
 
 
@@ -157,6 +157,19 @@ class RecoveryNoopProfileTests(unittest.TestCase):
         self.assertEqual({k for k in off['environment'] if off['environment'][k] != on['environment'][k]}, {'EGM_RECOVERY_NOOP_PREFILTER'})
         with self.assertRaises(ValueError):
             recovery_noop_profile(base, 'invalid')
+
+
+class RecoveryCacheProfileTests(unittest.TestCase):
+    def test_cache_dependency_ablation_is_explicit_and_does_not_change_clock(self):
+        base = dict(environment={'EGM_OBJECTIVE': 'delay-area'}, mapping_seconds=600)
+        saved = json.dumps(base, sort_keys=True)
+        legacy = recovery_cache_profile(base, 'legacy')
+        split = recovery_cache_profile(base, 'split')
+        self.assertEqual(saved, json.dumps(base, sort_keys=True))
+        self.assertEqual(legacy['mapping_seconds'], split['mapping_seconds'])
+        self.assertEqual({k for k in legacy['environment'] if legacy['environment'][k] != split['environment'][k]}, {'EGM_RECOVERY_CACHE_SPLIT'})
+        with self.assertRaises(ValueError):
+            recovery_cache_profile(base, 'invalid')
 
 
 if __name__ == '__main__':

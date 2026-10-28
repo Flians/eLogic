@@ -109,6 +109,15 @@ def recovery_noop_profile(base, mode):
     return profile
 
 
+def recovery_cache_profile(base, mode):
+    if mode not in ('legacy', 'split'):
+        raise ValueError('unknown recovery cache mode')
+    profile = copy.deepcopy(base)
+    profile['environment']['EGM_RECOVERY_CACHE_SPLIT'] = '1' if mode == 'split' else '0'
+    profile['recovery_cache_policy'] = mode
+    return profile
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('aig', type=Path, help='named, combinational binary AIGER; no preprocessing is run')
@@ -120,6 +129,7 @@ def main():
     ap.add_argument('--recovery-audit', action='store_true', help='diagnostic physical admission/recovery JSONL; I/O counts in the same mapping clock')
     ap.add_argument('--recovery-audit-cells', default='', help='comma-separated exact cell names for diagnostic output only; empty logs all')
     ap.add_argument('--recovery-noop-prefilter', choices=['off','on'], default='off', help='explicit same-binary identity-only recovery prefilter; fixed global clock')
+    ap.add_argument('--recovery-cache', choices=['legacy','split'], default='legacy', help='explicit same-binary cache dependency ablation; unchanged proposal domain and clock')
     a = ap.parse_args()
     subject = safe_path(a.aig.resolve())
     golden = safe_path((a.golden or a.aig).resolve())
@@ -127,6 +137,7 @@ def main():
     profile_path = ROOT/'emapper/profiles/delivery.json'
     profile = recovery_input_profile(ablation_profile(json.loads(profile_path.read_text()), a.ablation), a.recovery_inputs)
     profile = recovery_noop_profile(profile, a.recovery_noop_prefilter)
+    profile = recovery_cache_profile(profile, a.recovery_cache)
     if a.match_profile:
         profile['name'] += '-match-profile'
         profile['environment']['EGM_MATCH_PROFILE'] = '1'
