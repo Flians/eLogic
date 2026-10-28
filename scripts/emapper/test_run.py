@@ -3,7 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from run import recovery_input_profile, ablation_profile, select_output, search_queues_complete
+from run import recovery_noop_profile, recovery_input_profile, ablation_profile, select_output, search_queues_complete
 from frontend import fnv, sha
 
 
@@ -143,6 +143,21 @@ class AblationProfileTests(unittest.TestCase):
         self.assertEqual(json.dumps(base, sort_keys=True), saved)
         with self.assertRaises(ValueError):
             ablation_profile(base, 'unknown')
+
+
+
+class RecoveryNoopProfileTests(unittest.TestCase):
+    def test_same_binary_noop_control_changes_only_explicit_feature(self):
+        base = dict(environment={'EGM_OBJECTIVE':'delay-area'},mapping_seconds=600)
+        saved = json.dumps(base, sort_keys=True)
+        off = recovery_noop_profile(base, 'off')
+        on = recovery_noop_profile(base, 'on')
+        self.assertEqual(saved, json.dumps(base, sort_keys=True))
+        self.assertEqual(off['mapping_seconds'], on['mapping_seconds'])
+        self.assertEqual({k for k in off['environment'] if off['environment'][k] != on['environment'][k]}, {'EGM_RECOVERY_NOOP_PREFILTER'})
+        with self.assertRaises(ValueError):
+            recovery_noop_profile(base, 'invalid')
+
 
 if __name__ == '__main__':
     unittest.main()

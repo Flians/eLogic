@@ -100,6 +100,15 @@ def recovery_input_profile(base, mode):
     return profile
 
 
+def recovery_noop_profile(base, mode):
+    if mode not in ('off', 'on'):
+        raise ValueError('unknown recovery noop mode')
+    profile = copy.deepcopy(base)
+    profile['environment']['EGM_RECOVERY_NOOP_PREFILTER'] = '1' if mode == 'on' else '0'
+    profile['recovery_noop_prefilter'] = mode == 'on'
+    return profile
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('aig', type=Path, help='named, combinational binary AIGER; no preprocessing is run')
@@ -110,12 +119,14 @@ def main():
     ap.add_argument('--recovery-inputs', choices=['legacy', 'overlay'], default='overlay', help='accepted-cover-first arrival screening, or explicit old witness-only control')
     ap.add_argument('--recovery-audit', action='store_true', help='diagnostic physical admission/recovery JSONL; I/O counts in the same mapping clock')
     ap.add_argument('--recovery-audit-cells', default='', help='comma-separated exact cell names for diagnostic output only; empty logs all')
+    ap.add_argument('--recovery-noop-prefilter', choices=['off','on'], default='off', help='explicit same-binary identity-only recovery prefilter; fixed global clock')
     a = ap.parse_args()
     subject = safe_path(a.aig.resolve())
     golden = safe_path((a.golden or a.aig).resolve())
     folder = safe_path(a.output.resolve())
     profile_path = ROOT/'emapper/profiles/delivery.json'
     profile = recovery_input_profile(ablation_profile(json.loads(profile_path.read_text()), a.ablation), a.recovery_inputs)
+    profile = recovery_noop_profile(profile, a.recovery_noop_prefilter)
     if a.match_profile:
         profile['name'] += '-match-profile'
         profile['environment']['EGM_MATCH_PROFILE'] = '1'
