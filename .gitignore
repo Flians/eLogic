@@ -57,3 +57,5 @@ backups/
 /output/pdf/texput.log
 **/__pycache__/
 !/Cargo.lock
+
+epmapping_paper/
