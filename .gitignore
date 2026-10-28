@@ -59,3 +59,14 @@ backups/
 !/Cargo.lock
 
 epmapping_paper/
+
+# Local-only content excluded from public publication.
+/emapper/
+/epmapping/
+/maintenance/
+/research/
+/results_*
+/bench/
+/data/
+/output/
+/docs/
