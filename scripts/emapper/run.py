@@ -87,7 +87,8 @@ def search_queues_complete(queues):
     return bool(queues) and not any([
         queues.get('pending_small_matchers',0), queues.get('flow_pending',False),
         queues.get('library_pending',False), queues.get('joint_windows',{}).get('pending',False),
-        queues.get('publication_state',{}).get('pending',False)])
+        queues.get('publication_state',{}).get('pending',False),
+        queues.get('recovery_schedule',{}).get('pending',False)])
 
 
 def recovery_input_profile(base, mode):
@@ -118,6 +119,16 @@ def recovery_cache_profile(base, mode):
     return profile
 
 
+
+def recovery_schedule_profile(base, mode):
+    if mode not in ('legacy', 'fair'):
+        raise ValueError('unknown recovery schedule mode')
+    profile = copy.deepcopy(base)
+    profile['environment']['EGM_RECOVERY_FAIR'] = '1' if mode == 'fair' else '0'
+    profile['recovery_schedule_policy'] = mode
+    return profile
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('aig', type=Path, help='named, combinational binary AIGER; no preprocessing is run')
@@ -130,6 +141,7 @@ def main():
     ap.add_argument('--recovery-audit-cells', default='', help='comma-separated exact cell names for diagnostic output only; empty logs all')
     ap.add_argument('--recovery-noop-prefilter', choices=['off','on'], default='off', help='explicit same-binary identity-only recovery prefilter; fixed global clock')
     ap.add_argument('--recovery-cache', choices=['legacy','split'], default='legacy', help='explicit same-binary cache dependency ablation; unchanged proposal domain and clock')
+    ap.add_argument('--recovery-schedule', choices=['legacy','fair'], default='legacy', help='explicit same-binary fair recovery scheduling; unchanged metric, proof and 600-second clock')
     a = ap.parse_args()
     subject = safe_path(a.aig.resolve())
     golden = safe_path((a.golden or a.aig).resolve())
@@ -138,6 +150,7 @@ def main():
     profile = recovery_input_profile(ablation_profile(json.loads(profile_path.read_text()), a.ablation), a.recovery_inputs)
     profile = recovery_noop_profile(profile, a.recovery_noop_prefilter)
     profile = recovery_cache_profile(profile, a.recovery_cache)
+    profile = recovery_schedule_profile(profile, a.recovery_schedule)
     if a.match_profile:
         profile['name'] += '-match-profile'
         profile['environment']['EGM_MATCH_PROFILE'] = '1'

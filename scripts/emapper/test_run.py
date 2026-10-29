@@ -3,7 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from run import recovery_cache_profile, recovery_noop_profile, recovery_input_profile, ablation_profile, select_output, search_queues_complete
+from run import recovery_schedule_profile, recovery_cache_profile, recovery_noop_profile, recovery_input_profile, ablation_profile, select_output, search_queues_complete
 from frontend import fnv, sha
 
 
@@ -95,6 +95,14 @@ class PublicationCompletionTests(unittest.TestCase):
         q['publication_state']['pending']=False
         self.assertTrue(search_queues_complete(q))
 
+    def test_pending_fair_recovery_cannot_report_exhausted_search(self):
+        q=dict(pending_small_matchers=0,flow_pending=False,library_pending=False,
+               joint_windows=dict(pending=False),publication_state=dict(pending=False),
+               recovery_schedule=dict(mode='fair',pending=True))
+        self.assertFalse(search_queues_complete(q))
+        q['recovery_schedule']['pending']=False
+        self.assertTrue(search_queues_complete(q))
+
 class AblationProfileTests(unittest.TestCase):
     def test_recovery_input_ablation_changes_only_screening_and_explicit_metadata(self):
         base=json.loads((Path(__file__).resolve().parents[2]/'emapper/profiles/delivery.json').read_text())
@@ -170,6 +178,20 @@ class RecoveryCacheProfileTests(unittest.TestCase):
         self.assertEqual({k for k in legacy['environment'] if legacy['environment'][k] != split['environment'][k]}, {'EGM_RECOVERY_CACHE_SPLIT'})
         with self.assertRaises(ValueError):
             recovery_cache_profile(base, 'invalid')
+
+
+class RecoveryScheduleProfileTests(unittest.TestCase):
+    def test_same_binary_schedule_changes_only_its_flag_and_metadata(self):
+        base = dict(environment={'EGM_OBJECTIVE': 'delay-area'}, mapping_seconds=600)
+        saved = json.dumps(base, sort_keys=True)
+        legacy = recovery_schedule_profile(base, 'legacy')
+        fair = recovery_schedule_profile(base, 'fair')
+        self.assertEqual(saved, json.dumps(base, sort_keys=True))
+        self.assertEqual(legacy['mapping_seconds'], fair['mapping_seconds'])
+        self.assertEqual({k for k in legacy['environment'] if legacy['environment'][k] != fair['environment'][k]}, {'EGM_RECOVERY_FAIR'})
+        self.assertEqual(fair['recovery_schedule_policy'], 'fair')
+        with self.assertRaises(ValueError):
+            recovery_schedule_profile(base, 'invalid')
 
 
 if __name__ == '__main__':
