@@ -24,6 +24,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("configuration: EGM_PENDING_FRONTIER={}", std::env::var("EGM_PENDING_FRONTIER").unwrap_or_else(|_|"0".into()));
     eprintln!("configuration: EGM_FOLDED_PIN_MATCH={}", std::env::var("EGM_FOLDED_PIN_MATCH").unwrap_or_else(|_|"0".into()));
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str)==Some("--replay-recovery") {
+        if args.len()!=4 || !["legacy","fair"].contains(&args[3].as_str()){return Err("replay requires snapshot.json output.v legacy|fair".into())}
+        emapper::egraph_map::replay_recovery_snapshot(std::path::Path::new(&args[1]),std::path::Path::new(&args[2]),args[3]=="fair")?;return Ok(())
+    }
     if args.len() < 2 || args.len() > 3 {
         eprintln!("Low-level kernel: emapper_kernel <genlib> <aig> [mapped.v]");
         eprintln!("For the fixed 600-second single-output (D,A) configuration, use scripts/emapper/run.py.");

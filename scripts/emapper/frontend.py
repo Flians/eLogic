@@ -70,7 +70,8 @@ def main():
     if editable:env['EGM_SOURCE_BUNDLE']=str((out.parent/'source.bundle.json').resolve())
     env.pop('EGM_DIAG_PATH',None);best=None;timed_out=False;scan_state=ScanState();last_audit=0.
     with(out.parent/'native.stdout').open('w')as stdout,(out.parent/'native.stderr').open('w')as stderr:
-        proc=subprocess.Popen([str(native),str(library),str(subject),str(worker)],env=env,stdout=stdout,stderr=stderr)
+        native_argv = [str(native), '--replay-recovery', env['EGM_REPLAY_SNAPSHOT'], str(worker), 'fair' if env.get('EGM_RECOVERY_FAIR') == '1' else 'legacy'] if env.get('EGM_REPLAY_SNAPSHOT') else [str(native),str(library),str(subject),str(worker)]
+        proc=subprocess.Popen(native_argv,env=env,stdout=stdout,stderr=stderr)
         while True:
             best=scan(root,receipt,deadline,provenance,seed,best,scan_state)
             if time.monotonic()-last_audit>=1.:

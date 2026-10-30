@@ -142,7 +142,12 @@ def main():
     ap.add_argument('--recovery-noop-prefilter', choices=['off','on'], default='off', help='explicit same-binary identity-only recovery prefilter; fixed global clock')
     ap.add_argument('--recovery-cache', choices=['legacy','split'], default='legacy', help='explicit same-binary cache dependency ablation; unchanged proposal domain and clock')
     ap.add_argument('--recovery-schedule', choices=['legacy','fair'], default='legacy', help='explicit same-binary fair recovery scheduling; unchanged metric, proof and 600-second clock')
+    ap.add_argument('--replay-snapshot', type=Path, help='diagnostic fixed-pool cold recovery replay; not full mapping')
+    ap.add_argument('--observe', action='store_true', help='persistent native trajectory and exclusive scope costs; overhead inside 600s')
+    ap.add_argument('--snapshot-after', type=float, help='diagnostic snapshot at first recovery boundary after native online seconds; not a search stop or extra budget')
     a = ap.parse_args()
+    if a.snapshot_after is not None and (not __import__('math').isfinite(a.snapshot_after) or not 0 <= a.snapshot_after < 600):
+        ap.error('--snapshot-after must be finite and in [0,600)')
     subject = safe_path(a.aig.resolve())
     golden = safe_path((a.golden or a.aig).resolve())
     folder = safe_path(a.output.resolve())
@@ -175,6 +180,26 @@ def main():
     env.update(profile['environment'])
     env.update(EGM_NATIVE_OPTIMIZER=str(native), EGM_YOSYS=tools['yosys'],
                EGM_RECOVERY_TRACE=str(folder/'recovery.jsonl'))
+    if a.replay_snapshot:
+        if a.snapshot_after is not None:
+            raise ValueError('cannot capture while replaying')
+        snapshot = a.replay_snapshot.resolve()
+        frozen = json.loads(snapshot.read_text())
+        if frozen.get('schema') != 1:
+            raise ValueError('unsupported recovery snapshot schema')
+        for key, path in [('EGM_DIAG_INPUT_SHA256', subject), ('EGM_DIAG_LIBRARY_SHA256', library), ('EGM_DIAG_NATIVE_SHA256', native)]:
+            if frozen['environment'].get(key) != sha(path):
+                raise ValueError('snapshot source identity mismatch: '+key)
+        for key, value in profile['environment'].items():
+            if key != 'EGM_RECOVERY_FAIR' and frozen['environment'].get(key) != value:
+                raise ValueError('snapshot profile mismatch: '+key)
+        env['EGM_REPLAY_SNAPSHOT'] = str(snapshot)
+    if a.snapshot_after is not None or a.replay_snapshot:
+        env.update(EGM_DIAG_INPUT_SHA256=sha(subject), EGM_DIAG_LIBRARY_SHA256=sha(library), EGM_DIAG_NATIVE_SHA256=sha(native))
+    if a.observe:
+        env['EGM_OBSERVATION'] = str(folder/'observation.jsonl')
+    if a.snapshot_after is not None:
+        env.update(EGM_RECOVERY_SNAPSHOT=str(folder/'recovery-snapshot.json'), EGM_RECOVERY_SNAPSHOT_AFTER=str(a.snapshot_after))
     if a.recovery_audit:
         env.update(EGM_RECOVERY_AUDIT=str(folder/'candidate-audit.jsonl'), EGM_RECOVERY_AUDIT_CELLS=a.recovery_audit_cells)
     elif a.recovery_audit_cells:
@@ -182,10 +207,15 @@ def main():
     argv = [sys.executable, str(ROOT/'scripts/emapper/frontend.py'), str(library), str(subject), str(raw)]
     files = source_files()+list((ROOT/'scripts/emapper').glob('*.py'))+[profile_path, build_receipt,
         library, library.parent/'cells.v', library.parent/'library.json', native, measure]
+    if a.replay_snapshot:
+        files.append(a.replay_snapshot.resolve())
     report = dict(schema=1, git_head=git_revision(), code_identity="dependency hashes are authoritative, including uncommitted changes", configuration=profile, ablation=a.ablation, match_profile_enabled=a.match_profile, base_profile_sha256=sha(profile_path), status='running', CEC_in_mapping_clock=False,
         prepared_sha256=sha(subject), golden_sha256=sha(golden),
         dependencies=hashes(files), tools={k:dict(path=v,sha256=sha(v)) for k,v in tools.items()},
         argv=argv, environment={k:v for k,v in env.items() if k.startswith('EGM_')})
+    if a.replay_snapshot:
+        report['diagnostic_scope'] = 'fixed candidate/proof snapshot; cold recovery; not full mapping PPA'
+        report['snapshot_sha256'] = sha(a.replay_snapshot.resolve())
     dump(folder/'report.json',report)
     start = time.monotonic()
     deadline = start+profile['mapping_seconds']
