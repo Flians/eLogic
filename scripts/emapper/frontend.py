@@ -69,7 +69,8 @@ def main():
     provenance=dict(library_sha256=sha(library),prepared_sha256=sha(subject),native_sha256=sha(native))
     info=dict(policy='stream600-v1',source=seed,source_sha256=sha(source),library_sha256=sha(library),prepared_sha256=sha(subject),native_optimizer=str(native),native_optimizer_sha256=sha(native),optimizer_succeeded=False,selected='source_witness',CEC_required=True,main_mapper_merged=True,delivery_profile='single-output-da-streamed-library',count_limits=None,phase_limits=None)
     atomic_json(meta,info)
-    worker=out.parent/'online-worker.v';env=dict(os.environ,EGM_ONLINE_MAPPING='1',EGM_INCUMBENT_DIR=str(root.resolve()),EGM_TOTAL_TIME_ONLY='1',EGM_TOTAL_REMAINING_SECS=str(max(.000001,deadline-time.monotonic())),EGM_NOCEC='1',EGM_STAGE_TRACE=str(out.parent/'online.stages.jsonl'),EGM_POOL_DIAG_PATH=str(out.parent/'online.pool.json'))
+    _grace=min(max(0.,float(os.environ.get('EGM_FINISH_GRACE_SECS','0'))),max(0.,deadline-time.monotonic()-1.))
+    worker=out.parent/'online-worker.v';env=dict(os.environ,EGM_ONLINE_MAPPING='1',EGM_INCUMBENT_DIR=str(root.resolve()),EGM_TOTAL_TIME_ONLY='1',EGM_TOTAL_REMAINING_SECS=str(max(.000001,deadline-time.monotonic()-_grace)),EGM_FINISH_GRACE_SECS=str(_grace),EGM_NOCEC='1',EGM_STAGE_TRACE=str(out.parent/'online.stages.jsonl'),EGM_POOL_DIAG_PATH=str(out.parent/'online.pool.json'))
     if editable:env['EGM_SOURCE_BUNDLE']=str((out.parent/'source.bundle.json').resolve())
     env.pop('EGM_DIAG_PATH',None);best=None;timed_out=False;scan_state=ScanState();last_audit=0.
     with(out.parent/'native.stdout').open('w')as stdout,(out.parent/'native.stderr').open('w')as stderr:
