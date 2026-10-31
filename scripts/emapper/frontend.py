@@ -61,6 +61,9 @@ def main():
     native=Path(os.environ['EGM_NATIVE_OPTIMIZER']);models=library.parent/'library.json';meta=out.with_suffix('.complete.json')
     editable=os.environ.get('EGM_EDITABLE_SOURCE')=='1';bundle={}if editable else None
     text,seed=build_source_cover(subject.read_bytes(),models,deadline,phase_aware=True,bundle=bundle);source=out.with_suffix('.source.v');source.write_text(text);shutil.copyfile(source,out)
+    if os.environ.get('EGM_SEED_VERILOG'):
+        _external=Path(os.environ['EGM_SEED_VERILOG']);source.write_text(_external.read_text());shutil.copyfile(source,out)
+        seed=dict(seed,area=float(os.environ['EGM_SEED_AREA']),delay=float(os.environ['EGM_SEED_DELAY']),external_seed=str(_external))
     if editable:atomic_json(out.parent/'source.bundle.json',bundle)
     receipt=out.with_suffix('.incumbent.receipt.json');root=out.parent/'incumbents';root.mkdir(exist_ok=False)
     provenance=dict(library_sha256=sha(library),prepared_sha256=sha(subject),native_sha256=sha(native))
