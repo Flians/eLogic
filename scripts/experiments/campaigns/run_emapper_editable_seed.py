@@ -59,7 +59,8 @@ def main():
    for arm in c['arms']if (ix+repetition)%2==0 else reversed(c['arms']):
     key=f'r{repetition}_{name}_{arm}'
     if key in c['jobs']:continue
-    if count>=a.max_jobs:summary(out,c);return
+    if count>=a.max_jobs:
+     summary(out,c);dump(out/'state.json',dict(status='batch_complete',completed=len(c['jobs']),expected=c['expected']));return
     assert fingerprint()==c['frozen']
     for tool in c['tools'].values():assert sha(tool['path'])==tool['sha256']
     inp=c['inputs'][name]

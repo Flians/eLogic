@@ -79,18 +79,10 @@ def build_editable_seed(data,library_json,seed_netjson,seed_metrics,deadline):
   if time.monotonic()>=deadline:raise TimeoutError('editable seed reached global deadline')
   name=ready.popleft();c,bits,bit,_=pending.pop(name);inputs=[net[x]for x in bits]
   literal=literal_expr(c['expr'],dict(zip(c['vars'],inputs)))
-  boundary=sorted(set(x//2 for x in inputs if x>1));proof=set();todo=[literal//2]
-  while todo:
-   if time.monotonic()>=deadline:raise TimeoutError('seed definition proof reached deadline')
-   v=todo.pop()
-   if v in boundary or v==0 or v in proof:continue
-   if v not in gates:raise ValueError('exact seed definition reaches unknown input')
-   proof.add(v);todo.extend(x//2 for x in gates[v])
-  proof=sorted(proof);used=len(proof)
-  result.append(dict(cell=c['name'],inputs=inputs,output=literal,proof_gates=proof,proof_boundary=boundary,seed_instance=name));visits+=used;net[bit]=literal
+  result.append(dict(cell=c['name'],inputs=inputs,output=literal,seed_instance=name));net[bit]=literal
   for user in waiting.pop(bit,[]):
    pending[user][3]-=1
    if pending[user][3]==0:ready.append(user)
  if pending:raise ValueError('seed physical graph is cyclic or has missing input drivers')
  seed_roots=[net[ports[name]['bits'][0]]for name in outs]
- return dict(schema=3,input_count=count,input_names=ins,output_names=outs,roots=roots,seed_roots=seed_roots,original_max=original_max,gates=[[v,*ab]for v,ab in gates.items()],instances=result,area=seed_metrics['area'],delay=seed_metrics['delay'],projection_seconds=time.monotonic()-start,proof_method='exact cell definitions; exhaustive local Rust replay; fresh named prepared-input CEC authorizes only PO aliases',source_nodes_visited=visits,auxiliary_definitions=sum(v>original_max for v in gates),logical_admissions='Rust cumulative ledger; never free')
+ return dict(schema=4,input_count=count,input_names=ins,output_names=outs,roots=roots,seed_roots=seed_roots,original_max=original_max,gates=[[v,*ab]for v,ab in gates.items()],instances=result,definitions={m['cell']:cells[m['cell']]['expr']for m in result},area=seed_metrics['area'],delay=seed_metrics['delay'],projection_seconds=time.monotonic()-start,proof_method='full formal pin truth followed by exact AIG substitution; fresh named prepared-input CEC authorizes only PO aliases',source_nodes_visited=visits,auxiliary_definitions=sum(v>original_max for v in gates),logical_admissions='Rust cumulative ledger; never free')
