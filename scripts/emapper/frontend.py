@@ -3,6 +3,7 @@
 import hashlib,json,math,os,shutil,subprocess,sys,time
 from pathlib import Path
 from source_cover import build_source_cover
+from physical import supplied_seed
 OBJECTIVE_POLICY='finite-physical-delay-area-lex-v1'
 def better_da(candidate,incumbent):
     values=[candidate[k]for k in ['area','delay']]+[incumbent[k]for k in ['area','delay']]
@@ -60,14 +61,24 @@ def main():
     library,subject,out=map(Path,sys.argv[1:]);start=time.monotonic();deadline=float(os.environ.get('EGM_MAPPING_DEADLINE_MONOTONIC',start+600))
     native=Path(os.environ['EGM_NATIVE_OPTIMIZER']);models=library.parent/'library.json';meta=out.with_suffix('.complete.json')
     editable=os.environ.get('EGM_EDITABLE_SOURCE')=='1';bundle={}if editable else None
-    text,seed=build_source_cover(subject.read_bytes(),models,deadline,phase_aware=True,bundle=bundle);source=out.with_suffix('.source.v');source.write_text(text);shutil.copyfile(source,out)
+    text,seed=build_source_cover(subject.read_bytes(),models,deadline,phase_aware=True,bundle=bundle);constructive_seed=dict(seed);external=None
+    source=out.with_suffix('.source.v')
     if os.environ.get('EGM_SEED_VERILOG'):
-        _external=Path(os.environ['EGM_SEED_VERILOG']);source.write_text(_external.read_text());shutil.copyfile(source,out)
-        seed=dict(seed,area=float(os.environ['EGM_SEED_AREA']),delay=float(os.environ['EGM_SEED_DELAY']),external_seed=str(_external))
+        _external=Path(os.environ['EGM_SEED_VERILOG'])
+        measure=Path(os.environ.get('EGM_MEASURE_BINARY',str(native.with_name('emapper_measure'))))
+        text,external=supplied_seed(library,_external,subject,out.parent/'external-seed-measurement',measure,
+                                   os.environ.get('EGM_YOSYS','yosys'),os.environ.get('EGM_SEED_MANIFEST'))
+        seed=dict(external['measured'],kind='external-complete-cover',external_seed=str(_external.resolve()),
+                  external_seed_sha256=external['source_sha256'],canonical_measurement=external,egraph_search=False)
+    source.write_text(text);shutil.copyfile(source,out)
     if editable:atomic_json(out.parent/'source.bundle.json',bundle)
     receipt=out.with_suffix('.incumbent.receipt.json');root=out.parent/'incumbents';root.mkdir(exist_ok=False)
     provenance=dict(library_sha256=sha(library),prepared_sha256=sha(subject),native_sha256=sha(native))
     info=dict(policy='stream600-v1',source=seed,source_sha256=sha(source),library_sha256=sha(library),prepared_sha256=sha(subject),native_optimizer=str(native),native_optimizer_sha256=sha(native),optimizer_succeeded=False,selected='source_witness',CEC_required=True,main_mapper_merged=True,delivery_profile='single-output-da-streamed-library',count_limits=None,phase_limits=None)
+    if external:
+        info.update(constructive_source=constructive_seed,external_seed=external,
+                    source_bundle_role='native constructive cover; external seed is an outer delivery comparator',
+                    experiment_scope='externally seeded refinement; supplied seed generation is not measured')
     atomic_json(meta,info)
     _grace=min(max(0.,float(os.environ.get('EGM_FINISH_GRACE_SECS','0'))),max(0.,deadline-time.monotonic()-1.))
     worker=out.parent/'online-worker.v';env=dict(os.environ,EGM_ONLINE_MAPPING='1',EGM_INCUMBENT_DIR=str(root.resolve()),EGM_TOTAL_TIME_ONLY='1',EGM_TOTAL_REMAINING_SECS=str(max(.000001,deadline-time.monotonic()-_grace)),EGM_FINISH_GRACE_SECS=str(_grace),EGM_NOCEC='1',EGM_STAGE_TRACE=str(out.parent/'online.stages.jsonl'),EGM_POOL_DIAG_PATH=str(out.parent/'online.pool.json'))

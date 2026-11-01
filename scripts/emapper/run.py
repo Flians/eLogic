@@ -13,6 +13,7 @@ import time
 from frontend import verify_receipt, OBJECTIVE_POLICY
 from provenance import ROOT, sha, hashes, source_files, git_revision
 from verify import verify
+from physical import measure_cover, contribution
 
 
 def dump(path, data):
@@ -134,6 +135,7 @@ def main():
     ap.add_argument('aig', type=Path, help='named, combinational binary AIGER; no preprocessing is run')
     ap.add_argument('--output', type=Path, required=True, help='new directory; existing results are never overwritten')
     ap.add_argument('--golden', type=Path, help='optional original named AIG for independent CEC; default: input')
+    ap.add_argument('--seed-verilog', type=Path, help='provided complete cover: canonical metrics and independent CEC before mapping; externally seeded refinement, not standalone direct mapping')
     ap.add_argument('--match-profile', action='store_true', help='explicit diagnostic matching timers; unchanged search, profiling overhead counts in mapping time')
     ap.add_argument('--ablation', choices=['joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable', 'source-coalesced'], help='explicit same-binary joint or functional-search variant; fixed global clock')
     ap.add_argument('--recovery-inputs', choices=['legacy', 'overlay'], default='overlay', help='accepted-cover-first arrival screening, or explicit old witness-only control')
@@ -222,6 +224,36 @@ def main():
         report['diagnostic_scope'] = 'fixed candidate/proof snapshot; cold recovery; not full mapping PPA'
         report['snapshot_sha256'] = sha(a.replay_snapshot.resolve())
     dump(folder/'report.json',report)
+    if a.seed_verilog:
+        # Conversion, measurement and independent CEC stay outside the mapping clock.
+        # The original seed-generation computation is unknown and never called free mapping work.
+        prep_start = time.monotonic()
+        try:
+            seed_path = safe_path(a.seed_verilog.resolve())
+            external = measure_cover(library,seed_path,folder/'external-seed',measure,tools['yosys'])
+            os.environ['EGM_YOSYS'],os.environ['BENCH_RS_EMAP_ABC']=tools['yosys'],tools['abc']
+            good = verify(library.parent/'cells.v',golden,external['netjson'],folder/'external-seed/cec')
+            external.update(CEC=int(good),prepared_sha256=sha(subject),golden_sha256=sha(golden),
+                experiment_scope='externally seeded refinement; provided seed generation is not timed',
+                source_bundle_role='native constructive source remains separate from external comparator',
+                preparation_wall_secs_excluding_mapping=time.monotonic()-prep_start)
+            dump(folder/'external-seed/manifest.json',external)
+            report['external_seed']=external
+            if not good:
+                raise ValueError('external seed fails independent named-port CEC')
+            env.update(EGM_SEED_VERILOG=str(seed_path),EGM_SEED_MANIFEST=str(folder/'external-seed/manifest.json'),
+                       EGM_MEASURE_BINARY=str(measure))
+            report['environment']={k:v for k,v in env.items()if k.startswith('EGM_')}
+            report['dependencies'].update(hashes([seed_path]) if seed_path.is_relative_to(ROOT) else
+                {str(seed_path):sha(seed_path)})
+            report['experiment_scope']=external['experiment_scope']
+            dump(folder/'report.json',report)
+        except Exception as exc:
+            report.update(status='seed_failed',error=f'{type(exc).__name__}: {exc}',mapping_wall_secs=0,
+                          delivery_state='invalid',search_state='not_started')
+            report['artifacts']={str(p.relative_to(folder)):sha(p)for p in folder.rglob('*')if p.is_file()and p.name!='report.json'}
+            dump(folder/'report.json',report)
+            return 1
     start = time.monotonic()
     deadline = start+profile['mapping_seconds']
     env['EGM_MAPPING_DEADLINE_MONOTONIC'] = str(deadline)
@@ -293,6 +325,15 @@ def main():
         good = verify(library.parent/'cells.v', golden, netjson, folder/'cec')
         report['cec'] = int(good)
         report['status'] = 'metric_failed' if not same_metrics else 'ok' if good and optimized else 'source_only' if good else 'cec_failed'
+        if report.get('external_seed'):
+            report['search_vs_seed']=contribution(report['external_seed']['measured'],report['measured'])
+            report['search_vs_seed']['CEC']=int(good)
+            report['search_vs_seed']['validated_search_gain']=bool(good and same_metrics and optimized and
+                report['search_vs_seed']['outcome']=='improved')
+            if effective.get('constructive_source'):
+                report['seed_vs_constructive']=contribution(effective['constructive_source'],report['external_seed']['measured'])
+            if report['search_vs_seed']['outcome']=='regressed':
+                report['status']='seed_regression'
         report['output_sha256'] = sha(normalized)
     except KeyboardInterrupt:
         report.update(status='interrupted',error='Interrupted by user; partial artifacts retained')
