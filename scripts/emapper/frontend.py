@@ -83,6 +83,22 @@ def main():
     _grace=min(max(0.,float(os.environ.get('EGM_FINISH_GRACE_SECS','0'))),max(0.,deadline-time.monotonic()-1.))
     worker=out.parent/'online-worker.v';env=dict(os.environ,EGM_ONLINE_MAPPING='1',EGM_INCUMBENT_DIR=str(root.resolve()),EGM_TOTAL_TIME_ONLY='1',EGM_TOTAL_REMAINING_SECS=str(max(.000001,deadline-time.monotonic()-_grace)),EGM_FINISH_GRACE_SECS=str(_grace),EGM_NOCEC='1',EGM_STAGE_TRACE=str(out.parent/'online.stages.jsonl'),EGM_POOL_DIAG_PATH=str(out.parent/'online.pool.json'))
     if editable:env['EGM_SOURCE_BUNDLE']=str((out.parent/'source.bundle.json').resolve())
+    if env.get('EGM_EXTERNAL_EDITABLE')=='1':
+        from editable_seed import build_editable_seed
+        try:
+            if not external or not editable:raise ValueError('editable external seed missing checked physical input')
+            foreign=build_editable_seed(subject.read_bytes(),models,external['netjson'],external['measured'],deadline)
+            bundle_path=out.parent/'external.bundle.json';atomic_json(bundle_path,foreign)
+            env['EGM_EXTERNAL_BUNDLE']=str(bundle_path.resolve())
+            info.update(source_bundle_role='external exact physical seed projected into editable native cover',external_native_import_requested=True)
+            atomic_json(meta,info)
+        except Exception as exc:
+            info.update(external_native_import_requested=True,external_native_import_failed=str(exc),search_finished=False,search_deadline_hit=time.monotonic()>=deadline,selected_verilog_sha256=sha(out))
+            atomic_json(meta,info);return
+    # Definition construction is mapping work: never renew its elapsed time.
+    if time.monotonic()>=deadline:
+        info.update(search_finished=False,search_deadline_hit=True,external_native_import_failed='mapping deadline before native launch',selected_verilog_sha256=sha(out));atomic_json(meta,info);return
+    env['EGM_TOTAL_REMAINING_SECS']=str(max(.000001,deadline-time.monotonic()-_grace))
     env.pop('EGM_DIAG_PATH',None);best=None;timed_out=False;scan_state=ScanState();last_audit=0.
     with(out.parent/'native.stdout').open('w')as stdout,(out.parent/'native.stderr').open('w')as stderr:
         native_argv = [str(native), '--replay-recovery', env['EGM_REPLAY_SNAPSHOT'], str(worker), 'fair' if env.get('EGM_RECOVERY_FAIR') == '1' else 'legacy'] if env.get('EGM_REPLAY_SNAPSHOT') else [str(native),str(library),str(subject),str(worker)]

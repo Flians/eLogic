@@ -136,6 +136,7 @@ def main():
     ap.add_argument('--output', type=Path, required=True, help='new directory; existing results are never overwritten')
     ap.add_argument('--golden', type=Path, help='optional original named AIG for independent CEC; default: input')
     ap.add_argument('--seed-verilog', type=Path, help='provided complete cover: canonical metrics and independent CEC before mapping; externally seeded refinement, not standalone direct mapping')
+    ap.add_argument('--seed-native', choices=['outer','editable'], default='outer', help='explicit external-seed native import ablation; exact internal definitions and fresh prepared-input CEC, charged to mapping budget')
     ap.add_argument('--match-profile', action='store_true', help='explicit diagnostic matching timers; unchanged search, profiling overhead counts in mapping time')
     ap.add_argument('--ablation', choices=['joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable', 'source-coalesced'], help='explicit same-binary joint or functional-search variant; fixed global clock')
     ap.add_argument('--recovery-inputs', choices=['legacy', 'overlay'], default='overlay', help='accepted-cover-first arrival screening, or explicit old witness-only control')
@@ -224,6 +225,8 @@ def main():
         report['diagnostic_scope'] = 'fixed candidate/proof snapshot; cold recovery; not full mapping PPA'
         report['snapshot_sha256'] = sha(a.replay_snapshot.resolve())
     dump(folder/'report.json',report)
+    if a.seed_native=='editable' and not a.seed_verilog:
+        raise ValueError('--seed-native editable requires --seed-verilog')
     if a.seed_verilog:
         # Conversion, measurement and independent CEC stay outside the mapping clock.
         # The original seed-generation computation is unknown and never called free mapping work.
@@ -233,9 +236,21 @@ def main():
             external = measure_cover(library,seed_path,folder/'external-seed',measure,tools['yosys'])
             os.environ['EGM_YOSYS'],os.environ['BENCH_RS_EMAP_ABC']=tools['yosys'],tools['abc']
             good = verify(library.parent/'cells.v',golden,external['netjson'],folder/'external-seed/cec')
+            if a.seed_native=='editable':
+                if env.get('EGM_EDITABLE_SOURCE')!='1':
+                    raise ValueError('editable external seed requires the source-editable ablation')
+                prepared_good=verify(library.parent/'cells.v',subject,external['netjson'],folder/'external-seed/prepared-cec')
+                if not prepared_good:raise ValueError('external seed fails fresh prepared-input CEC')
+                def file_hash(path):
+                    path=Path(path).resolve();return dict(path=str(path),sha256=sha(path))
+                proof_folder=folder/'external-seed/prepared-cec'
+                proof=dict(schema=1,prepared=file_hash(subject),library=file_hash(library),models=file_hash(library.parent/'cells.v'),netjson=file_hash(external['netjson']),cec_log=file_hash(proof_folder/'cec.log'),verification=file_hash(proof_folder/'verification.json'),artifacts=[file_hash(p)for p in sorted(proof_folder.iterdir())if p.is_file()])
+                dump(folder/'external-seed/native-proof.json',proof)
+                env.update(EGM_EXTERNAL_EDITABLE='1',EGM_EXTERNAL_PROOF_RECEIPT=str(folder/'external-seed/native-proof.json'))
+                external['native_import_requested']=True
             external.update(CEC=int(good),prepared_sha256=sha(subject),golden_sha256=sha(golden),
                 experiment_scope='externally seeded refinement; provided seed generation is not timed',
-                source_bundle_role='native constructive source remains separate from external comparator',
+                source_bundle_role='exact external seed becomes editable after native proof and admission'if a.seed_native=='editable'else'native constructive source remains separate from external comparator',
                 preparation_wall_secs_excluding_mapping=time.monotonic()-prep_start)
             dump(folder/'external-seed/manifest.json',external)
             report['external_seed']=external
@@ -287,6 +302,8 @@ def main():
             report['source_incumbent'] = selection['incumbent']
         source_audit=folder/'incumbents/source-seed.json'
         if source_audit.exists():report['editable_source']=json.loads(source_audit.read_text())
+        if a.seed_native=='editable':
+            report['external_native_import']=dict(requested=True,applied=report.get('editable_source',{}).get('external_seed_editable',False),fallback_remains_legal=True,proof_receipt=str(folder/'external-seed/native-proof.json'))
         report['search_timeout'] |= bool(native_info.get('search_deadline_hit',False))
         report['search_finished'] = not timed_out and bool(native_info.get('search_finished',False))
         publication_audit=folder/'publication.json'
@@ -330,6 +347,12 @@ def main():
             report['search_vs_seed']['CEC']=int(good)
             report['search_vs_seed']['validated_search_gain']=bool(good and same_metrics and optimized and
                 report['search_vs_seed']['outcome']=='improved')
+            if report.get('editable_source',{}).get('external_seed_editable'):
+                initial=report['editable_source']['native_AD']
+                imported=dict(area=initial[0],delay=initial[1])
+                report['seed_import_contribution']=contribution(report['external_seed']['measured'],imported)
+                report['native_search_net_gain']=contribution(imported,report['measured'])
+                report['native_search_net_gain']['CEC']=int(good)
             if effective.get('constructive_source'):
                 report['seed_vs_constructive']=contribution(effective['constructive_source'],report['external_seed']['measured'])
             if report['search_vs_seed']['outcome']=='regressed':
