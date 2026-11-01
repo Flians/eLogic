@@ -27,10 +27,11 @@ def initialize(out,stage):
   for side in ['prepared','golden','seed']:assert sha(inp[side])==inp[side+'_sha256']
  designs=ORDER if stage=='full'else ['priority','sqrt','sin','voter','bar','i2c']
  repeats=1 if stage=='full'else 3
- return dict(schema=1,stage=stage,repetitions=repeats,designs=designs,source_commit=git_revision(),frozen=fingerprint(),inputs=protocol['inputs'],source_protocol=str(old/'protocol.json'),source_protocol_sha256=sha(old/'protocol.json'),common_cli=COMMON,order=ORDER,arms=['outer','editable'],expected=len(designs)*2*repeats,jobs={},tools={k:dict(path=shutil.which(k),sha256=sha(shutil.which(k)))for k in ['yosys','abc']},baseline_runs=0,mapping_seconds=600,CEC_in_clock=False,seed_generation='historical supplied emap-delay; never rerun; T is refinement only',policy='one shared original-input-derived cumulative node allowance; no refund or renewed stages',AIG_rounds=5,alpha=10,wide_rounds=2,beta=2,GitHub_push=False)
-def validate(j):
+ return dict(schema=1,stage=stage,repetitions=repeats,designs=designs,source_commit=git_revision(),frozen=fingerprint(),inputs=protocol['inputs'],source_protocol=str(old/'protocol.json'),source_protocol_sha256=sha(old/'protocol.json'),common_cli=COMMON,order=ORDER,arms=['outer','editable'],expected=len(designs)*2*repeats,jobs={},tools={k:dict(path=shutil.which(k),sha256=sha(shutil.which(k)))for k in ['yosys','abc']},baseline_runs=0,final_artifact_verification_required=True,mapping_seconds=600,CEC_in_clock=False,seed_generation='historical supplied emap-delay; never rerun; T is refinement only',policy='one shared original-input-derived cumulative node allowance; no refund or renewed stages',AIG_rounds=5,alpha=10,wide_rounds=2,beta=2,GitHub_push=False)
+def validate(j,deep=False):
  assert sha(j['report'])==j['report_sha256']
- for p,h in j['artifacts'].items():assert sha(p)==h,p
+ if deep:
+  for p,h in j['artifacts'].items():assert sha(p)==h,p
  return read(j['report'])
 def summary(out,c):
  rows=[]
@@ -43,9 +44,10 @@ def summary(out,c):
     rows.append(dict(repetition=repetition,design=name,arm=arm,status=j['status'],CEC=r.get('cec'),seed_A=seed.get('area'),seed_D=seed.get('delay'),imported_A=initial[0]if arm=='editable'else None,imported_D=initial[1]if arm=='editable'else None,A=v.get('area'),D=v.get('delay'),T=r.get('mapping_wall_secs'),import_applied=r.get('external_native_import',{}).get('applied')if arm=='editable'else None,initial_native_CEC=j.get('native_initial',{}).get('CEC'),search_vs_seed=r.get('search_vs_seed',{}).get('outcome'),search_vs_import=net.get('outcome'),deadline=r.get('search_timeout'),error=r.get('error',j.get('error'))))
  fields=list(dict.fromkeys(k for row in rows for k in row))
  with(out/'current.csv').open('w')as f:w=csv.DictWriter(f,fieldnames=fields);w.writeheader();w.writerows(rows)
- dump(out/'summary.json',dict(completed=len(c['jobs']),expected=c['expected'],output_CEC=sum(x.get('CEC')==1 for x in rows),external_imports=sum(x.get('import_applied')is True for x in rows),native_initial_CEC=sum(x.get('initial_native_CEC')==1 for x in rows),results=rows,complete=len(c['jobs'])==c['expected'],paper_updated=False,baseline_runs=0,GitHub_push=False))
+ verified=read(out/'artifact-validation.json')if(out/'artifact-validation.json').exists()else{}
+ dump(out/'summary.json',dict(artifact_recheck_complete=verified.get('campaign_sha256')==sha(out/'campaign.json'),artifact_policy='full hashes at creation; metadata on progress/resume; mandatory full recheck before scientific promotion',completed=len(c['jobs']),expected=c['expected'],output_CEC=sum(x.get('CEC')==1 for x in rows),external_imports=sum(x.get('import_applied')is True for x in rows),native_initial_CEC=sum(x.get('initial_native_CEC')==1 for x in rows),results=rows,complete=len(c['jobs'])==c['expected'],paper_updated=False,baseline_runs=0,GitHub_push=False))
 def main():
- ap=argparse.ArgumentParser();ap.add_argument('--output',type=Path,required=True);ap.add_argument('--max-jobs',type=int,default=2);ap.add_argument('--stage',choices=['full','repeats'],default='full');a=ap.parse_args();assert a.max_jobs>0
+ ap=argparse.ArgumentParser();ap.add_argument('--output',type=Path,required=True);ap.add_argument('--max-jobs',type=int,default=2);ap.add_argument('--stage',choices=['full','repeats'],default='full');ap.add_argument('--verify-artifacts-only',action='store_true');a=ap.parse_args();assert a.max_jobs>0
  out=a.output.resolve();out.mkdir(parents=True,exist_ok=True);locks=[]
  for path in [R/'results_v2/independent_components_20261019/global.lock',out/'runner.lock']:
   path.parent.mkdir(parents=True,exist_ok=True);f=path.open('a+');fcntl.flock(f,fcntl.LOCK_EX|fcntl.LOCK_NB);locks.append(f)
@@ -53,6 +55,10 @@ def main():
  assert c['stage']==a.stage
  assert c['frozen']==fingerprint(),'frozen source/binary/configuration drift'
  for j in c['jobs'].values():validate(j)
+ if a.verify_artifacts_only:
+  for key,j in c['jobs'].items():
+   validate(j,deep=True);print(json.dumps(dict(event='artifacts_verified',key=key,files=len(j['artifacts']))),flush=True)
+  dump(out/'artifact-validation.json',dict(campaign_sha256=sha(out/'campaign.json'),cases=len(c['jobs']),files=sum(len(j['artifacts'])for j in c['jobs'].values()),all_hashes_match=True));summary(out,c);return
  count=0
  for repetition in range(c['repetitions']):
   for ix,name in enumerate(c['designs']):
@@ -87,5 +93,5 @@ def main():
     assert c['frozen']==fingerprint(),'source changed during timed case'
     j['artifacts']={str(p):sha(p)for p in sorted(case.rglob('*'))if p.is_file()};c['jobs'][key]=j;dump(out/'campaign.json',c);summary(out,c)
     print(json.dumps(dict(event='end',key=key,status=j['status'],CEC=r.get('cec'),imported=r.get('external_native_import'),AD=r.get('measured'))),flush=True);count+=1
- dump(out/'state.json',dict(status='complete',completed=len(c['jobs']),expected=c['expected']))
+ dump(out/'state.json',dict(status='mapping_complete_artifact_recheck_pending',completed=len(c['jobs']),expected=c['expected']))
 if __name__=='__main__':main()
