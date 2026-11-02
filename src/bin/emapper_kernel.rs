@@ -59,6 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         multioutput_cumulative: number("EGM_MULTI_CUMULATIVE", 1) != 0,
         dc_support: number("EGM_DC_SUPPORT", if queue_profile {4} else {0}),
         dc_cone: number("EGM_DC_CONE", 1024),
+        dc_window_inputs: number("EGM_SDC_WINDOW_INPUTS", 0),
         single_structure_cuts: number("EGM_SINGLE_STRUCTURE_CUTS",0)!=0,
         no_input_phase_matches: number("EGM_NO_INPUT_PHASE_MATCHES",0)!=0,
         canonical_pin_matching: number("EGM_CANONICAL_PIN_MATCHING",0)!=0,

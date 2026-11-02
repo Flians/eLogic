@@ -3,7 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from run import recovery_schedule_profile, recovery_cache_profile, recovery_noop_profile, recovery_input_profile, ablation_profile, select_output, search_queues_complete
+from run import window_sdc_profile, recovery_schedule_profile, recovery_cache_profile, recovery_noop_profile, recovery_input_profile, ablation_profile, select_output, search_queues_complete
 from frontend import fnv, sha
 
 
@@ -196,3 +196,17 @@ class RecoveryScheduleProfileTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class WindowSdcProfileTests(unittest.TestCase):
+    def test_explicit_scope_preserves_all_other_settings_and_base(self):
+        base={'name':'fixed','mapping_seconds':600,'environment':{'EGM_DC_SUPPORT':'4','EGM_AIG_ROUNDS':'5'}}
+        original=json.dumps(base,sort_keys=True)
+        for n in [0,3,8,20]:
+            p=window_sdc_profile(base,n)
+            self.assertEqual(p['mapping_seconds'],600)
+            self.assertEqual(p['environment']['EGM_DC_SUPPORT'],'4')
+            self.assertEqual(p['environment']['EGM_AIG_ROUNDS'],'5')
+            self.assertEqual(p['environment']['EGM_SDC_WINDOW_INPUTS'],str(n))
+            self.assertEqual(json.dumps(base,sort_keys=True),original)
+        for n in [-1,21,True,2.5]:
+            with self.assertRaises(ValueError):window_sdc_profile(base,n)
