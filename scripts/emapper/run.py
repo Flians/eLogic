@@ -161,6 +161,7 @@ def main():
     ap.add_argument('--replay-snapshot', type=Path, help='diagnostic fixed-pool cold recovery replay; not full mapping')
     ap.add_argument('--area-reject-cache', choices=['off','on'], default='off', help='explicit exact-context ordinary area rejection cache; same candidate domain and deadline')
     ap.add_argument('--proposal-observation', action='store_true', help='count complete ordinary recovery proposal identities and global contexts; no pruning, overhead inside budget')
+    ap.add_argument('--lifecycle', action='store_true', help='diagnostic cut-to-care lifecycle and exact representative export; overhead inside 600s')
     ap.add_argument('--observe', action='store_true', help='persistent native trajectory and exclusive scope costs; overhead inside 600s')
     ap.add_argument('--snapshot-after', type=float, help='diagnostic snapshot at first recovery boundary after native online seconds; not a search stop or extra budget')
     a = ap.parse_args()
@@ -218,6 +219,8 @@ def main():
     env['EGM_AREA_REJECT_CACHE'] = '1' if a.area_reject_cache == 'on' else '0'
     if a.proposal_observation:
         env['EGM_PROPOSAL_OBSERVATION'] = '1'
+    if a.lifecycle:
+        env.update(EGM_LIFECYCLE=str(folder/'lifecycle.jsonl'), EGM_SDC_REPRESENTATIVES=str(folder/'sdc-representatives.json'))
     if a.observe:
         env['EGM_OBSERVATION'] = str(folder/'observation.jsonl')
     if a.snapshot_after is not None:
