@@ -142,6 +142,18 @@ def window_sdc_profile(base, inputs):
     return profile
 
 
+def monotone_sdc_profile(base, enabled):
+    """Explicit supplement policy, independent of window width and all budgets."""
+    if not isinstance(enabled, bool):
+        raise ValueError('monotone SDC selection must be boolean')
+    profile = copy.deepcopy(base)
+    profile['environment']['EGM_SDC_MONOTONE'] = str(int(enabled))
+    profile['sdc_care_policy'] = 'pi-exact-then-window-supplement' if enabled else 'legacy-selector'
+    if enabled:
+        profile['name'] += '-monotone-sdc'
+    return profile
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('aig', type=Path, help='named, combinational binary AIGER; no preprocessing is run')
@@ -150,6 +162,7 @@ def main():
     ap.add_argument('--seed-verilog', type=Path, help='provided complete cover: canonical metrics and independent CEC before mapping; externally seeded refinement, not standalone direct mapping')
     ap.add_argument('--seed-native', choices=['outer','editable'], default='outer', help='explicit external-seed native import ablation; exact internal definitions and fresh prepared-input CEC, charged to mapping budget')
     ap.add_argument('--sdc-window-inputs', type=int, choices=range(0,21), default=0, metavar='0..20', help='explicit exhaustive window SDC ablation; independent window inputs, zero retains legacy PI-support care; fixed 600s')
+    ap.add_argument('--sdc-monotone', action='store_true', help='explicit PI-exact care retained, window supplements only full-care fallback; unchanged 600s and candidate domain')
     ap.add_argument('--match-profile', action='store_true', help='explicit diagnostic matching timers; unchanged search, profiling overhead counts in mapping time')
     ap.add_argument('--ablation', choices=['joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable', 'source-coalesced'], help='explicit same-binary joint or functional-search variant; fixed global clock')
     ap.add_argument('--recovery-inputs', choices=['legacy', 'overlay'], default='overlay', help='accepted-cover-first arrival screening, or explicit old witness-only control')
@@ -176,6 +189,7 @@ def main():
     profile = recovery_cache_profile(profile, a.recovery_cache)
     profile = recovery_schedule_profile(profile, a.recovery_schedule)
     profile = window_sdc_profile(profile, a.sdc_window_inputs)
+    profile = monotone_sdc_profile(profile, a.sdc_monotone)
     if a.match_profile:
         profile['name'] += '-match-profile'
         profile['environment']['EGM_MATCH_PROFILE'] = '1'
