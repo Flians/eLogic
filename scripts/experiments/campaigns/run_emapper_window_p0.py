@@ -80,10 +80,10 @@ def main():
      if initial['CEC']!=1 or not initial['exact_AD_agreement']:j['status']='initial_invalid'
     except Exception as e:j.update(status='initial_failed',error=str(e))
    diagnostic=dict(scope='P0 only: cold fixed-pool replay evidence; all observation overhead inside600s',errors=[])
-   for name in ['observation.jsonl','lifecycle.jsonl','sdc-representatives.json','candidate-audit.jsonl','recovery-snapshot.json']:
-    path=case/name
-    if not path.exists():diagnostic['errors'].append('missing '+name);continue
-    diagnostic[name]=dict(path=str(path),sha256=sha(path),bytes=path.stat().st_size)
+   for artifact_name in ['observation.jsonl','lifecycle.jsonl','sdc-representatives.json','candidate-audit.jsonl','recovery-snapshot.json']:
+    path=case/artifact_name
+    if not path.exists():diagnostic['errors'].append('missing '+artifact_name);continue
+    diagnostic[artifact_name]=dict(path=str(path),sha256=sha(path),bytes=path.stat().st_size)
    if (case/'recovery-snapshot.json').exists():
     try:
      snapshot=read(case/'recovery-snapshot.json');assert snapshot['schema']==1 and snapshot['chosen'] and snapshot['context']
