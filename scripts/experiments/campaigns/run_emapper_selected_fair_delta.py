@@ -61,6 +61,9 @@ def plan(designs):
     return jobs
 
 def initialize():
+    receipt=read(R/'target/release/emapper-build.json')
+    assert receipt==dict(source=hashes(source_files()), binaries=hashes([R/'target/release/emapper_kernel',R/'target/release/emapper_measure'])), 'rebuild before creating a frozen campaign'
+    assert read(R/'emapper/profiles/delivery.json')['mapping_seconds']==600
     inputs = read(PROTOCOL)['inputs']
     assert len(inputs) == 20 and set(TARGETS) <= set(inputs)
     designs = ['ctrl', 'i2c', 'sin', 'max', 'square', 'voter'] + [n for n in inputs if n not in ('ctrl', 'i2c', 'sin', 'max', 'square', 'voter')]
