@@ -111,6 +111,16 @@ def recovery_noop_profile(base, mode):
     return profile
 
 
+def cut_join_profile(base, mode):
+    """Skip only tuples rejected by the existing structural ownership test."""
+    if mode not in ('legacy', 'owned'):
+        raise ValueError('unknown cut join mode')
+    profile = copy.deepcopy(base)
+    profile['environment']['EGM_CUT_JOIN_OWNERSHIP'] = '1' if mode == 'owned' else '0'
+    profile['cut_join_policy'] = mode
+    return profile
+
+
 def recovery_cache_profile(base, mode):
     if mode not in ('legacy', 'split', 'delta'):
         raise ValueError('unknown recovery cache mode')
@@ -160,6 +170,7 @@ def main():
     ap.add_argument('aig', type=Path, help='named, combinational binary AIGER; no preprocessing is run')
     ap.add_argument('--output', type=Path, required=True, help='new directory; existing results are never overwritten')
     ap.add_argument('--golden', type=Path, help='optional original named AIG for independent CEC; default: input')
+    ap.add_argument('--fresh-emap-seed', type=Path, help='unchanged emap-delay executable; generate seed and charge its process time within the same 600s budget; mutually exclusive with --seed-verilog')
     ap.add_argument('--seed-verilog', type=Path, help='provided complete cover: canonical metrics and independent CEC before mapping; externally seeded refinement, not standalone direct mapping')
     ap.add_argument('--seed-native', choices=['outer','editable'], default='outer', help='explicit external-seed native import ablation; exact internal definitions and fresh prepared-input CEC, charged to mapping budget')
     ap.add_argument('--sdc-window-inputs', type=int, choices=range(0,21), default=0, metavar='0..20', help='explicit exhaustive window SDC ablation; independent window inputs, zero retains legacy PI-support care; fixed 600s')
@@ -170,6 +181,7 @@ def main():
     ap.add_argument('--recovery-audit', action='store_true', help='diagnostic physical admission/recovery JSONL; I/O counts in the same mapping clock')
     ap.add_argument('--recovery-audit-cells', default='', help='comma-separated exact cell names for diagnostic output only; empty logs all')
     ap.add_argument('--recovery-noop-prefilter', choices=['off','on'], default='off', help='explicit same-binary identity-only recovery prefilter; fixed global clock')
+    ap.add_argument('--cut-join', choices=['legacy','owned'], default='legacy', help='same-binary structural ownership enumeration; unchanged complete tuple domain and 600s clock')
     ap.add_argument('--recovery-cache', choices=['legacy','split','delta'], default='legacy', help='explicit same-binary cache dependency ablation; unchanged proposal domain and clock')
     ap.add_argument('--recovery-schedule', choices=['legacy','fair'], default='legacy', help='explicit same-binary fair recovery scheduling; unchanged metric, proof and 600-second clock')
     ap.add_argument('--replay-snapshot', type=Path, help='diagnostic fixed-pool cold recovery replay; not full mapping')
@@ -183,6 +195,8 @@ def main():
     a = ap.parse_args()
     if a.snapshot_after is not None and (not __import__('math').isfinite(a.snapshot_after) or not 0 <= a.snapshot_after < 600):
         ap.error('--snapshot-after must be finite and in [0,600)')
+    if a.fresh_emap_seed and a.seed_verilog:
+        ap.error('--fresh-emap-seed and --seed-verilog are mutually exclusive')
     subject = safe_path(a.aig.resolve())
     golden = safe_path((a.golden or a.aig).resolve())
     folder = safe_path(a.output.resolve())
@@ -190,6 +204,7 @@ def main():
     profile = recovery_input_profile(ablation_profile(json.loads(profile_path.read_text()), a.ablation), a.recovery_inputs)
     profile = recovery_noop_profile(profile, a.recovery_noop_prefilter)
     profile = recovery_cache_profile(profile, a.recovery_cache)
+    profile = cut_join_profile(profile, a.cut_join)
     profile = recovery_schedule_profile(profile, a.recovery_schedule)
     profile = window_sdc_profile(profile, a.sdc_window_inputs)
     profile = monotone_sdc_profile(profile, a.sdc_monotone)
@@ -263,6 +278,22 @@ def main():
         report['diagnostic_scope'] = 'fixed candidate/proof snapshot; cold recovery; not full mapping PPA'
         report['snapshot_sha256'] = sha(a.replay_snapshot.resolve())
     dump(folder/'report.json',report)
+    seed_generation_seconds = 0.
+    if a.fresh_emap_seed:
+        from fresh_seed import generate
+        try:
+            a.seed_verilog, generated = generate(safe_path(a.fresh_emap_seed.resolve()), library,
+                                                 subject, folder/'fresh-seed', profile['mapping_seconds'])
+            seed_generation_seconds = generated['mapping_seconds']
+            report['fresh_seed_generation'] = generated
+        except Exception as exc:
+            generation_receipt=folder/'fresh-seed/receipt.json'
+            generated=json.loads(generation_receipt.read_text()) if generation_receipt.exists() else {}
+            report.update(status='seed_generation_failed', error=f'{type(exc).__name__}: {exc}',
+                          fresh_seed_generation=generated, mapping_wall_secs=generated.get('mapping_seconds',0),
+                          delivery_state='invalid',search_state='not_started')
+            dump(folder/'report.json',report)
+            return 1
     if a.seed_native=='editable' and not a.seed_verilog:
         raise ValueError('--seed-native editable requires --seed-verilog')
     if a.seed_verilog:
@@ -299,6 +330,9 @@ def main():
             report['environment']={k:v for k,v in env.items()if k.startswith('EGM_')}
             report['dependencies'].update(hashes([seed_path]) if seed_path.is_relative_to(ROOT) else
                 {str(seed_path):sha(seed_path)})
+            if a.fresh_emap_seed:
+                external['experiment_scope']='fresh emap-delay seed plus native refinement; seed generation charged within600s; pure normalization and CEC excluded'
+                dump(folder/'external-seed/manifest.json',external)
             report['experiment_scope']=external['experiment_scope']
             dump(folder/'report.json',report)
         except Exception as exc:
@@ -308,7 +342,8 @@ def main():
             dump(folder/'report.json',report)
             return 1
     start = time.monotonic()
-    deadline = start+profile['mapping_seconds']
+    from fresh_seed import remaining_mapping_seconds
+    deadline = start+remaining_mapping_seconds(profile['mapping_seconds'], seed_generation_seconds)
     env['EGM_MAPPING_DEADLINE_MONOTONIC'] = str(deadline)
     timed_out = False
     try:
@@ -325,7 +360,8 @@ def main():
                     os.killpg(proc.pid, signal.SIGKILL)
                     proc.wait()
                 raise
-        report.update(mapping_wall_secs=time.monotonic()-start, mapping_exit_code=proc.returncode,
+        refinement_seconds=time.monotonic()-start
+        report.update(mapping_wall_secs=seed_generation_seconds+refinement_seconds, refinement_wall_secs=refinement_seconds, seed_generation_in_mapping_clock=bool(a.fresh_emap_seed), mapping_exit_code=proc.returncode,
                       search_timeout=timed_out)
         meta = raw.with_suffix('.complete.json')
         native_info = json.loads(meta.read_text()) if meta.exists() else {}

@@ -233,5 +233,17 @@ class DeltaCacheProfileTests(unittest.TestCase):
         self.assertEqual(base, dict(environment={'EGM_TOTAL_TIME_ONLY': '1'}, mapping_seconds=600))
 
 
+class CutJoinProfileTests(unittest.TestCase):
+    def test_only_explicit_owned_join_changes_and_original_is_untouched(self):
+        from run import cut_join_profile
+        base=dict(environment={'EGM_TOTAL_TIME_ONLY':'1','EGM_CUTS':'18446744073709551615'},mapping_seconds=600)
+        for mode in ['legacy','owned']:
+            result=cut_join_profile(base,mode)
+            self.assertEqual(result['mapping_seconds'],600)
+            self.assertEqual(result['environment'],dict(base['environment'],EGM_CUT_JOIN_OWNERSHIP='1' if mode=='owned' else '0'))
+        self.assertNotIn('EGM_CUT_JOIN_OWNERSHIP',base['environment'])
+        with self.assertRaises(ValueError):cut_join_profile(base,'invalid')
+
+
 if __name__ == '__main__':
     unittest.main()
