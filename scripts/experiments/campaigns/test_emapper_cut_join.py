@@ -16,7 +16,7 @@ class CutJoinPlanTests(unittest.TestCase):
         self.assertEqual(sum(j['stage']=='repeat' for j in jobs),16)
         for name in names:
             self.assertEqual({j['arm'] for j in jobs if j['design']==name and j['repetition']==0},set(m.ARMS))
-        self.assertEqual([j['arm'] for j in jobs[:2]],['legacy','owned'])
-        self.assertEqual([j['arm'] for j in jobs[2:4]],['owned','legacy'])
+        self.assertEqual([j['arm'] for j in jobs[:2]],['legacy','streamed'])
+        self.assertEqual([j['arm'] for j in jobs[2:4]],['streamed','legacy'])
 
 if __name__=='__main__':unittest.main()

@@ -112,11 +112,11 @@ def recovery_noop_profile(base, mode):
 
 
 def cut_join_profile(base, mode):
-    """Skip only tuples rejected by the existing structural ownership test."""
-    if mode not in ('legacy', 'owned'):
+    """Avoid unowned tuple allocation; preserve legacy task order and visits."""
+    if mode not in ('legacy', 'streamed'):
         raise ValueError('unknown cut join mode')
     profile = copy.deepcopy(base)
-    profile['environment']['EGM_CUT_JOIN_OWNERSHIP'] = '1' if mode == 'owned' else '0'
+    profile['environment']['EGM_CUT_JOIN_STREAMED'] = '1' if mode == 'streamed' else '0'
     profile['cut_join_policy'] = mode
     return profile
 
@@ -181,7 +181,7 @@ def main():
     ap.add_argument('--recovery-audit', action='store_true', help='diagnostic physical admission/recovery JSONL; I/O counts in the same mapping clock')
     ap.add_argument('--recovery-audit-cells', default='', help='comma-separated exact cell names for diagnostic output only; empty logs all')
     ap.add_argument('--recovery-noop-prefilter', choices=['off','on'], default='off', help='explicit same-binary identity-only recovery prefilter; fixed global clock')
-    ap.add_argument('--cut-join', choices=['legacy','owned'], default='legacy', help='same-binary structural ownership enumeration; unchanged complete tuple domain and 600s clock')
+    ap.add_argument('--cut-join', choices=['legacy','streamed'], default='legacy', help='same-binary tuple allocation reuse; unchanged task visits/order, domain and 600s clock')
     ap.add_argument('--recovery-cache', choices=['legacy','split','delta'], default='legacy', help='explicit same-binary cache dependency ablation; unchanged proposal domain and clock')
     ap.add_argument('--recovery-schedule', choices=['legacy','fair'], default='legacy', help='explicit same-binary fair recovery scheduling; unchanged metric, proof and 600-second clock')
     ap.add_argument('--replay-snapshot', type=Path, help='diagnostic fixed-pool cold recovery replay; not full mapping')

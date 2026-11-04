@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Frozen full-pipeline join-ownership ablation; fresh seed charged within600s.
+"""Frozen full-pipeline order-preserving structural allocation ablation; fresh seed charged within600s.
 
 One canonical source and binary. No baseline runs/results are modified. The
 unchanged emap executable is a freshly timed component, not a new baseline row.
@@ -16,7 +16,7 @@ PROTOCOL=R/'results_v2/emapper_seeded_epfl_20261101/protocol.json'
 SEED_COMPONENT=R/'results_v2/single_output_wide_20261021/stock_emap9_cut9_reference/build/baseline_mapper'
 REPRESENTATIVES=['ctrl','dec']
 REPEATS=['ctrl','dec','sin','voter']
-ARMS=['legacy','owned']
+ARMS=['legacy','streamed']
 COMMON=['--seed-native','editable','--ablation','source-editable','--recovery-inputs','overlay',
         '--recovery-noop-prefilter','on','--recovery-cache','legacy','--recovery-schedule','legacy',
         '--area-reject-cache','off','--sdc-window-inputs','0','--observe']
@@ -55,7 +55,7 @@ def initialize():
         planned=plan(designs),expected=56,jobs={},common=COMMON,seed_component=str(SEED_COMPONENT),
         tools={k:dict(path=shutil.which(k),sha256=sha(shutil.which(k))) for k in ('abc','yosys')},
         mapping_seconds=600,CEC_in_clock=False,fresh_seed_in_clock=True,
-        scope='unchanged complete candidate domain; legacy-vs-owned structural ownership intervals; one binary; all20 plus two repeats ctrl/dec/sin/voter; no winner mixing',
+        scope='unchanged complete candidate domain; legacy-vs-streamed unowned tuple allocation; exact legacy task order/visits retained; one binary; all20 plus two repeats ctrl/dec/sin/voter; no winner mixing',
         baseline_runs=0,fresh_seed_component_runs_per_case=1,baseline_changes=False,GitHub_push=False)
 
 def summarize(out,c):
