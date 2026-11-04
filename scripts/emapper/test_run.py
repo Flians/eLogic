@@ -281,5 +281,17 @@ class BatchFrontierProfileTests(unittest.TestCase):
         with self.assertRaises(ValueError):batch_frontier_profile(base,'invalid')
 
 
+class FrontierPreparationProfileTests(unittest.TestCase):
+    def test_only_physical_preparation_flag_changes(self):
+        from run import frontier_preparation_profile
+        base=dict(environment={'EGM_BATCH_FRONTIER_CACHE':'1','EGM_MEMO_BINDING_PROOFS':'1'},mapping_seconds=600)
+        for mode in ['off','on']:
+            p=frontier_preparation_profile(base,mode)
+            self.assertEqual(p['environment'],dict(base['environment'],EGM_FRONTIER_PREPARATION='1' if mode=='on' else '0'))
+            self.assertEqual(p['mapping_seconds'],600)
+        self.assertNotIn('EGM_FRONTIER_PREPARATION',base['environment'])
+        with self.assertRaises(ValueError):frontier_preparation_profile(base,'unknown')
+
+
 if __name__ == '__main__':
     unittest.main()
