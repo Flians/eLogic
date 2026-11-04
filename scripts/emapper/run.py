@@ -111,6 +111,16 @@ def recovery_noop_profile(base, mode):
     return profile
 
 
+def batch_frontier_profile(base, mode):
+    """Memoize only the unchanged physical-prefix numerical batch witness."""
+    if mode not in ('off', 'on'):
+        raise ValueError('unknown batch frontier cache mode')
+    profile = copy.deepcopy(base)
+    profile['environment']['EGM_BATCH_FRONTIER_CACHE'] = '1' if mode == 'on' else '0'
+    profile['batch_frontier_cache'] = mode
+    return profile
+
+
 def cut_cost_profile(base, enabled):
     """Diagnostic cost scopes only; never alter candidate or budget policy."""
     if not isinstance(enabled, bool):
@@ -201,6 +211,7 @@ def main():
     ap.add_argument('--recovery-audit', action='store_true', help='diagnostic physical admission/recovery JSONL; I/O counts in the same mapping clock')
     ap.add_argument('--recovery-audit-cells', default='', help='comma-separated exact cell names for diagnostic output only; empty logs all')
     ap.add_argument('--recovery-noop-prefilter', choices=['off','on'], default='off', help='explicit same-binary identity-only recovery prefilter; fixed global clock')
+    ap.add_argument('--batch-frontier-cache', choices=['off','on'], default='off', help='same-prefix numerical frontier cache; source/metric consideration and600s unchanged')
     ap.add_argument('--cut-cost-detail', action='store_true', help='diagnostic exclusive event lanes/admission costs; observation overhead inside600s, not a speed result')
     ap.add_argument('--cut-truth', choices=['legacy','word'], default='legacy', help='exact bit-parallel event cut composition/substitution; unchanged task and candidate order')
     ap.add_argument('--cut-join', choices=['legacy','streamed'], default='legacy', help='same-binary tuple allocation reuse; unchanged task visits/order, domain and 600s clock')
@@ -229,6 +240,7 @@ def main():
     profile = cut_join_profile(profile, a.cut_join)
     profile = cut_truth_profile(profile, a.cut_truth)
     profile = cut_cost_profile(profile, a.cut_cost_detail)
+    profile = batch_frontier_profile(profile, a.batch_frontier_cache)
     profile = recovery_schedule_profile(profile, a.recovery_schedule)
     profile = window_sdc_profile(profile, a.sdc_window_inputs)
     profile = monotone_sdc_profile(profile, a.sdc_monotone)

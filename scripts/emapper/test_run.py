@@ -269,5 +269,17 @@ class CutCostProfileTests(unittest.TestCase):
         with self.assertRaises(ValueError):cut_cost_profile(base,1)
 
 
+class BatchFrontierProfileTests(unittest.TestCase):
+    def test_numeric_memo_does_not_change_clock_or_proof_policy(self):
+        from run import batch_frontier_profile
+        base=dict(environment={'EGM_TOTAL_TIME_ONLY':'1','EGM_MEMO_BINDING_PROOFS':'1'},mapping_seconds=600)
+        for mode in ['off','on']:
+            r=batch_frontier_profile(base,mode)
+            self.assertEqual(r['mapping_seconds'],600)
+            self.assertEqual(r['environment'],dict(base['environment'],EGM_BATCH_FRONTIER_CACHE='1' if mode=='on' else '0'))
+        self.assertNotIn('EGM_BATCH_FRONTIER_CACHE',base['environment'])
+        with self.assertRaises(ValueError):batch_frontier_profile(base,'invalid')
+
+
 if __name__ == '__main__':
     unittest.main()
