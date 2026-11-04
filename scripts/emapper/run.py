@@ -175,6 +175,7 @@ def main():
     ap.add_argument('--area-reject-cache', choices=['off','on'], default='off', help='explicit exact-context ordinary area rejection cache; same candidate domain and deadline')
     ap.add_argument('--proposal-observation', action='store_true', help='count complete ordinary recovery proposal identities and global contexts; no pruning, overhead inside budget')
     ap.add_argument('--lifecycle', action='store_true', help='diagnostic cut-to-care lifecycle and exact representative export; overhead inside 600s')
+    ap.add_argument('--selected-provenance', action='store_true', help='selected generator/care witnesses, content-addressed inside mapping budget')
     ap.add_argument('--observe', action='store_true', help='persistent native trajectory and exclusive scope costs; overhead inside 600s')
     ap.add_argument('--snapshot-after', type=float, help='diagnostic snapshot at first recovery boundary after native online seconds; not a search stop or extra budget')
     a = ap.parse_args()
@@ -235,6 +236,8 @@ def main():
         env['EGM_PROPOSAL_OBSERVATION'] = '1'
     if a.lifecycle:
         env.update(EGM_LIFECYCLE=str(folder/'lifecycle.jsonl'), EGM_SDC_REPRESENTATIVES=str(folder/'sdc-representatives.json'))
+    if a.selected_provenance:
+        env['EGM_SELECTED_PROVENANCE'] = str((folder/'selected-provenance').resolve())
     if a.observe:
         env['EGM_OBSERVATION'] = str(folder/'observation.jsonl')
     if a.snapshot_after is not None:
@@ -372,6 +375,13 @@ def main():
         os.environ['EGM_YOSYS'], os.environ['BENCH_RS_EMAP_ABC'] = tools['yosys'], tools['abc']
         good = verify(library.parent/'cells.v', golden, netjson, folder/'cec')
         report['cec'] = int(good)
+        if a.selected_provenance:
+            from selected_evidence import replay
+            if selection.get('incumbent'):
+                report['selected_evidence'] = replay(selection['incumbent']['manifest'], folder/'selected-provenance/objects')
+                report['selected_evidence']['validation_outside_mapping_clock'] = True
+            else:
+                report['selected_evidence'] = dict(valid=None, reason='constructive fallback has no native selected proof set; utilization unknown')
         report['status'] = 'metric_failed' if not same_metrics else 'ok' if good and optimized else 'source_only' if good else 'cec_failed'
         if report.get('external_seed'):
             report['search_vs_seed']=contribution(report['external_seed']['measured'],report['measured'])
