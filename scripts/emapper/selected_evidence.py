@@ -46,7 +46,9 @@ def replay(manifest, objects):
         p = load(key)
         if p['logic'] != selected['logic']:
             raise ValueError('care context mismatch')
-        frontier, expanded = p['frontier'], {int(k): v for k, v in p['expanded'].items()}
+        frontier = p['frontier']
+        expanded = ({c: (nodes[c]['args'], nodes[c]['function']) for c in p['expanded']}
+                    if isinstance(p['expanded'], list) else {int(k): v for k, v in p['expanded'].items()})
         if len(set(frontier)) != len(frontier) or set(frontier) & set(expanded):
             raise ValueError('invalid care frontier')
         for c, (args, function) in expanded.items():
