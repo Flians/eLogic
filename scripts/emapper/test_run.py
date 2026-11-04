@@ -194,8 +194,6 @@ class RecoveryScheduleProfileTests(unittest.TestCase):
             recovery_schedule_profile(base, 'invalid')
 
 
-if __name__ == '__main__':
-    unittest.main()
 
 class WindowSdcProfileTests(unittest.TestCase):
     def test_monotone_policy_is_explicit_and_preserves_search_settings(self):
@@ -222,3 +220,18 @@ class WindowSdcProfileTests(unittest.TestCase):
             self.assertEqual(json.dumps(base,sort_keys=True),original)
         for n in [-1,21,True,2.5]:
             with self.assertRaises(ValueError):window_sdc_profile(base,n)
+
+class DeltaCacheProfileTests(unittest.TestCase):
+    def test_delta_is_explicit_and_does_not_silently_enable_split(self):
+        from run import recovery_cache_profile
+        base = dict(environment={'EGM_TOTAL_TIME_ONLY': '1'}, mapping_seconds=600)
+        for mode in ['legacy', 'split', 'delta']:
+            result = recovery_cache_profile(base, mode)
+            self.assertEqual(result['mapping_seconds'], 600)
+            self.assertEqual(result['environment']['EGM_RECOVERY_CACHE_DELTA'], '1' if mode == 'delta' else '0')
+            self.assertEqual(result['environment']['EGM_RECOVERY_CACHE_SPLIT'], '1' if mode == 'split' else '0')
+        self.assertEqual(base, dict(environment={'EGM_TOTAL_TIME_ONLY': '1'}, mapping_seconds=600))
+
+
+if __name__ == '__main__':
+    unittest.main()

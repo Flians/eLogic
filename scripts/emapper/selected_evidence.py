@@ -14,7 +14,7 @@ def digest(p):
     return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 
 
-def replay(manifest, objects):
+def replay(manifest, objects, netjson=None):
     manifest, objects = Path(manifest), Path(objects)
     info = json.loads(manifest.read_text())
     meta = info.get('selected_evidence')
@@ -159,7 +159,48 @@ def replay(manifest, objects):
         conditional += not has_exact
     if (exact, conditional) != (selected['exact_supported_bindings'], selected['conditional_only_bindings']):
         raise ValueError('selected classification totals mismatch')
-    return dict(valid=True, selected_bindings=len(rows), exact_supported=exact,
+    if netjson is not None:
+        import re
+        ports = selected['ports']
+        top = json.loads(Path(netjson).read_text())['modules']['mapped']
+        names = [r[2] for r in ports['inputs']] + [r[1] for r in ports['outputs']]
+        escaped = [n if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_$]*', n) else '\\' + n + ' ' for n in names]
+        prefix = '__egm_'
+        while any(n.startswith(prefix) for n in escaped):
+            prefix += '_'
+        if set(top['ports']) != set(names):
+            raise ValueError('selected proof interface differs from delivered netlist')
+        nets = {s: top['ports'][name]['bits'] for s, _, name in ports['inputs']}
+        nets.update({s: ['1' if value else '0'] for s, value in ports['constants']})
+        bound = {}
+        for row in rows:
+            bound.setdefault((row['pool_instance'], row['pin']), []).append(row['signal'])
+        for signals in bound.values():
+            bits = top['netnames'][prefix + 's' + str(min(signals))]['bits']
+            for s in signals:
+                nets[s] = bits
+        expected_cells = set()
+        for item in selected['instances']:
+            i = item['pool_instance']
+            name = prefix + 'g' + str(item['compact_instance'])
+            expected_cells.add(name)
+            cell, m = top['cells'][name], physical[i]
+            if cell['type'] != m['cell']:
+                raise ValueError('selected proof cell differs from delivered netlist')
+            for pin, signal in zip(m['input_pins'], m['inputs']):
+                if cell['connections'][pin] != nets[signal]:
+                    raise ValueError('selected proof input pin differs from delivered netlist')
+            for pin, out in enumerate(m['outputs']):
+                signals = bound.get((i, pin), [])
+                expected = nets[signals[0]] if signals else []
+                if cell['connections'].get(out['name'], []) != expected:
+                    raise ValueError('selected proof output differs from delivered netlist')
+        if expected_cells != set(top['cells']):
+            raise ValueError('delivered netlist has unaccounted physical instances')
+        for signal, name in ports['outputs']:
+            if top['ports'][name]['bits'] != nets[signal]:
+                raise ValueError('selected proof primary output differs from delivered netlist')
+    return dict(valid=True, netlist_binding_agreement=netjson is not None, selected_bindings=len(rows), exact_supported=exact,
                 conditional_only=conditional, care_images_replayed=len(care_seen),
                 proof_objects_read=len(cache), scope='local generator identity/truth and complete care replay; global equivalence requires CEC')
 
@@ -169,8 +210,9 @@ if __name__ == '__main__':
     p.add_argument('manifest', type=Path)
     p.add_argument('--objects', type=Path, required=True)
     p.add_argument('--output', type=Path)
+    p.add_argument('--netjson', type=Path)
     a = p.parse_args()
-    report = replay(a.manifest, a.objects)
+    report = replay(a.manifest, a.objects, a.netjson)
     if a.output:
         with a.output.open('x') as f:
             json.dump(report, f, indent=2)
