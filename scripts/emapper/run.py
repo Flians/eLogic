@@ -111,6 +111,16 @@ def recovery_noop_profile(base, mode):
     return profile
 
 
+def cut_truth_profile(base, mode):
+    """Exact word operations in the event closure, without task rescheduling."""
+    if mode not in ('legacy', 'word'):
+        raise ValueError('unknown cut truth mode')
+    profile = copy.deepcopy(base)
+    profile['environment']['EGM_CUT_TRUTH_WORD'] = '1' if mode == 'word' else '0'
+    profile['cut_truth_policy'] = mode
+    return profile
+
+
 def cut_join_profile(base, mode):
     """Avoid unowned tuple allocation; preserve legacy task order and visits."""
     if mode not in ('legacy', 'streamed'):
@@ -181,6 +191,7 @@ def main():
     ap.add_argument('--recovery-audit', action='store_true', help='diagnostic physical admission/recovery JSONL; I/O counts in the same mapping clock')
     ap.add_argument('--recovery-audit-cells', default='', help='comma-separated exact cell names for diagnostic output only; empty logs all')
     ap.add_argument('--recovery-noop-prefilter', choices=['off','on'], default='off', help='explicit same-binary identity-only recovery prefilter; fixed global clock')
+    ap.add_argument('--cut-truth', choices=['legacy','word'], default='legacy', help='exact bit-parallel event cut composition/substitution; unchanged task and candidate order')
     ap.add_argument('--cut-join', choices=['legacy','streamed'], default='legacy', help='same-binary tuple allocation reuse; unchanged task visits/order, domain and 600s clock')
     ap.add_argument('--recovery-cache', choices=['legacy','split','delta'], default='legacy', help='explicit same-binary cache dependency ablation; unchanged proposal domain and clock')
     ap.add_argument('--recovery-schedule', choices=['legacy','fair'], default='legacy', help='explicit same-binary fair recovery scheduling; unchanged metric, proof and 600-second clock')
@@ -205,6 +216,7 @@ def main():
     profile = recovery_noop_profile(profile, a.recovery_noop_prefilter)
     profile = recovery_cache_profile(profile, a.recovery_cache)
     profile = cut_join_profile(profile, a.cut_join)
+    profile = cut_truth_profile(profile, a.cut_truth)
     profile = recovery_schedule_profile(profile, a.recovery_schedule)
     profile = window_sdc_profile(profile, a.sdc_window_inputs)
     profile = monotone_sdc_profile(profile, a.sdc_monotone)

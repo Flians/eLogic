@@ -245,5 +245,17 @@ class CutJoinProfileTests(unittest.TestCase):
         with self.assertRaises(ValueError):cut_join_profile(base,'invalid')
 
 
+class CutTruthProfileTests(unittest.TestCase):
+    def test_word_truth_changes_no_schedule_or_budget(self):
+        from run import cut_truth_profile
+        base=dict(environment={'EGM_TOTAL_TIME_ONLY':'1','EGM_CUT_JOIN_STREAMED':'0'},mapping_seconds=600)
+        for mode in ['legacy','word']:
+            r=cut_truth_profile(base,mode)
+            self.assertEqual(r['environment'],dict(base['environment'],EGM_CUT_TRUTH_WORD='1' if mode=='word' else '0'))
+            self.assertEqual(r['mapping_seconds'],600)
+        self.assertNotIn('EGM_CUT_TRUTH_WORD',base['environment'])
+        with self.assertRaises(ValueError):cut_truth_profile(base,'invalid')
+
+
 if __name__ == '__main__':
     unittest.main()
