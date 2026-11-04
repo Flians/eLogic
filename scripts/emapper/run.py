@@ -175,6 +175,7 @@ def main():
     ap.add_argument('--area-reject-cache', choices=['off','on'], default='off', help='explicit exact-context ordinary area rejection cache; same candidate domain and deadline')
     ap.add_argument('--proposal-observation', action='store_true', help='count complete ordinary recovery proposal identities and global contexts; no pruning, overhead inside budget')
     ap.add_argument('--lifecycle', action='store_true', help='diagnostic cut-to-care lifecycle and exact representative export; overhead inside 600s')
+    ap.add_argument('--match-schedule', choices=['legacy','fair'], default='legacy', help='persistent exact/INV/constant/SDC lane rotation; no task pruning or renewed clock')
     ap.add_argument('--selected-provenance', action='store_true', help='selected generator/care witnesses, content-addressed inside mapping budget')
     ap.add_argument('--observe', action='store_true', help='persistent native trajectory and exclusive scope costs; overhead inside 600s')
     ap.add_argument('--snapshot-after', type=float, help='diagnostic snapshot at first recovery boundary after native online seconds; not a search stop or extra budget')
@@ -194,6 +195,8 @@ def main():
     if a.match_profile:
         profile['name'] += '-match-profile'
         profile['environment']['EGM_MATCH_PROFILE'] = '1'
+    profile['environment']['EGM_MATCH_FAIR'] = '1' if a.match_schedule == 'fair' else '0'
+    profile['selected_provenance_requested'] = bool(a.selected_provenance)
     library = ROOT/'emapper/libraries/asap7/asap7_full.genlib'
     native = ROOT/'target/release/emapper_kernel'
     measure = ROOT/'target/release/emapper_measure'
