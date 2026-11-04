@@ -257,5 +257,17 @@ class CutTruthProfileTests(unittest.TestCase):
         with self.assertRaises(ValueError):cut_truth_profile(base,'invalid')
 
 
+class CutCostProfileTests(unittest.TestCase):
+    def test_cost_detail_is_explicit_and_leaves_budget_and_features_unchanged(self):
+        from run import cut_cost_profile
+        base=dict(environment={'EGM_CUT_TRUTH_WORD':'0','EGM_TOTAL_TIME_ONLY':'1'},mapping_seconds=600)
+        for enabled in [False,True]:
+            r=cut_cost_profile(base,enabled)
+            self.assertEqual(r['mapping_seconds'],600)
+            self.assertEqual(r['environment'],dict(base['environment'],EGM_CUT_COST_DETAIL='1' if enabled else '0'))
+        self.assertNotIn('EGM_CUT_COST_DETAIL',base['environment'])
+        with self.assertRaises(ValueError):cut_cost_profile(base,1)
+
+
 if __name__ == '__main__':
     unittest.main()
