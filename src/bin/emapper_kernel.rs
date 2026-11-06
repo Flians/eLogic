@@ -24,6 +24,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("configuration: EGM_PENDING_FRONTIER={}", std::env::var("EGM_PENDING_FRONTIER").unwrap_or_else(|_|"0".into()));
     eprintln!("configuration: EGM_FOLDED_PIN_MATCH={}", std::env::var("EGM_FOLDED_PIN_MATCH").unwrap_or_else(|_|"0".into()));
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str)==Some("--replay-label-cost") {
+        if args.len()!=3{return Err("label-cost replay requires snapshot.json output.json".into())}
+        emapper::egraph_map::replay_label_cost(std::path::Path::new(&args[1]),std::path::Path::new(&args[2]))?;return Ok(())
+    }
     if args.first().map(String::as_str)==Some("--replay-recovery") {
         if args.len()!=4 || !["legacy","fair"].contains(&args[3].as_str()){return Err("replay requires snapshot.json output.v legacy|fair".into())}
         emapper::egraph_map::replay_recovery_snapshot(std::path::Path::new(&args[1]),std::path::Path::new(&args[2]),args[3]=="fair")?;return Ok(())
