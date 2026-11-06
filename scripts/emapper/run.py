@@ -161,6 +161,16 @@ def cut_join_profile(base, mode):
     return profile
 
 
+def flow_witness_profile(base, mode):
+    """Same witness semantics; accumulate every Flow delta before score deferral."""
+    if mode not in ('legacy', 'delta'):
+        raise ValueError('unknown flow witness mode')
+    profile = copy.deepcopy(base)
+    profile['environment']['EGM_FLOW_WITNESS_DELTA'] = '1' if mode == 'delta' else '0'
+    profile['flow_witness_policy'] = mode
+    return profile
+
+
 def recovery_cache_profile(base, mode):
     if mode not in ('legacy', 'split', 'delta', 'lifecycle'):
         raise ValueError('unknown recovery cache mode')
@@ -227,6 +237,7 @@ def main():
     ap.add_argument('--cut-cost-detail', action='store_true', help='diagnostic exclusive event lanes/admission costs; observation overhead inside600s, not a speed result')
     ap.add_argument('--cut-truth', choices=['legacy','word'], default='legacy', help='exact bit-parallel event cut composition/substitution; unchanged task and candidate order')
     ap.add_argument('--cut-join', choices=['legacy','streamed'], default='legacy', help='same-binary tuple allocation reuse; unchanged task visits/order, domain and 600s clock')
+    ap.add_argument('--flow-witness', choices=['legacy','delta'], default='legacy', help='accumulated Flow witness deltas; unchanged score/certificate schedule and600s')
     ap.add_argument('--recovery-cache', choices=['legacy','split','delta','lifecycle'], default='legacy', help='explicit same-binary cache dependency ablation; unchanged proposal domain and clock')
     ap.add_argument('--recovery-schedule', choices=['legacy','fair'], default='legacy', help='explicit same-binary fair recovery scheduling; unchanged metric, proof and 600-second clock')
     ap.add_argument('--replay-snapshot', type=Path, help='diagnostic fixed-pool cold recovery replay; not full mapping')
@@ -249,6 +260,7 @@ def main():
     profile = recovery_input_profile(ablation_profile(json.loads(profile_path.read_text()), a.ablation), a.recovery_inputs)
     profile = recovery_noop_profile(profile, a.recovery_noop_prefilter)
     profile = recovery_cache_profile(profile, a.recovery_cache)
+    profile = flow_witness_profile(profile, a.flow_witness)
     profile = cut_join_profile(profile, a.cut_join)
     profile = cut_truth_profile(profile, a.cut_truth)
     profile = cut_cost_profile(profile, a.cut_cost_detail)
