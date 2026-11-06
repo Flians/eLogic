@@ -162,11 +162,12 @@ def cut_join_profile(base, mode):
 
 
 def recovery_cache_profile(base, mode):
-    if mode not in ('legacy', 'split', 'delta'):
+    if mode not in ('legacy', 'split', 'delta', 'lifecycle'):
         raise ValueError('unknown recovery cache mode')
     profile = copy.deepcopy(base)
     profile['environment']['EGM_RECOVERY_CACHE_SPLIT'] = '1' if mode == 'split' else '0'
     profile['environment']['EGM_RECOVERY_CACHE_DELTA'] = '1' if mode == 'delta' else '0'
+    profile['environment']['EGM_RECOVERY_CACHE_LIFECYCLE'] = '1' if mode == 'lifecycle' else '0'
     profile['recovery_cache_policy'] = mode
     return profile
 
@@ -226,7 +227,7 @@ def main():
     ap.add_argument('--cut-cost-detail', action='store_true', help='diagnostic exclusive event lanes/admission costs; observation overhead inside600s, not a speed result')
     ap.add_argument('--cut-truth', choices=['legacy','word'], default='legacy', help='exact bit-parallel event cut composition/substitution; unchanged task and candidate order')
     ap.add_argument('--cut-join', choices=['legacy','streamed'], default='legacy', help='same-binary tuple allocation reuse; unchanged task visits/order, domain and 600s clock')
-    ap.add_argument('--recovery-cache', choices=['legacy','split','delta'], default='legacy', help='explicit same-binary cache dependency ablation; unchanged proposal domain and clock')
+    ap.add_argument('--recovery-cache', choices=['legacy','split','delta','lifecycle'], default='legacy', help='explicit same-binary cache dependency ablation; unchanged proposal domain and clock')
     ap.add_argument('--recovery-schedule', choices=['legacy','fair'], default='legacy', help='explicit same-binary fair recovery scheduling; unchanged metric, proof and 600-second clock')
     ap.add_argument('--replay-snapshot', type=Path, help='diagnostic fixed-pool cold recovery replay; not full mapping')
     ap.add_argument('--area-reject-cache', choices=['off','on'], default='off', help='explicit exact-context ordinary area rejection cache; same candidate domain and deadline')

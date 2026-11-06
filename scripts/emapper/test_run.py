@@ -295,3 +295,16 @@ class FrontierPreparationProfileTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class LifecycleCacheProfileTests(unittest.TestCase):
+    def test_lifecycle_has_one_explicit_switch_and_no_search_budget_changes(self):
+        base = dict(environment={'EGM_TOTAL_TIME_ONLY':'1','EGM_CUTS':'18446744073709551615'}, mapping_seconds=600)
+        legacy = recovery_cache_profile(base, 'legacy')
+        candidate = recovery_cache_profile(base, 'lifecycle')
+        self.assertEqual({k for k in legacy['environment'] if legacy['environment'][k] != candidate['environment'][k]}, {'EGM_RECOVERY_CACHE_LIFECYCLE'})
+        self.assertEqual(candidate['environment']['EGM_RECOVERY_CACHE_SPLIT'], '0')
+        self.assertEqual(candidate['environment']['EGM_RECOVERY_CACHE_DELTA'], '0')
+        self.assertEqual(candidate['mapping_seconds'], 600)
+        self.assertEqual(candidate['environment']['EGM_CUTS'], base['environment']['EGM_CUTS'])
+        self.assertNotIn('EGM_RECOVERY_CACHE_LIFECYCLE', base['environment'])
