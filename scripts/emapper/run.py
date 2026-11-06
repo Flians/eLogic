@@ -161,6 +161,18 @@ def cut_join_profile(base, mode):
     return profile
 
 
+def initial_cover_profile(base, mode):
+    """Native warm start retains the complete main candidate/recovery pipeline."""
+    if mode not in ('source', 'native-delay'):
+        raise ValueError('unknown initial cover mode')
+    if mode == 'native-delay' and base['environment'].get('EGM_EDITABLE_SOURCE') != '1':
+        raise ValueError('native delay cover requires source-editable ablation')
+    profile = copy.deepcopy(base)
+    profile['environment']['EGM_NATIVE_INITIAL_DELAY'] = '1' if mode == 'native-delay' else '0'
+    profile['initial_cover_policy'] = mode
+    return profile
+
+
 def flow_witness_profile(base, mode):
     """Same witness semantics; accumulate every Flow delta before score deferral."""
     if mode not in ('legacy', 'delta'):
@@ -237,6 +249,7 @@ def main():
     ap.add_argument('--cut-cost-detail', action='store_true', help='diagnostic exclusive event lanes/admission costs; observation overhead inside600s, not a speed result')
     ap.add_argument('--cut-truth', choices=['legacy','word'], default='legacy', help='exact bit-parallel event cut composition/substitution; unchanged task and candidate order')
     ap.add_argument('--cut-join', choices=['legacy','streamed'], default='legacy', help='same-binary tuple allocation reuse; unchanged task visits/order, domain and 600s clock')
+    ap.add_argument('--initial-cover', choices=['source','native-delay'], default='source', help='native source-DAG delay warm start, no external mapper; original full candidate space retained')
     ap.add_argument('--flow-witness', choices=['legacy','delta'], default='legacy', help='accumulated Flow witness deltas; unchanged score/certificate schedule and600s')
     ap.add_argument('--recovery-cache', choices=['legacy','split','delta','lifecycle'], default='legacy', help='explicit same-binary cache dependency ablation; unchanged proposal domain and clock')
     ap.add_argument('--recovery-schedule', choices=['legacy','fair'], default='legacy', help='explicit same-binary fair recovery scheduling; unchanged metric, proof and 600-second clock')
@@ -258,6 +271,9 @@ def main():
     folder = safe_path(a.output.resolve())
     profile_path = ROOT/'emapper/profiles/delivery.json'
     profile = recovery_input_profile(ablation_profile(json.loads(profile_path.read_text()), a.ablation), a.recovery_inputs)
+    if a.initial_cover == 'native-delay' and (a.seed_verilog or a.fresh_emap_seed):
+        raise ValueError('native initial delay cover cannot use an external mapper or seed')
+    profile = initial_cover_profile(profile, a.initial_cover)
     profile = recovery_noop_profile(profile, a.recovery_noop_prefilter)
     profile = recovery_cache_profile(profile, a.recovery_cache)
     profile = flow_witness_profile(profile, a.flow_witness)
@@ -437,6 +453,11 @@ def main():
             report['source_incumbent'] = selection['incumbent']
         source_audit=folder/'incumbents/source-seed.json'
         if source_audit.exists():report['editable_source']=json.loads(source_audit.read_text())
+        initial_delay_audit=folder/'incumbents/native-initial-delay.json'
+        report['native_initial_delay_available']=initial_delay_audit.exists()
+        if initial_delay_audit.exists():
+            native_initial=json.loads(initial_delay_audit.read_text())
+            report['native_initial_delay']=native_initial
         if a.seed_native=='editable':
             report['external_native_import']=dict(requested=True,applied=report.get('editable_source',{}).get('external_seed_editable',False),fallback_remains_legal=True,proof_receipt=str(folder/'external-seed/native-proof.json'))
         report['search_timeout'] |= bool(native_info.get('search_deadline_hit',False))
@@ -484,6 +505,9 @@ def main():
             else:
                 report['selected_evidence'] = dict(valid=None, reason='constructive fallback has no native selected proof set; utilization unknown')
         report['status'] = 'metric_failed' if not same_metrics else 'ok' if good and optimized else 'source_only' if good else 'cec_failed'
+        if report.get('native_initial_delay'):
+            area,delay=report['native_initial_delay']['initial_AD']
+            report['search_vs_native_initial']=contribution(dict(area=area,delay=delay),report['measured'])
         if report.get('external_seed'):
             report['search_vs_seed']=contribution(report['external_seed']['measured'],report['measured'])
             report['search_vs_seed']['CEC']=int(good)
