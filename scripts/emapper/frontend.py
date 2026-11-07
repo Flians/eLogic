@@ -20,6 +20,13 @@ def fnv(data):
     v=0xcbf29ce484222325
     for b in data:v=((v^b)*0x100000001b3)&((1<<64)-1)
     return f'{v:016x}'
+def valid_integrity(manifest,data):
+    """An explicit protocol selects its authoritative full-byte digest; never downgrade."""
+    if manifest.get('bytes')!=len(data):return False
+    algorithm=manifest.get('integrity_algorithm','fnv64')
+    if algorithm=='sha256':return manifest.get('sha256')==hashlib.sha256(data).hexdigest()
+    if algorithm=='fnv64':return manifest.get('fnv64')==fnv(data)
+    return False
 def atomic_json(path,value):
     temp=path.with_suffix(path.suffix+'.pending');temp.write_text(json.dumps(value,indent=2)+'\n');temp.replace(path)
 def scan(root,receipt_path,deadline,provenance,source,best=None,state=None):
@@ -37,7 +44,7 @@ def scan(root,receipt_path,deadline,provenance,source,best=None,state=None):
             if reference is not None and not better_da(m,reference):
                 state.processed.add(sequence);state.counts['nonimproving']+=1;continue
             netlist=folder/'mapped.v';data=netlist.read_bytes();state.counts['netlists_checked']+=1;state.counts['netlist_bytes_checked']+=len(data)
-            if m['bytes']!=len(data)or m['fnv64']!=fnv(data):
+            if not valid_integrity(m,data):
                 state.processed.add(sequence);state.counts['integrity_rejected']+=1;continue
             record=dict(m,netlist=str(netlist.resolve()),netlist_sha256=hashlib.sha256(data).hexdigest(),manifest=str(manifest.resolve()),manifest_sha256=sha(manifest),provenance=provenance)
             observed=time.monotonic()
@@ -53,7 +60,7 @@ def verify_receipt(path,library,subject,native):
     assert r['observed_monotonic']<r['deadline_monotonic']
     assert sha(r['netlist'])==r['netlist_sha256'] and sha(r['manifest'])==r['manifest_sha256']
     m=json.loads(Path(r['manifest']).read_text());assert m['kind']in ('complete-generated-cover','complete-source-cover')
-    assert m['fnv64']==fnv(Path(r['netlist']).read_bytes())
+    assert valid_integrity(m,Path(r['netlist']).read_bytes())
     assert all(r[k]==m[k]for k in ['area','delay','sequence','instances','matched_cuts'])
     return r
 

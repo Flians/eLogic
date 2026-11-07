@@ -24,7 +24,7 @@ class OutputSelectionTests(unittest.TestCase):
     def receipt(self):
         net = self.root/'incumbent.v';net.write_text('optimized complete cover')
         manifest = self.root/'manifest.json'
-        values = dict(kind='complete-generated-cover', fnv64=fnv(net.read_bytes()),
+        values = dict(kind='complete-generated-cover', fnv64=fnv(net.read_bytes()), bytes=len(net.read_bytes()),
                       area=3.,delay=2.,sequence=1,instances=2,matched_cuts=4)
         manifest.write_text(json.dumps(values))
         r = dict(values, netlist=str(net),manifest=str(manifest),

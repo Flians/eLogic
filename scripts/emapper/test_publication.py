@@ -1,8 +1,8 @@
 """P0: final lexicographic objective, transactional receipt, bounded repeated IO."""
-import json,tempfile,time,unittest
+import hashlib,json,tempfile,time,unittest
 from pathlib import Path
 from unittest.mock import patch
-from frontend import ScanState,scan,better_da,fnv
+from frontend import ScanState,scan,better_da,fnv,valid_integrity,verify_receipt,sha
 class PublicationTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name);self.receipt=self.root/'receipt.json';self.state=ScanState();self.source=dict(area=10.,delay=1000000.);self.deadline=time.monotonic()+10
@@ -37,3 +37,33 @@ class PublicationTests(unittest.TestCase):
  def test_nonmonotone_metadata_still_selects_the_older_better_cover(self):
   self.manifest(1,delay=999998.);self.manifest(2,delay=999999.)
   self.assertEqual(self.scan()['sequence'],1);self.assertEqual(self.state.counts['netlists_checked'],2)
+
+ def test_sha256_protocol_can_receipt_without_slow_python_fnv(self):
+  p=self.manifest();m=json.loads((p/'manifest.json').read_text());m.update(integrity_algorithm='sha256',sha256=hashlib.sha256((p/'mapped.v').read_bytes()).hexdigest());(p/'manifest.json').write_text(json.dumps(m))
+  clock=[self.deadline-1]
+  def slow_fnv(data):
+   clock[0]=self.deadline+1
+   return fnv(data)
+  with patch('frontend.time.monotonic',side_effect=lambda:clock[0]),patch('frontend.fnv',side_effect=slow_fnv)as legacy:
+   self.assertIsNotNone(self.scan(),'complete SHA-verified cover must not wait for redundant Python FNV')
+   legacy.assert_not_called()
+
+ def test_sha256_protocol_is_fail_closed_and_checks_full_bytes(self):
+  data=b'abcdef';m=dict(bytes=len(data),integrity_algorithm='sha256',sha256=hashlib.sha256(data).hexdigest(),fnv64=fnv(data))
+  self.assertTrue(valid_integrity(m,data))
+  self.assertFalse(valid_integrity(m,b'abcdeg'))
+  for bad in [dict(m,sha256=None),dict(m,sha256=''),dict(m,bytes=len(data)+1),dict(m,integrity_algorithm='unknown')]:
+   with self.subTest(manifest=bad):self.assertFalse(valid_integrity(bad,data))
+  self.assertTrue(valid_integrity(dict(bytes=len(data),fnv64=fnv(data)),data))
+
+ def test_sha_receipt_reverification_never_reenters_python_fnv(self):
+  p=self.manifest();m=json.loads((p/'manifest.json').read_text());m.update(integrity_algorithm='sha256',sha256=sha(p/'mapped.v'));(p/'manifest.json').write_text(json.dumps(m))
+  paths=[self.root/n for n in ['library','subject','native']]
+  for path in paths:path.write_text(path.name)
+  provenance=dict(zip(['library_sha256','prepared_sha256','native_sha256'],map(sha,paths)))
+  with patch('frontend.fnv',side_effect=AssertionError('redundant legacy digest')):
+   result=scan(self.root,self.receipt,self.deadline,provenance,self.source,state=self.state)
+   self.assertEqual(verify_receipt(self.receipt,*paths),result)
+  original=self.receipt.read_bytes();(p/'mapped.v').write_bytes(b'x'*m['bytes'])
+  with self.assertRaises(AssertionError):verify_receipt(self.receipt,*paths)
+  self.assertEqual(self.receipt.read_bytes(),original)

@@ -257,6 +257,7 @@ def main():
     ap.add_argument('--match-profile', action='store_true', help='explicit diagnostic matching timers; unchanged search, profiling overhead counts in mapping time')
     ap.add_argument('--ablation', choices=['joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable', 'source-coalesced'], help='explicit same-binary joint or functional-search variant; fixed global clock')
     ap.add_argument('--cover-materialization', choices=['eager','coalesced','deferred'], help='explicit same-binary cover compaction/publication ablation; unchanged candidates and 600s')
+    ap.add_argument('--publication-integrity', choices=['fnv64','sha256'], default='fnv64', help='explicit full-byte publication digest protocol; no renewed mapping deadline')
     ap.add_argument('--recovery-inputs', choices=['legacy', 'overlay'], default='overlay', help='accepted-cover-first arrival screening, or explicit old witness-only control')
     ap.add_argument('--recovery-audit', action='store_true', help='diagnostic physical admission/recovery JSONL; I/O counts in the same mapping clock')
     ap.add_argument('--recovery-audit-cells', default='', help='comma-separated exact cell names for diagnostic output only; empty logs all')
@@ -301,6 +302,8 @@ def main():
     profile = frontier_preparation_profile(profile, a.frontier_preparation)
     if a.cover_materialization is not None:
         profile = cover_materialization_profile(profile, a.cover_materialization)
+    profile['environment']['EGM_PUBLICATION_INTEGRITY'] = a.publication_integrity
+    profile['publication_integrity'] = a.publication_integrity
     profile = recovery_schedule_profile(profile, a.recovery_schedule)
     profile = window_sdc_profile(profile, a.sdc_window_inputs)
     profile = monotone_sdc_profile(profile, a.sdc_monotone)
