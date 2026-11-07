@@ -46,6 +46,8 @@ def select_output(raw, native_info, library, subject, native):
         selection = dict(kind='optimized'if generated else'source_only', basis='verified_predeadline_receipt',
                          raw_sha256=sha(raw), incumbent=chosen)
     else:
+        if native_info.get('direct_native'):
+            raise RuntimeError('direct native mapping produced no verified complete cover')
         if not raw.exists() or sha(raw) != native_info.get('source_sha256'):
             raise RuntimeError('no verified incumbent or unchanged source cover')
         effective.update(optimizer_succeeded=False, selected='source_witness')
@@ -163,12 +165,15 @@ def cut_join_profile(base, mode):
 
 def initial_cover_profile(base, mode):
     """Native warm start retains the complete main candidate/recovery pipeline."""
-    if mode not in ('source', 'native-delay'):
+    if mode not in ('source', 'native-delay', 'direct'):
         raise ValueError('unknown initial cover mode')
     if mode == 'native-delay' and base['environment'].get('EGM_EDITABLE_SOURCE') != '1':
         raise ValueError('native delay cover requires source-editable ablation')
     profile = copy.deepcopy(base)
     profile['environment']['EGM_NATIVE_INITIAL_DELAY'] = '1' if mode == 'native-delay' else '0'
+    profile['environment']['EGM_DIRECT_NATIVE'] = '1' if mode == 'direct' else '0'
+    if mode == 'direct':
+        profile['environment']['EGM_EDITABLE_SOURCE'] = '0'
     profile['initial_cover_policy'] = mode
     return profile
 
@@ -249,7 +254,7 @@ def main():
     ap.add_argument('--cut-cost-detail', action='store_true', help='diagnostic exclusive event lanes/admission costs; observation overhead inside600s, not a speed result')
     ap.add_argument('--cut-truth', choices=['legacy','word'], default='legacy', help='exact bit-parallel event cut composition/substitution; unchanged task and candidate order')
     ap.add_argument('--cut-join', choices=['legacy','streamed'], default='legacy', help='same-binary tuple allocation reuse; unchanged task visits/order, domain and 600s clock')
-    ap.add_argument('--initial-cover', choices=['source','native-delay'], default='source', help='native source-DAG delay warm start, no external mapper; original full candidate space retained')
+    ap.add_argument('--initial-cover', choices=['source','native-delay','direct'], default='source', help='native source-DAG delay warm start, no external mapper; original full candidate space retained')
     ap.add_argument('--flow-witness', choices=['legacy','delta'], default='legacy', help='accumulated Flow witness deltas; unchanged score/certificate schedule and600s')
     ap.add_argument('--recovery-cache', choices=['legacy','split','delta','lifecycle'], default='legacy', help='explicit same-binary cache dependency ablation; unchanged proposal domain and clock')
     ap.add_argument('--recovery-schedule', choices=['legacy','fair'], default='legacy', help='explicit same-binary fair recovery scheduling; unchanged metric, proof and 600-second clock')
@@ -271,7 +276,7 @@ def main():
     folder = safe_path(a.output.resolve())
     profile_path = ROOT/'emapper/profiles/delivery.json'
     profile = recovery_input_profile(ablation_profile(json.loads(profile_path.read_text()), a.ablation), a.recovery_inputs)
-    if a.initial_cover == 'native-delay' and (a.seed_verilog or a.fresh_emap_seed):
+    if a.initial_cover in ('native-delay','direct') and (a.seed_verilog or a.fresh_emap_seed):
         raise ValueError('native initial delay cover cannot use an external mapper or seed')
     profile = initial_cover_profile(profile, a.initial_cover)
     profile = recovery_noop_profile(profile, a.recovery_noop_prefilter)
@@ -422,6 +427,7 @@ def main():
     from fresh_seed import remaining_mapping_seconds
     deadline = start+remaining_mapping_seconds(profile['mapping_seconds'], seed_generation_seconds)
     env['EGM_MAPPING_DEADLINE_MONOTONIC'] = str(deadline)
+    env['EGM_MAPPING_STARTED_MONOTONIC'] = str(start)
     timed_out = False
     try:
         with (folder/'mapping.stdout').open('w') as out, (folder/'mapping.stderr').open('w') as err:
@@ -451,6 +457,9 @@ def main():
             report['incumbent'] = selection['incumbent']
         elif selection.get('incumbent'):
             report['source_incumbent'] = selection['incumbent']
+        first_native=folder/'first-native-cover.json'
+        if first_native.exists():report['first_native_cover']=json.loads(first_native.read_text())
+        report['direct_native']=a.initial_cover=='direct'
         source_audit=folder/'incumbents/source-seed.json'
         if source_audit.exists():report['editable_source']=json.loads(source_audit.read_text())
         initial_delay_audit=folder/'incumbents/native-initial-delay.json'
@@ -505,6 +514,8 @@ def main():
             else:
                 report['selected_evidence'] = dict(valid=None, reason='constructive fallback has no native selected proof set; utilization unknown')
         report['status'] = 'metric_failed' if not same_metrics else 'ok' if good and optimized else 'source_only' if good else 'cec_failed'
+        if report.get('first_native_cover'):
+            f=report['first_native_cover'];report['search_vs_first_native']=contribution(dict(area=f['area'],delay=f['delay']),report['measured'])
         if report.get('native_initial_delay'):
             area,delay=report['native_initial_delay']['initial_AD']
             report['search_vs_native_initial']=contribution(dict(area=area,delay=delay),report['measured'])

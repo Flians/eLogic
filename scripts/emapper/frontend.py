@@ -34,7 +34,7 @@ def scan(root,receipt_path,deadline,provenance,source,best=None,state=None):
             if m.get('kind')not in ('complete-generated-cover','complete-source-cover')or m.get('sequence')!=sequence or not all(isinstance(m.get(k),(int,float))and math.isfinite(m[k])and m[k]>=0 for k in ['area','delay']):
                 state.processed.add(sequence);state.counts['metadata_rejected']+=1;continue
             reference=best if best else source
-            if not better_da(m,reference):
+            if reference is not None and not better_da(m,reference):
                 state.processed.add(sequence);state.counts['nonimproving']+=1;continue
             netlist=folder/'mapped.v';data=netlist.read_bytes();state.counts['netlists_checked']+=1;state.counts['netlist_bytes_checked']+=len(data)
             if m['bytes']!=len(data)or m['fnv64']!=fnv(data):
@@ -60,21 +60,27 @@ def verify_receipt(path,library,subject,native):
 def main():
     library,subject,out=map(Path,sys.argv[1:]);start=time.monotonic();deadline=float(os.environ.get('EGM_MAPPING_DEADLINE_MONOTONIC',start+600))
     native=Path(os.environ['EGM_NATIVE_OPTIMIZER']);models=library.parent/'library.json';meta=out.with_suffix('.complete.json')
-    editable=os.environ.get('EGM_EDITABLE_SOURCE')=='1';bundle={}if editable else None
-    text,seed=build_source_cover(subject.read_bytes(),models,deadline,phase_aware=True,bundle=bundle);constructive_seed=dict(seed);external=None
-    source=out.with_suffix('.source.v')
-    if os.environ.get('EGM_SEED_VERILOG'):
-        _external=Path(os.environ['EGM_SEED_VERILOG'])
-        measure=Path(os.environ.get('EGM_MEASURE_BINARY',str(native.with_name('emapper_measure'))))
-        text,external=supplied_seed(library,_external,subject,out.parent/'external-seed-measurement',measure,
-                                   os.environ.get('EGM_YOSYS','yosys'),os.environ.get('EGM_SEED_MANIFEST'))
-        seed=dict(external['measured'],kind='external-complete-cover',external_seed=str(_external.resolve()),
-                  external_seed_sha256=external['source_sha256'],canonical_measurement=external,egraph_search=False)
-    source.write_text(text);shutil.copyfile(source,out)
-    if editable:atomic_json(out.parent/'source.bundle.json',bundle)
+    direct=os.environ.get('EGM_DIRECT_NATIVE')=='1'
+    if direct and any(os.environ.get(k) for k in ('EGM_SEED_VERILOG','EGM_SOURCE_BUNDLE','EGM_EXTERNAL_BUNDLE')):
+        raise ValueError('direct native mapping rejects external seed/source bundle')
+    editable=not direct and os.environ.get('EGM_EDITABLE_SOURCE')=='1'
+    bundle={}if editable else None
+    seed=None;constructive_seed=None;external=None;source=None
+    if not direct:
+        text,seed=build_source_cover(subject.read_bytes(),models,deadline,phase_aware=True,bundle=bundle);constructive_seed=dict(seed)
+        source=out.with_suffix('.source.v')
+        if os.environ.get('EGM_SEED_VERILOG'):
+            _external=Path(os.environ['EGM_SEED_VERILOG'])
+            measure=Path(os.environ.get('EGM_MEASURE_BINARY',str(native.with_name('emapper_measure'))))
+            text,external=supplied_seed(library,_external,subject,out.parent/'external-seed-measurement',measure,
+                                       os.environ.get('EGM_YOSYS','yosys'),os.environ.get('EGM_SEED_MANIFEST'))
+            seed=dict(external['measured'],kind='external-complete-cover',external_seed=str(_external.resolve()),
+                      external_seed_sha256=external['source_sha256'],canonical_measurement=external,egraph_search=False)
+        source.write_text(text);shutil.copyfile(source,out)
+        if editable:atomic_json(out.parent/'source.bundle.json',bundle)
     receipt=out.with_suffix('.incumbent.receipt.json');root=out.parent/'incumbents';root.mkdir(exist_ok=False)
     provenance=dict(library_sha256=sha(library),prepared_sha256=sha(subject),native_sha256=sha(native))
-    info=dict(policy='stream600-v1',source=seed,source_sha256=sha(source),library_sha256=sha(library),prepared_sha256=sha(subject),native_optimizer=str(native),native_optimizer_sha256=sha(native),optimizer_succeeded=False,selected='source_witness',CEC_required=True,main_mapper_merged=True,delivery_profile='single-output-da-streamed-library',count_limits=None,phase_limits=None)
+    info=dict(policy='direct-native600-v1'if direct else'stream600-v1',source=seed,source_sha256=sha(source)if source else None,library_sha256=sha(library),prepared_sha256=sha(subject),native_optimizer=str(native),native_optimizer_sha256=sha(native),optimizer_succeeded=False,selected='no_complete_cover'if direct else'source_witness',CEC_required=True,main_mapper_merged=True,delivery_profile='single-output-da-streamed-library',count_limits=None,phase_limits=None,direct_native=direct)
     if external:
         info.update(constructive_source=constructive_seed,external_seed=external,
                     source_bundle_role='native constructive cover; external seed is an outer delivery comparator',
@@ -97,14 +103,18 @@ def main():
             atomic_json(meta,info);return
     # Definition construction is mapping work: never renew its elapsed time.
     if time.monotonic()>=deadline:
-        info.update(search_finished=False,search_deadline_hit=True,external_native_import_failed='mapping deadline before native launch',selected_verilog_sha256=sha(out));atomic_json(meta,info);return
+        info.update(search_finished=False,search_deadline_hit=True,external_native_import_failed='mapping deadline before native launch',selected_verilog_sha256=sha(out)if out.exists()else None);atomic_json(meta,info);return
     env['EGM_TOTAL_REMAINING_SECS']=str(max(.000001,deadline-time.monotonic()-_grace))
     env.pop('EGM_DIAG_PATH',None);best=None;timed_out=False;scan_state=ScanState();last_audit=0.
+    first_recorded=False
     with(out.parent/'native.stdout').open('w')as stdout,(out.parent/'native.stderr').open('w')as stderr:
         native_argv = [str(native), '--replay-recovery', env['EGM_REPLAY_SNAPSHOT'], str(worker), 'fair' if env.get('EGM_RECOVERY_FAIR') == '1' else 'legacy'] if env.get('EGM_REPLAY_SNAPSHOT') else [str(native),str(library),str(subject),str(worker)]
         proc=subprocess.Popen(native_argv,env=env,stdout=stdout,stderr=stderr)
         while True:
             best=scan(root,receipt,deadline,provenance,seed,best,scan_state)
+            if direct and best and not first_recorded:
+                first=dict(best,mapping_elapsed_seconds=best['observed_monotonic']-float(os.environ.get('EGM_MAPPING_STARTED_MONOTONIC',start)),constructor='existing native primitive/cut match and incremental delay Flow',external_mapper_called=False,source_bundle_used=False,timing_scope='first externally verified complete native cover, including supervisor lag')
+                atomic_json(out.parent/'first-native-cover.json',first);first_recorded=True
             if time.monotonic()-last_audit>=1.:
                 atomic_json(out.parent/'publication.json',scan_state.report());last_audit=time.monotonic()
             if proc.poll()is not None:
@@ -114,10 +124,13 @@ def main():
             if remaining<=0:timed_out=True;proc.kill();proc.wait();break
             time.sleep(min(.05,remaining))
     atomic_json(out.parent/'publication.json',scan_state.report())
+    if direct and best and not first_recorded:
+        first=dict(best,mapping_elapsed_seconds=best['observed_monotonic']-float(os.environ.get('EGM_MAPPING_STARTED_MONOTONIC',start)),constructor='existing native primitive/cut match and incremental delay Flow',external_mapper_called=False,source_bundle_used=False,timing_scope='first externally verified complete native cover, including supervisor lag')
+        atomic_json(out.parent/'first-native-cover.json',first)
     if best:
         verified=verify_receipt(receipt,library,subject,native);shutil.copyfile(verified['netlist'],out)
         info.update(optimizer_succeeded=verified['kind']=='complete-generated-cover',selected='validated_online_incumbent'if verified['kind']=='complete-generated-cover'else'native_source_seed',incumbent=verified)
-    info.update(search_finished=proc.returncode==0,search_deadline_hit=timed_out,native_exit_code=proc.returncode,total_mapping_frontend_secs=time.monotonic()-start,selected_verilog_sha256=sha(out))
+    info.update(search_finished=proc.returncode==0 and (best is not None or not direct),search_deadline_hit=timed_out,native_exit_code=proc.returncode,total_mapping_frontend_secs=time.monotonic()-start,selected_verilog_sha256=sha(out)if out.exists()else None)
     atomic_json(meta,info)
-    print(json.dumps(dict(area=best['area']if best else seed['area'],delay=best['delay']if best else seed['delay'],optimizer_succeeded=info['optimizer_succeeded'],search_finished=proc.returncode==0)))
+    print(json.dumps(dict(area=best['area']if best else seed['area']if seed else None,delay=best['delay']if best else seed['delay']if seed else None,optimizer_succeeded=info['optimizer_succeeded'],search_finished=info['search_finished'])))
 if __name__=='__main__':main()
