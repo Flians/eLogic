@@ -113,6 +113,17 @@ def recovery_noop_profile(base, mode):
     return profile
 
 
+def cover_materialization_profile(base, mode):
+    """Change cover compaction/publication only; keep candidate production intact."""
+    if mode not in ('eager', 'coalesced', 'deferred'):
+        raise ValueError('unknown cover materialization mode')
+    profile = copy.deepcopy(base)
+    profile['environment']['EGM_DEFER_COVER_MATERIALIZATION'] = '1' if mode == 'deferred' else '0'
+    profile['environment']['EGM_COALESCE_RECOVERY_PUBLICATION'] = '0' if mode == 'eager' else '1'
+    profile['cover_materialization'] = mode
+    return profile
+
+
 def frontier_preparation_profile(base, mode):
     """Reuse immutable physical incidences only; rebuild numerical labels."""
     if mode not in ('off', 'on'):
@@ -245,6 +256,7 @@ def main():
     ap.add_argument('--sdc-monotone', action='store_true', help='explicit PI-exact care retained, window supplements only full-care fallback; unchanged 600s and candidate domain')
     ap.add_argument('--match-profile', action='store_true', help='explicit diagnostic matching timers; unchanged search, profiling overhead counts in mapping time')
     ap.add_argument('--ablation', choices=['joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable', 'source-coalesced'], help='explicit same-binary joint or functional-search variant; fixed global clock')
+    ap.add_argument('--cover-materialization', choices=['eager','coalesced','deferred'], help='explicit same-binary cover compaction/publication ablation; unchanged candidates and 600s')
     ap.add_argument('--recovery-inputs', choices=['legacy', 'overlay'], default='overlay', help='accepted-cover-first arrival screening, or explicit old witness-only control')
     ap.add_argument('--recovery-audit', action='store_true', help='diagnostic physical admission/recovery JSONL; I/O counts in the same mapping clock')
     ap.add_argument('--recovery-audit-cells', default='', help='comma-separated exact cell names for diagnostic output only; empty logs all')
@@ -287,6 +299,8 @@ def main():
     profile = cut_cost_profile(profile, a.cut_cost_detail)
     profile = batch_frontier_profile(profile, a.batch_frontier_cache)
     profile = frontier_preparation_profile(profile, a.frontier_preparation)
+    if a.cover_materialization is not None:
+        profile = cover_materialization_profile(profile, a.cover_materialization)
     profile = recovery_schedule_profile(profile, a.recovery_schedule)
     profile = window_sdc_profile(profile, a.sdc_window_inputs)
     profile = monotone_sdc_profile(profile, a.sdc_monotone)

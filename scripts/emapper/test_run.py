@@ -2,6 +2,7 @@
 import json
 import tempfile
 import unittest
+from run import cover_materialization_profile
 from pathlib import Path
 from run import monotone_sdc_profile, window_sdc_profile, recovery_schedule_profile, recovery_cache_profile, recovery_noop_profile, recovery_input_profile, ablation_profile, select_output, search_queues_complete
 from frontend import fnv, sha
@@ -308,3 +309,19 @@ class LifecycleCacheProfileTests(unittest.TestCase):
         self.assertEqual(candidate['mapping_seconds'], 600)
         self.assertEqual(candidate['environment']['EGM_CUTS'], base['environment']['EGM_CUTS'])
         self.assertNotIn('EGM_RECOVERY_CACHE_LIFECYCLE', base['environment'])
+
+
+class CoverMaterializationProfileTests(unittest.TestCase):
+    def test_modes_change_only_compaction_publication_and_do_not_mutate_base(self):
+        base={'environment':{'EGM_UNCHANGED':'kept'},'mapping_seconds':600,'candidates':'complete'}
+        for mode in ['eager','coalesced','deferred']:
+            got=cover_materialization_profile(base,mode)
+            self.assertEqual(got['mapping_seconds'],600)
+            self.assertEqual(got['candidates'],'complete')
+            self.assertEqual(got['environment']['EGM_UNCHANGED'],'kept')
+            self.assertEqual(got['environment']['EGM_DEFER_COVER_MATERIALIZATION'],'1' if mode=='deferred' else '0')
+            self.assertEqual(got['environment']['EGM_COALESCE_RECOVERY_PUBLICATION'],'0' if mode=='eager' else '1')
+            self.assertEqual(set(got['environment'])-set(base['environment']),{'EGM_DEFER_COVER_MATERIALIZATION','EGM_COALESCE_RECOVERY_PUBLICATION'})
+        self.assertEqual(base['environment'],{'EGM_UNCHANGED':'kept'})
+        with self.assertRaises(ValueError):
+            cover_materialization_profile(base,'invalid')
