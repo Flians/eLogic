@@ -314,14 +314,16 @@ class LifecycleCacheProfileTests(unittest.TestCase):
 class CoverMaterializationProfileTests(unittest.TestCase):
     def test_modes_change_only_compaction_publication_and_do_not_mutate_base(self):
         base={'environment':{'EGM_UNCHANGED':'kept'},'mapping_seconds':600,'candidates':'complete'}
-        for mode in ['eager','coalesced','deferred']:
+        for mode in ['eager','coalesced','deferred','event']:
             got=cover_materialization_profile(base,mode)
             self.assertEqual(got['mapping_seconds'],600)
             self.assertEqual(got['candidates'],'complete')
             self.assertEqual(got['environment']['EGM_UNCHANGED'],'kept')
-            self.assertEqual(got['environment']['EGM_DEFER_COVER_MATERIALIZATION'],'1' if mode=='deferred' else '0')
+            self.assertEqual(got['environment']['EGM_DEFER_COVER_MATERIALIZATION'],'1' if mode in ('deferred','event') else '0')
             self.assertEqual(got['environment']['EGM_COALESCE_RECOVERY_PUBLICATION'],'0' if mode=='eager' else '1')
-            self.assertEqual(set(got['environment'])-set(base['environment']),{'EGM_DEFER_COVER_MATERIALIZATION','EGM_COALESCE_RECOVERY_PUBLICATION'})
+            self.assertEqual(set(got['environment'])-set(base['environment']),{'EGM_DEFER_COVER_MATERIALIZATION','EGM_COALESCE_RECOVERY_PUBLICATION','EGM_COALESCE_MATCH_PUBLICATION'})
         self.assertEqual(base['environment'],{'EGM_UNCHANGED':'kept'})
+        old=cover_materialization_profile(base,'deferred')['environment'];new=cover_materialization_profile(base,'event')['environment']
+        self.assertEqual({k for k in old if old[k]!=new[k]},{'EGM_COALESCE_MATCH_PUBLICATION'})
         with self.assertRaises(ValueError):
             cover_materialization_profile(base,'invalid')

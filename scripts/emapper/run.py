@@ -115,10 +115,11 @@ def recovery_noop_profile(base, mode):
 
 def cover_materialization_profile(base, mode):
     """Change cover compaction/publication only; keep candidate production intact."""
-    if mode not in ('eager', 'coalesced', 'deferred'):
+    if mode not in ('eager', 'coalesced', 'deferred', 'event'):
         raise ValueError('unknown cover materialization mode')
     profile = copy.deepcopy(base)
-    profile['environment']['EGM_DEFER_COVER_MATERIALIZATION'] = '1' if mode == 'deferred' else '0'
+    profile['environment']['EGM_DEFER_COVER_MATERIALIZATION'] = '1' if mode in ('deferred','event') else '0'
+    profile['environment']['EGM_COALESCE_MATCH_PUBLICATION'] = '1' if mode == 'event' else '0'
     profile['environment']['EGM_COALESCE_RECOVERY_PUBLICATION'] = '0' if mode == 'eager' else '1'
     profile['cover_materialization'] = mode
     return profile
@@ -256,7 +257,7 @@ def main():
     ap.add_argument('--sdc-monotone', action='store_true', help='explicit PI-exact care retained, window supplements only full-care fallback; unchanged 600s and candidate domain')
     ap.add_argument('--match-profile', action='store_true', help='explicit diagnostic matching timers; unchanged search, profiling overhead counts in mapping time')
     ap.add_argument('--ablation', choices=['joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable', 'source-coalesced'], help='explicit same-binary joint or functional-search variant; fixed global clock')
-    ap.add_argument('--cover-materialization', choices=['eager','coalesced','deferred'], help='explicit same-binary cover compaction/publication ablation; unchanged candidates and 600s')
+    ap.add_argument('--cover-materialization', choices=['eager','coalesced','deferred','event'], help='explicit same-binary cover compaction/publication ablation; event also coalesces one existing small-match event; unchanged candidates and 600s')
     ap.add_argument('--publication-integrity', choices=['fnv64','sha256'], default='fnv64', help='explicit full-byte publication digest protocol; no renewed mapping deadline')
     ap.add_argument('--recovery-inputs', choices=['legacy', 'overlay'], default='overlay', help='accepted-cover-first arrival screening, or explicit old witness-only control')
     ap.add_argument('--recovery-audit', action='store_true', help='diagnostic physical admission/recovery JSONL; I/O counts in the same mapping clock')
