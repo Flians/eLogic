@@ -259,6 +259,7 @@ def main():
     ap.add_argument('--ablation', choices=['joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable', 'source-coalesced'], help='explicit same-binary joint or functional-search variant; fixed global clock')
     ap.add_argument('--cover-materialization', choices=['eager','coalesced','deferred','event'], help='explicit same-binary cover compaction/publication ablation; event also coalesces one existing small-match event; unchanged candidates and 600s')
     ap.add_argument('--publication-integrity', choices=['fnv64','sha256'], default='fnv64', help='explicit full-byte publication digest protocol; no renewed mapping deadline')
+    ap.add_argument('--frontier-numeric',choices=['legacy','local'],default='legacy',help='local: exact dependency-closed numerical reuse on positive full-arc graphs, full-builder fallback otherwise; requires frontier cache/preparation on')
     ap.add_argument('--trial-timing-first',choices=['off','on','goal-aware'],default='off',help='off: area-first; on: timing-first for both goals; goal-aware: timing-first only for DelayArea; acceptance and domain unchanged')
     ap.add_argument('--unchanged-delay-floor', choices=['off','on'], default='off', help='exact untouched-output delay lower bound for conservative DA trial rejection')
     ap.add_argument('--joint-pair-owner', choices=['off','on'], default='off', help='one usable shared helper owns each physical joint pair; retains complete pair set')
@@ -322,6 +323,8 @@ def main():
     profile['joint_pair_owner'] = a.joint_pair_owner
     profile['environment']['EGM_UNCHANGED_DELAY_FLOOR'] = '1' if a.unchanged_delay_floor=='on' else '0'
     profile['unchanged_delay_floor'] = a.unchanged_delay_floor
+    profile['frontier_numeric'] = a.frontier_numeric
+    profile['environment']['EGM_FRONTIER_NUMERIC_LOCAL'] = '1' if a.frontier_numeric == 'local' else '0'
     profile['environment']['EGM_TRIAL_TIMING_FIRST'] = {'off':'0','on':'1','goal-aware':'2'}[a.trial_timing_first]
     profile['trial_timing_first'] = a.trial_timing_first
     profile['environment']['EGM_SDC_LOCAL_INDEX'] = '1' if a.sdc_local_index=='on' else '0'
