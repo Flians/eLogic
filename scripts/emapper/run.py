@@ -259,6 +259,7 @@ def main():
     ap.add_argument('--ablation', choices=['joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable', 'source-coalesced'], help='explicit same-binary joint or functional-search variant; fixed global clock')
     ap.add_argument('--cover-materialization', choices=['eager','coalesced','deferred','event'], help='explicit same-binary cover compaction/publication ablation; event also coalesces one existing small-match event; unchanged candidates and 600s')
     ap.add_argument('--publication-integrity', choices=['fnv64','sha256'], default='fnv64', help='explicit full-byte publication digest protocol; no renewed mapping deadline')
+    ap.add_argument('--unchanged-delay-floor', choices=['off','on'], default='off', help='exact untouched-output delay lower bound for conservative DA trial rejection')
     ap.add_argument('--joint-pair-owner', choices=['off','on'], default='off', help='one usable shared helper owns each physical joint pair; retains complete pair set')
     ap.add_argument('--match-facts', choices=['off','on'], default='off', help='invocation-local immutable library layout facts, retains full existing TechLib variants')
     ap.add_argument('--sdc-local-index', choices=['off','on'], default='off', help='cursor-local care-masked target index; fresh boundary targets/proofs, unchanged enumeration')
@@ -318,6 +319,8 @@ def main():
     profile['match_facts'] = a.match_facts
     profile['environment']['EGM_JOINT_PAIR_OWNER'] = '1' if a.joint_pair_owner=='on' else '0'
     profile['joint_pair_owner'] = a.joint_pair_owner
+    profile['environment']['EGM_UNCHANGED_DELAY_FLOOR'] = '1' if a.unchanged_delay_floor=='on' else '0'
+    profile['unchanged_delay_floor'] = a.unchanged_delay_floor
     profile['environment']['EGM_SDC_LOCAL_INDEX'] = '1' if a.sdc_local_index=='on' else '0'
     profile['sdc_local_index'] = a.sdc_local_index
     profile = recovery_schedule_profile(profile, a.recovery_schedule)
