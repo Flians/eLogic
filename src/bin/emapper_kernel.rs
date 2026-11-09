@@ -13,17 +13,7 @@ fn number<T: std::str::FromStr>(name: &str, default: T) -> T {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _total_window = emapper::egraph_time_policy::Window::from_env()?;
-    // Opt-in experiment receipt from the actual mapper process, not its parent.
-    // The global mapping window is already open: this I/O is not hidden cost.
-    if let Some(path)=std::env::var_os("EMAPPER_AFFINITY_RECEIPT") {
-        use std::io::Write;
-        let status=std::fs::read_to_string("/proc/self/status")?;
-        let cpus=status.lines().find_map(|l|l.strip_prefix("Cpus_allowed_list:")).ok_or("missing native affinity")?.trim();
-        let record=serde_json::json!({"pid":std::process::id(),"executable":std::env::current_exe()?,"cpus_allowed_list":cpus,"nonce":std::env::var("EMAPPER_AFFINITY_NONCE")?,"source":"/proc/self/status in native main after mapping window start"});
-        let mut receipt=std::fs::OpenOptions::new().write(true).create_new(true).open(path)?;
-        receipt.write_all(&serde_json::to_vec_pretty(&record)?)?;
-    }
-
+    emapper::egraph_time_policy::record_process_affinity()?;
     eprintln!("configuration: EGM_TOTAL_TIME_ONLY={}", u8::from(emapper::egraph_time_policy::enabled()));
     eprintln!("configuration: EGM_EXACT_CUT_OPS={}", std::env::var("EGM_EXACT_CUT_OPS").unwrap_or_else(|_| "0".into()));
     eprintln!("configuration: EGM_EXCHANGE_TIME_FRACTION={}", std::env::var("EGM_EXCHANGE_TIME_FRACTION").unwrap_or_else(|_| "0.70".into()));
