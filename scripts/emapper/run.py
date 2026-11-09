@@ -289,6 +289,8 @@ def main():
     ap.add_argument('--observe', action='store_true', help='persistent native trajectory and exclusive scope costs; overhead inside 600s')
     ap.add_argument('--snapshot-after', type=float, help='diagnostic snapshot at first recovery boundary after native online seconds; not a search stop or extra budget')
     a = ap.parse_args()
+    if a.frontier_numeric == 'local' and (a.batch_frontier_cache != 'on' or a.frontier_preparation != 'on'):
+        ap.error('--frontier-numeric local requires --batch-frontier-cache on and --frontier-preparation on')
     if a.snapshot_after is not None and (not __import__('math').isfinite(a.snapshot_after) or not 0 <= a.snapshot_after < 600):
         ap.error('--snapshot-after must be finite and in [0,600)')
     if a.fresh_emap_seed and a.seed_verilog:
