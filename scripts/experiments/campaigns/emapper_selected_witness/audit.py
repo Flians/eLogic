@@ -1,7 +1,8 @@
 """Audit completed real-mapping cases; first-cover CEC and original baselines."""
 import argparse,csv,fcntl,json,pathlib,sys
-R=pathlib.Path(__file__).resolve().parents[4];O=R/'results_v2/emapper_selected_witness_20261111/benchmark'
+R=pathlib.Path(__file__).resolve().parents[4];O=R/'results_v2/emapper_selected_witness_20261111/benchmark-v2'
 sys.path.insert(0,str(R/'scripts/emapper'))
+from observations import read as read_observations
 from provenance import sha
 from physical import measure_cover
 from verify import verify
@@ -24,8 +25,9 @@ def main():
   observed=None
   obs=pathlib.Path(r['case'])/'observation.jsonl'
   if obs.exists():
-   for line in obs.open():
-    ev=json.loads(line);ad=ev.get('details',{}).get('AD')
+   events,tail=read_observations(obs);row['observation_tail_fragment']=tail
+   for ev in events:
+    ad=ev.get('details',{}).get('AD')
     if ad and (observed is None or (ad[1],ad[0])<(observed[1],observed[0])):observed=ad
   row['best_observed_AD']=observed;row['observed_scope']='internal observations, not independently CEC verified unless also delivered/audited'
   row['delivery_worse_than_best_observed']=bool(r['status']=='ok'and observed and(r['D'],r['A'])>(observed[1],observed[0]))
