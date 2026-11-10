@@ -9,7 +9,8 @@ f=ROOT/'results_epmapping_supplement_v1_20261110/inputs'
 env={k:v for k,v in os.environ.items() if not k.startswith(('EPMAPPING_','MAP_EGG_'))}
 env.update(ABC=str(f/'abc'),EPMAPPING_BASELINE='direct',EPMAPPING_SUPER='',
  EPMAPPING_EGG='0',EPMAPPING_SYN='0',EPMAPPING_WINDOW_SYN='0',EPMAPPING_ROUNDS='1',
- EPMAPPING_AREA_UNDER_DELAY='1',EPMAPPING_POST_TIMEOUT='1000',EPMAPPING_WRITE_BASELINE='1')
+ EPMAPPING_AREA_UNDER_DELAY='1',EPMAPPING_POST_TIMEOUT='1000',EPMAPPING_WRITE_BASELINE='1',
+ EPMAPPING_PRE_BUFFER_CLEANUP='0')
 with tempfile.TemporaryDirectory(prefix='epm-buffer-') as d:
  p=Path(d);v=p/'input.v';aig=p/'input.aig'
  v.write_text('module top(a,b,y0,y1,y2,y3,y4,y5,y6);\ninput a,b;\noutput y0,y1,y2,y3,y4,y5,y6;\nassign y0 = a;\nassign y1 = a;\nassign y2 = ~a;\nassign y3 = a & b;\nassign y4 = a & b;\nassign y5 = 1\'b0;\nassign y6 = 1\'b1;\nendmodule\n')

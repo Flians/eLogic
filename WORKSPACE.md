@@ -10,7 +10,8 @@
 | `data/` | GitHub数据目录与紧凑实验归档 | 原件本地保留；同步范围、遗漏与SHA明确列出 |
 | `tools/` | 固定baseline源码及项目mockturtle覆盖层 | [来源说明](tools/BASELINES.md)、[覆盖层](tools/patches/mockturtle/overlay/README.md) |
 | `results_v2/single_output_wide_20261021/` | 完整47单输出库baseline、旧对照与原始证据 | `primary_baseline120_checkpoint.json`、`full_library_baseline_A_D_T/` |
-| `results_epmapping_three_parts_buffer_v1_20261111/` | ePMapping 当前论文数据：832 次运行，buffer/core 分账 | `analysis.json`、`paired_results.tsv`、`manifest.json`；v28 保留为历史对照 |
+| `results_epmapping_prebuffer_v3_20261111/` | ePMapping 当前论文数据：统一无 buffer 起点、固定清理后延迟界限、832 次运行 | `analysis.json`、`paired_results.tsv`、`full_flow_comparison.json`；冷/热分报 |
+| `results_epmapping_three_parts_buffer_v1_20261111/` | ePMapping 原完整流程对照：保留 832 次运行与 buffer/core 分账 | `analysis.json`、`paired_results.tsv`、`manifest.json`；与新协议分母区分 |
 | `scripts/experiments/campaigns/` | 可审计的实验、计时与报告入口 | 使用各脚本`--help`；恢复以冻结manifest为准 |
 | `maintenance/cleanup_20261021/` | 本次整理清单与核验 | [整理报告](maintenance/cleanup_20261021/README.md)、归档/清理/去重清单 |
 
