@@ -327,3 +327,17 @@ class CoverMaterializationProfileTests(unittest.TestCase):
         self.assertEqual({k for k in old if old[k]!=new[k]},{'EGM_COALESCE_MATCH_PUBLICATION'})
         with self.assertRaises(ValueError):
             cover_materialization_profile(base,'invalid')
+
+
+class RecoveryTrialProfileTests(unittest.TestCase):
+    def test_only_two_explicit_trial_flags_change(self):
+        from run import recovery_trial_profile
+        base=dict(environment={'EGM_TOTAL_TIME_ONLY':'1','EGM_CUTS':'18446744073709551615'},mapping_seconds=600,candidate_domain='full')
+        for area in ['off','on']:
+            for memo in ['off','on']:
+                p=recovery_trial_profile(base,area,memo)
+                self.assertEqual(p['mapping_seconds'],600)
+                self.assertEqual(p['candidate_domain'],'full')
+                self.assertEqual(p['environment'],dict(base['environment'],EGM_TRIAL_SAFE_AREA='1' if area=='on' else '0',EGM_TRIAL_SAME_STATE_MEMO='1' if memo=='on' else '0'))
+        self.assertNotIn('EGM_TRIAL_SAFE_AREA',base['environment'])
+        with self.assertRaises(ValueError):recovery_trial_profile(base,'unknown','on')
