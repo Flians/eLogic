@@ -45,6 +45,7 @@ def execute(c,job,locks):
   row['observation_tail_fragment']=tail
   for x in events:
    last=x
+   if x.get('details',{}).get('cover_materialization'):row['evidence_handoff_prefix']=x['details']['cover_materialization']
    if x.get('details',{}).get('trial_diagnostics'):progress=x
   if last:row['exclusive_seconds']=last.get('exclusive_seconds')
   if progress:row.update(prefix_trial_diagnostics=progress['details']['trial_diagnostics'],prefix_elapsed_seconds=progress.get('elapsed_seconds'),counter_scope='observation prefix, not final totals')
