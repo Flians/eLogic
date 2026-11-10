@@ -338,7 +338,7 @@ class RecoveryTrialProfileTests(unittest.TestCase):
                 p=recovery_trial_profile(base,area,memo)
                 self.assertEqual(p['mapping_seconds'],600)
                 self.assertEqual(p['candidate_domain'],'full')
-                self.assertEqual(p['environment'],dict(base['environment'],EGM_TRIAL_SAFE_AREA='1' if area=='on' else '0',EGM_TRIAL_SAME_STATE_MEMO='1' if memo=='on' else '0',EGM_TRIAL_TIMING_DEPENDENCIES='0',EGM_TRIAL_FIXED_AREA='0',EGM_TRIAL_RELEASE_REUSE='0',EGM_TRIAL_DELTA_COST='0'))
+                self.assertEqual(p['environment'],dict(base['environment'],EGM_TRIAL_SAFE_AREA='1' if area=='on' else '0',EGM_TRIAL_SAME_STATE_MEMO='1' if memo=='on' else '0',EGM_TRIAL_TIMING_DEPENDENCIES='0',EGM_TRIAL_FIXED_AREA='0',EGM_TRIAL_RELEASE_REUSE='0',EGM_TRIAL_DELTA_COST='0',EGM_TRIAL_TIMING_SCRATCH='0'))
         self.assertNotIn('EGM_TRIAL_SAFE_AREA',base['environment'])
         with self.assertRaises(ValueError):recovery_trial_profile(base,'unknown','on')
         p=recovery_trial_profile(base,'off','off','on')
@@ -375,3 +375,11 @@ class DeltaCostProfileTests(unittest.TestCase):
         off=recovery_trial_profile(base,'off','off','on','on','off','off');on=recovery_trial_profile(base,'off','off','on','on','off','on')
         self.assertEqual({k for k in on['environment']if on['environment'][k]!=off['environment'][k]},{'EGM_TRIAL_DELTA_COST'})
         self.assertEqual(on['candidate_domain'],'full');self.assertEqual(on['mapping_seconds'],600)
+
+class TimingScratchProfileTests(unittest.TestCase):
+    def test_scratch_preserves_timing_first_domain_and_budget(self):
+        from run import recovery_trial_profile
+        base=dict(environment={},mapping_seconds=600,candidate_domain='full')
+        off=recovery_trial_profile(base,'off','off','on','on','off','off','off');on=recovery_trial_profile(base,'off','off','on','on','off','off','on')
+        self.assertEqual({k for k in on['environment']if on['environment'][k]!=off['environment'][k]},{'EGM_TRIAL_TIMING_SCRATCH'})
+        self.assertEqual(on['mapping_seconds'],600);self.assertEqual(on['candidate_domain'],'full');self.assertEqual(on['environment']['EGM_TRIAL_TIMING_DEPENDENCIES'],'1')
