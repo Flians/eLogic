@@ -338,7 +338,7 @@ class RecoveryTrialProfileTests(unittest.TestCase):
                 p=recovery_trial_profile(base,area,memo)
                 self.assertEqual(p['mapping_seconds'],600)
                 self.assertEqual(p['candidate_domain'],'full')
-                self.assertEqual(p['environment'],dict(base['environment'],EGM_TRIAL_SAFE_AREA='1' if area=='on' else '0',EGM_TRIAL_SAME_STATE_MEMO='1' if memo=='on' else '0',EGM_TRIAL_TIMING_DEPENDENCIES='0',EGM_TRIAL_FIXED_AREA='0'))
+                self.assertEqual(p['environment'],dict(base['environment'],EGM_TRIAL_SAFE_AREA='1' if area=='on' else '0',EGM_TRIAL_SAME_STATE_MEMO='1' if memo=='on' else '0',EGM_TRIAL_TIMING_DEPENDENCIES='0',EGM_TRIAL_FIXED_AREA='0',EGM_TRIAL_RELEASE_REUSE='0'))
         self.assertNotIn('EGM_TRIAL_SAFE_AREA',base['environment'])
         with self.assertRaises(ValueError):recovery_trial_profile(base,'unknown','on')
         p=recovery_trial_profile(base,'off','off','on')
@@ -357,3 +357,13 @@ class RecoveryTrialProfileTests(unittest.TestCase):
             self.assertEqual(p['mapping_seconds'],600)
             self.assertEqual(p['candidate_domain'],'full')
         with self.assertRaises(ValueError):recovery_trial_profile(base,'off','off','on','invalid')
+
+class ReleaseReuseProfileTests(unittest.TestCase):
+    def test_release_reuse_changes_only_explicit_flag(self):
+        from run import recovery_trial_profile
+        base=dict(environment={'EGM_TOTAL_TIME_ONLY':'1'},mapping_seconds=600,candidate_domain='full')
+        off=recovery_trial_profile(base,'off','off','on','on','off')
+        on=recovery_trial_profile(base,'off','off','on','on','on')
+        self.assertEqual({k for k in on['environment'] if on['environment'][k]!=off['environment'][k]},{'EGM_TRIAL_RELEASE_REUSE'})
+        self.assertEqual(on['mapping_seconds'],600);self.assertEqual(on['candidate_domain'],'full')
+        with self.assertRaises(ValueError):recovery_trial_profile(base,'off','off','on','on','invalid')
