@@ -286,9 +286,12 @@ def main():
     ap.add_argument('--lifecycle', action='store_true', help='diagnostic cut-to-care lifecycle and exact representative export; overhead inside 600s')
     ap.add_argument('--match-schedule', choices=['legacy','fair'], default='legacy', help='persistent exact/INV/constant/SDC lane rotation; no task pruning or renewed clock')
     ap.add_argument('--selected-provenance', action='store_true', help='selected generator/care witnesses, content-addressed inside mapping budget')
+    ap.add_argument('--selected-evidence-cache', choices=['off','on'], default='off', help='reuse immutable proof objects; keep current cut and physical identity checks')
     ap.add_argument('--observe', action='store_true', help='persistent native trajectory and exclusive scope costs; overhead inside 600s')
     ap.add_argument('--snapshot-after', type=float, help='diagnostic snapshot at first recovery boundary after native online seconds; not a search stop or extra budget')
     a = ap.parse_args()
+    if a.selected_evidence_cache == 'on' and not a.selected_provenance:
+        ap.error('--selected-evidence-cache on requires --selected-provenance')
     if a.frontier_numeric == 'local' and (a.batch_frontier_cache != 'on' or a.frontier_preparation != 'on'):
         ap.error('--frontier-numeric local requires --batch-frontier-cache on and --frontier-preparation on')
     if a.snapshot_after is not None and (not __import__('math').isfinite(a.snapshot_after) or not 0 <= a.snapshot_after < 600):
@@ -339,6 +342,8 @@ def main():
         profile['environment']['EGM_MATCH_PROFILE'] = '1'
     profile['environment']['EGM_MATCH_FAIR'] = '1' if a.match_schedule == 'fair' else '0'
     profile['selected_provenance_requested'] = bool(a.selected_provenance)
+    profile['selected_evidence_cache'] = a.selected_evidence_cache
+    profile['environment']['EGM_SELECTED_EVIDENCE_CACHE'] = '1' if a.selected_evidence_cache == 'on' else '0'
     library = ROOT/'emapper/libraries/asap7/asap7_full.genlib'
     native = ROOT/'target/release/emapper_kernel'
     measure = ROOT/'target/release/emapper_measure'
