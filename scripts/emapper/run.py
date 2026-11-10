@@ -245,12 +245,14 @@ def monotone_sdc_profile(base, enabled):
     return profile
 
 
-def recovery_trial_profile(profile,safe_area,memo):
-    if safe_area not in ('off','on') or memo not in ('off','on'):
+def recovery_trial_profile(profile,safe_area,memo,timing_dependencies='off'):
+    if safe_area not in ('off','on') or memo not in ('off','on') or timing_dependencies not in ('off','on'):
         raise ValueError('trial area screen and memo must be off/on')
     result=dict(profile,environment=dict(profile['environment']))
     result['trial_safe_area']=safe_area;result['trial_memo']=memo
     result['environment'].update(EGM_TRIAL_SAFE_AREA='1' if safe_area=='on' else '0',EGM_TRIAL_SAME_STATE_MEMO='1' if memo=='on' else '0')
+    result['trial_timing_dependencies']=timing_dependencies
+    result['environment']['EGM_TRIAL_TIMING_DEPENDENCIES']='1' if timing_dependencies=='on' else '0'
     return result
 
 def main():
@@ -270,6 +272,7 @@ def main():
     ap.add_argument('--frontier-numeric',choices=['legacy','local'],default='legacy',help='local: exact dependency-closed numerical reuse on positive full-arc graphs, full-builder fallback otherwise; requires frontier cache/preparation on')
     ap.add_argument('--trial-timing-first',choices=['off','on','goal-aware'],default='off',help='off: area-first; on: timing-first for both goals; goal-aware: timing-first only for DelayArea; acceptance and domain unchanged')
     ap.add_argument('--trial-safe-area',choices=['off','on'],default='off',help='certified shared-area rejection under a fixed delay or untouched-output floor')
+    ap.add_argument('--trial-timing-dependencies',choices=['off','on'],default='off',help='reuse unaffected off-cover witness arrivals in timing-first rejection only')
     ap.add_argument('--trial-memo',choices=['off','on'],default='off',help='reuse expensive deterministic failures only in unchanged physical context')
     ap.add_argument('--unchanged-delay-floor', choices=['off','on'], default='off', help='exact untouched-output delay lower bound for conservative DA trial rejection')
     ap.add_argument('--joint-pair-owner', choices=['off','on'], default='off', help='one usable shared helper owns each physical joint pair; retains complete pair set')
@@ -354,7 +357,7 @@ def main():
     profile['selected_provenance_requested'] = bool(a.selected_provenance)
     profile['selected_evidence_cache'] = a.selected_evidence_cache
     profile['environment']['EGM_SELECTED_EVIDENCE_CACHE'] = '1' if a.selected_evidence_cache == 'on' else '0'
-    profile = recovery_trial_profile(profile,a.trial_safe_area,a.trial_memo)
+    profile = recovery_trial_profile(profile,a.trial_safe_area,a.trial_memo,a.trial_timing_dependencies)
     library = ROOT/'emapper/libraries/asap7/asap7_full.genlib'
     native = ROOT/'target/release/emapper_kernel'
     measure = ROOT/'target/release/emapper_measure'
@@ -387,7 +390,7 @@ def main():
             if frozen['environment'].get(key) != sha(path):
                 raise ValueError('snapshot source identity mismatch: '+key)
         for key, value in profile['environment'].items():
-            if key not in ('EGM_RECOVERY_FAIR','EGM_TRIAL_SAFE_AREA','EGM_TRIAL_SAME_STATE_MEMO') and frozen['environment'].get(key) != value:
+            if key not in ('EGM_RECOVERY_FAIR','EGM_TRIAL_SAFE_AREA','EGM_TRIAL_SAME_STATE_MEMO','EGM_TRIAL_TIMING_DEPENDENCIES') and frozen['environment'].get(key) != value:
                 raise ValueError('snapshot profile mismatch: '+key)
         env['EGM_REPLAY_SNAPSHOT'] = str(snapshot)
     if a.snapshot_after is not None or a.replay_snapshot:
@@ -419,7 +422,7 @@ def main():
     if a.replay_snapshot:
         report['diagnostic_scope'] = 'fixed candidate/proof snapshot; cold recovery; not full mapping PPA'
         report['snapshot_sha256'] = sha(a.replay_snapshot.resolve())
-        report['snapshot_profile_overrides'] = {k:dict(snapshot=frozen['environment'].get(k),replay=profile['environment'].get(k)) for k in ('EGM_RECOVERY_FAIR','EGM_TRIAL_SAFE_AREA','EGM_TRIAL_SAME_STATE_MEMO') if frozen['environment'].get(k)!=profile['environment'].get(k)}
+        report['snapshot_profile_overrides'] = {k:dict(snapshot=frozen['environment'].get(k),replay=profile['environment'].get(k)) for k in ('EGM_RECOVERY_FAIR','EGM_TRIAL_SAFE_AREA','EGM_TRIAL_SAME_STATE_MEMO','EGM_TRIAL_TIMING_DEPENDENCIES') if frozen['environment'].get(k)!=profile['environment'].get(k)}
     dump(folder/'report.json',report)
     seed_generation_seconds = 0.
     if a.fresh_emap_seed:
