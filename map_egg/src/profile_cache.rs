@@ -14,12 +14,12 @@ use std::{
     },
 };
 static MEMORY: OnceLock<Mutex<BTreeMap<String, Vec<MappedCoverChoice>>>> = OnceLock::new();
-static MEMORY_HITS: AtomicU64 = AtomicU64::new(0);
-static DISK_HITS: AtomicU64 = AtomicU64::new(0);
-static BUILDS: AtomicU64 = AtomicU64::new(0);
-static WRITE_FAILURES: AtomicU64 = AtomicU64::new(0);
-static CORRUPT: AtomicU64 = AtomicU64::new(0);
-static SERIAL: AtomicU64 = AtomicU64::new(0);
+pub(crate) static MEMORY_HITS: AtomicU64 = AtomicU64::new(0);
+pub(crate) static DISK_HITS: AtomicU64 = AtomicU64::new(0);
+pub(crate) static BUILDS: AtomicU64 = AtomicU64::new(0);
+pub(crate) static WRITE_FAILURES: AtomicU64 = AtomicU64::new(0);
+pub(crate) static CORRUPT: AtomicU64 = AtomicU64::new(0);
+pub(crate) static SERIAL: AtomicU64 = AtomicU64::new(0);
 static FALLBACKS: AtomicU64 = AtomicU64::new(0);
 #[derive(Serialize, Deserialize)]
 struct Record {
@@ -28,7 +28,7 @@ struct Record {
     payload_sha256: String,
     covers: Vec<MappedCoverChoice>,
 }
-fn digest(b: &[u8]) -> String {
+pub(crate) fn digest(b: &[u8]) -> String {
     format!("{:x}", Sha256::digest(b))
 }
 fn env_limit(name: &str, default: usize, max: usize) -> usize {
@@ -38,14 +38,14 @@ fn env_limit(name: &str, default: usize, max: usize) -> usize {
         .unwrap_or(default)
         .clamp(1, max)
 }
-fn limits() -> emap_cover::profile::Limits {
+pub(crate) fn limits() -> emap_cover::profile::Limits {
     emap_cover::profile::Limits {
         frontier: env_limit("MAP_EGG_PROFILE_FRONTIER", 8, 64),
         combinations: env_limit("MAP_EGG_PROFILE_COMBINATIONS", 20000, 1000000),
         visits: env_limit("MAP_EGG_PROFILE_VISITS", 4000, 100000),
     }
 }
-fn namespace(tech: &TechLib) -> String {
+pub(crate) fn namespace(tech: &TechLib) -> String {
     static SOURCE: OnceLock<String> = OnceLock::new();
     let source = SOURCE.get_or_init(|| {
         let mut hash = Sha256::new();
@@ -57,6 +57,7 @@ fn namespace(tech: &TechLib) -> String {
             include_str!("techlib.rs"),
             include_str!("emap_egg.rs"),
             include_str!("profile_cache.rs"),
+            include_str!("tt_profile_cache.rs"),
             include_str!("tt9.rs"),
             include_str!("params.rs"),
         ] {
@@ -76,11 +77,16 @@ fn namespace(tech: &TechLib) -> String {
         .unwrap(),
     )
 }
-fn key(expr: &str, tech: &TechLib, n: usize) -> String {
+fn key(expr: &str, n: usize) -> String {
+    // The production profile library is immutable and process-owned. Do not
+    // serialize all cells on every query; generic key tests still hash their
+    // supplied library afresh, including timing changes.
+    static NAMESPACE: OnceLock<String> = OnceLock::new();
+    let namespace = NAMESPACE.get_or_init(|| namespace(crate::profile_techlib_store()));
     let search = emap_cover::cut_mapping_params();
-    key_with_search(
+    key_with_namespace(
         expr,
-        tech,
+        namespace,
         n,
         limits(),
         (
@@ -90,6 +96,7 @@ fn key(expr: &str, tech: &TechLib, n: usize) -> String {
         ),
     )
 }
+#[cfg(test)]
 fn key_with_search(
     expr: &str,
     tech: &TechLib,
@@ -97,13 +104,22 @@ fn key_with_search(
     bounds: emap_cover::profile::Limits,
     search: (usize, usize, usize),
 ) -> String {
+    key_with_namespace(expr, &namespace(tech), n, bounds, search)
+}
+pub(crate) fn key_with_namespace(
+    expr: &str,
+    namespace: &str,
+    n: usize,
+    bounds: emap_cover::profile::Limits,
+    search: (usize, usize, usize),
+) -> String {
     let full = std::env::var("MAP_EGG_FULL_BUNDLE").is_ok_and(|v| v == "1");
     let narrow = emap_cover::profile::narrow_enabled();
     let phase_keep = emap_cover::profile::phase_keep_enabled();
-    let data = serde_json::to_vec(&(namespace(tech), expr, n, bounds, search, full, narrow, phase_keep)).unwrap();
+    let data = serde_json::to_vec(&(namespace, expr, n, bounds, search, full, narrow, phase_keep)).unwrap();
     digest(&data)
 }
-fn valid(c: &MappedCoverChoice, n: usize) -> bool {
+pub(crate) fn valid(c: &MappedCoverChoice, n: usize) -> bool {
     if c.graph.root >= c.graph.nodes.len()
         || c.pin_to_root_delay.len() != n
         || !c.area.is_finite()
@@ -188,8 +204,12 @@ fn write(path: &std::path::Path, key: &str, covers: &[MappedCoverChoice]) -> std
     }
     result
 }
-pub(crate) fn pool(expr: &str, tech: &TechLib, n: usize) -> Vec<MappedCoverChoice> {
-    let key = key(expr, tech, n);
+pub(crate) fn pool(expr: &str, n: usize, expression_arity: u8, tt: &crate::tt9::Tt9) -> Vec<MappedCoverChoice> {
+    if !std::env::var("MAP_EGG_PROFILE_TT_CACHE").is_ok_and(|v| v == "0") {
+        return crate::tt_profile_cache::pool(expr,n,expression_arity,tt);
+    }
+    let tech = crate::profile_techlib_store();
+    let key = key(expr, n);
     let memory = MEMORY.get_or_init(|| Mutex::new(BTreeMap::new()));
     if let Some(c) = memory.lock().unwrap().get(&key).cloned() {
         MEMORY_HITS.fetch_add(1, Ordering::Relaxed);
@@ -228,13 +248,14 @@ pub(crate) fn fallback() {
 }
 pub(crate) fn stats() -> String {
     format!(
-        "memory_hits={} disk_hits={} builds={} corrupt={} write_failures={} legacy_fallbacks={}",
+        "memory_hits={} disk_hits={} builds={} corrupt={} write_failures={} legacy_fallbacks={} {}",
         MEMORY_HITS.load(Ordering::Relaxed),
         DISK_HITS.load(Ordering::Relaxed),
         BUILDS.load(Ordering::Relaxed),
         CORRUPT.load(Ordering::Relaxed),
         WRITE_FAILURES.load(Ordering::Relaxed),
-        FALLBACKS.load(Ordering::Relaxed)
+        FALLBACKS.load(Ordering::Relaxed),
+        crate::tt_profile_cache::stats()
     )
 }
 

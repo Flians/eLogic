@@ -1,7 +1,7 @@
 //! Bounded multi-realization extraction independent of leaf arrivals.
 //! Profiles carry physical DAGs, not e-class references to mutable single winners.
 use super::*;
-use std::collections::{BTreeSet, HashMap};
+use std::{collections::{BTreeSet, HashMap}, sync::Arc};
 
 pub(crate) fn narrow_enabled() -> bool {
     !std::env::var("MAP_EGG_PROFILE_NARROW").is_ok_and(|v| v == "0")
@@ -25,14 +25,16 @@ impl Default for Limits {
         }
     }
 }
+// Fronts and Cartesian tuples share immutable DAGs. Deep copies here multiply
+// allocation cost without changing any candidate or work-budget accounting.
 #[derive(Clone)]
 struct Realization {
-    cover: MappedCoverChoice,
-    dependencies: BTreeSet<usize>,
-    fingerprint: String,
+    cover: Arc<MappedCoverChoice>,
+    dependencies: Arc<BTreeSet<usize>>,
+    fingerprint: Arc<String>,
     // Potential savings when the opposite phase of each cut leaf is already physical.
     // Stored only in extraction state: cached covers remain context independent.
-    phase_credit: Vec<f32>,
+    phase_credit: Arc<Vec<f32>>,
 }
 fn profile(c: &MappedCoverChoice, i: usize) -> f32 {
     if c.used_leaf_indices.contains(&i) {
@@ -63,7 +65,7 @@ fn retain(front: &mut Vec<Realization>, c: Realization, cap: usize, root: bool) 
     if root && front.iter().any(|x| comparable(x, &c) && dominates(&x.cover, &c.cover)) {
         return false;
     }
-    let previous: Vec<String> = front.iter().map(|x| x.fingerprint.clone()).collect();
+    let previous: Vec<Arc<String>> = front.iter().map(|x| x.fingerprint.clone()).collect();
     if root {
         front.retain(|x| !comparable(&c, x) || !dominates(&c.cover, &x.cover));
     }
@@ -171,16 +173,16 @@ fn realization(
         }
     }
     Some(Realization {
-        cover: MappedCoverChoice {
+        cover: Arc::new(MappedCoverChoice {
             graph,
             area,
             delay,
             used_leaf_indices: used,
             pin_to_root_delay: delays,
-        },
-        dependencies,
-        fingerprint,
-        phase_credit,
+        }),
+        dependencies: Arc::new(dependencies),
+        fingerprint: Arc::new(fingerprint),
+        phase_credit: Arc::new(phase_credit),
     })
 }
 fn compose(
@@ -422,12 +424,24 @@ pub(crate) fn extract(
     if root_front.is_empty() {
         return Err("profile_root_missing".into());
     }
-    Ok(root_front.into_iter().map(|c| c.cover).collect())
+    Ok(root_front.into_iter().map(|c| Arc::unwrap_or_clone(c.cover)).collect())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn cartesian_copies_share_immutable_graphs() {
+        let tech = TechLib::default();
+        let c = realization(MappedCoverGraph { nodes: vec![MappedCoverNode::Input(0)], root: 0 },
+            BTreeSet::from([0]), &tech, 1).unwrap();
+        let copy = c.clone();
+        assert!(Arc::ptr_eq(&c.cover, &copy.cover));
+        assert!(Arc::ptr_eq(&c.dependencies, &copy.dependencies));
+        assert!(Arc::ptr_eq(&c.fingerprint, &copy.fingerprint));
+        assert_eq!(serde_json::to_string(c.cover.as_ref()).unwrap(),
+                   serde_json::to_string(copy.cover.as_ref()).unwrap());
+    }
     #[test]
     fn boundary_phase_preserves_standalone_dominated_area_winner() {
         let path=std::env::temp_dir().join(format!("phase-retention-{}-{}.genlib",

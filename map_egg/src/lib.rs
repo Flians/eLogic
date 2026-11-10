@@ -3,6 +3,7 @@
 // types. They stay at the crate root so that their internal `crate::…` paths are unchanged.
 
 mod profile_cache;
+mod tt_profile_cache;
 mod tt9;
 pub use tt9::Tt9;
 
@@ -744,9 +745,9 @@ pub fn cut_mapping_egg_arr(
     if std::env::var("MAP_EGG_PROFILE").is_ok_and(|v| v == "1") {
         let tech = profile_techlib_store();
         if let Some(aig) = emap_egg::gate_expr_to_aig_sexp(s, tech) {
-            if let Some((n, _)) = emap_egg::sexp_to_tt9(&aig) {
+            if let Some((n, tt)) = emap_egg::sexp_to_tt9(&aig) {
                 if n as usize <= size && size <= 9 {
-                    let mut covers = profile_cache::pool(&aig, tech, size);
+                    let mut covers = profile_cache::pool(&aig, size, n, &tt);
                     if !covers.is_empty() {
                         let arrivals = parse_var_dep(vars, size);
                         for cover in &mut covers {

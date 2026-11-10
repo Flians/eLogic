@@ -26,7 +26,8 @@ expected_area = float(reference['out_a'])
 expected_delay = float(reference['out_d'])
 env = {k: v for k, v in os.environ.items() if not k.startswith(('EPMAPPING_', 'MAP_EGG_'))}
 env.update(goal)
-env.update(ABC=str(frozen / 'abc'), EPMAPPING_BASELINE='high_effort',
+# Historical paper profile, before the independently tested identity-cleanup operator.
+env.update(EPMAPPING_BUFFER_CLEANUP='0', ABC=str(frozen / 'abc'), EPMAPPING_BASELINE='high_effort',
            EPMAPPING_WRITE_BASELINE='1', EPMAPPING_AREA_MAPPING='1',
            EPMAPPING_RELAX_REQUIRED='100', EPMAPPING_CUT_LIMIT='12',
            EPMAPPING_ROUNDS='6', EPMAPPING_SUPER=str(frozen / 'database.super'),

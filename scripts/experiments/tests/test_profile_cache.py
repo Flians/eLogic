@@ -30,7 +30,7 @@ with tempfile.TemporaryDirectory(prefix='epm-profile-') as name:
         return stats
     cold=run('cold');warm=run('warm');assert cold['builds']>0,cold;assert warm['builds']==0 and warm['disk_hits']>0,warm
     assert (p/'cold/epmapping_mapped.v').read_bytes()==(p/'warm/epmapping_mapped.v').read_bytes()
-    files=sorted((p/'cache').glob('*.json'));assert files
+    files=sorted((p/'cache').rglob('*.json'));assert files
     for path in files:
         record=json.loads(path.read_text());record['payload_sha256']='0'*64;path.write_text(json.dumps(record))
     corrupt=run('corrupt');assert corrupt['corrupt']>0 and corrupt['builds']>0,corrupt

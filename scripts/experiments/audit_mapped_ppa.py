@@ -30,8 +30,17 @@ def audit(netlist,genlib):
   native[out]=max(native[signal]+(0. if alias else pd[pin]) for pin,signal in ports.items())
   if alias:aliases_area+=cost;aliases+=1
   area+=cost;cells+=1;types[name]=types.get(name,0)+1
+ pending=re.findall(r'\bassign\s+(\S+)\s*=\s*(\S+)\s*;',text)
+ while pending:
+  rest=[]
+  for out,source in pending:
+   assert '~' not in source,('unmapped inversion',out,source)
+   if source not in arrival:rest.append((out,source));continue
+   arrival[out]=arrival[source];native[out]=native[source]
+  assert len(rest)<len(pending),('unresolved wire aliases',rest[:2])
+  pending=rest
  po=[x.strip() for x in outputs.split(',')]
- assert cells and all(x in arrival for x in po)
+ assert all(x in arrival for x in po)
  return dict(area=area-aliases_area,delay=max(native[x] for x in po),
              serialized_area=area,serialized_delay=max(arrival[x] for x in po),
              po_alias_buffers=aliases,cells=cells,outputs=len(po),cell_types=types)
