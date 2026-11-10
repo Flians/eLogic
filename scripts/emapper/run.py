@@ -312,9 +312,12 @@ def main():
     ap.add_argument('--match-schedule', choices=['legacy','fair'], default='legacy', help='persistent exact/INV/constant/SDC lane rotation; no task pruning or renewed clock')
     ap.add_argument('--selected-provenance', action='store_true', help='selected generator/care witnesses, content-addressed inside mapping budget')
     ap.add_argument('--selected-evidence-cache', choices=['off','on'], default='off', help='reuse immutable proof objects; keep current cut and physical identity checks')
+    ap.add_argument('--selected-witness-only', choices=['off','on'], default='off', help='export one sufficient checked generator per selected binding; exact preferred; pool unchanged')
     ap.add_argument('--observe', action='store_true', help='persistent native trajectory and exclusive scope costs; overhead inside 600s')
     ap.add_argument('--snapshot-after', type=float, help='diagnostic snapshot at first recovery boundary after native online seconds; not a search stop or extra budget')
     a = ap.parse_args()
+    if a.selected_witness_only == 'on' and not a.selected_provenance:
+        ap.error('--selected-witness-only on requires --selected-provenance')
     if a.selected_evidence_cache == 'on' and not a.selected_provenance:
         ap.error('--selected-evidence-cache on requires --selected-provenance')
     if a.frontier_numeric == 'local' and (a.batch_frontier_cache != 'on' or a.frontier_preparation != 'on'):
@@ -368,6 +371,8 @@ def main():
     profile['environment']['EGM_MATCH_FAIR'] = '1' if a.match_schedule == 'fair' else '0'
     profile['selected_provenance_requested'] = bool(a.selected_provenance)
     profile['selected_evidence_cache'] = a.selected_evidence_cache
+    profile['selected_witness_only'] = a.selected_witness_only
+    profile['environment']['EGM_SELECTED_WITNESS_ONLY'] = '1' if a.selected_witness_only == 'on' else '0'
     profile['environment']['EGM_SELECTED_EVIDENCE_CACHE'] = '1' if a.selected_evidence_cache == 'on' else '0'
     profile = recovery_trial_profile(profile,a.trial_safe_area,a.trial_memo,a.trial_timing_dependencies,a.trial_fixed_area,a.trial_release_reuse,a.trial_delta_cost,a.trial_timing_scratch)
     library = ROOT/'emapper/libraries/asap7/asap7_full.genlib'
