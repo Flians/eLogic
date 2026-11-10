@@ -21,7 +21,7 @@ def main():
   for n,h in r['artifacts'].items():
    p=pathlib.Path(r['case'])/n;checked+=1
    if sha(p)!=h:invalid.append(str(p))
-  row={k:r.get(k)for k in ['key','design','rep','variant','status','A','D','T','CEC','search_timeout','search_finished','initial_AD','search_net_gain','first_native_cover','error','audit_error','exclusive_seconds']}
+  row={k:r.get(k)for k in ['key','design','rep','variant','status','A','D','T','CEC','search_timeout','search_finished','initial_AD','search_net_gain','first_native_cover','error','audit_error','exclusive_seconds','attempt_key','interrupted_attempt','interruption_audit','original_harness_status','original_harness_error']}
   observed=None
   obs=pathlib.Path(r['case'])/'observation.jsonl'
   if obs.exists():
@@ -59,6 +59,13 @@ def main():
   rr=[c['jobs'].get(f'{n}_r{rep}_{v}')for v in ['control','witness']]
   if all(r and r['status']=='ok'for r in rr):
    x,y=rr;pairs.append(dict(design=n,rep=rep,control_AD=[x['A'],x['D']],candidate_AD=[y['A'],y['D']],control_T=x['T'],candidate_T=y['T'],T_change_percent=100*(y['T']/x['T']-1),DA='better'if(y['D'],y['A'])<(x['D'],x['A'])else('equal'if(y['D'],y['A'])==(x['D'],x['A'])else'worse'),both_deadline=x['search_timeout']and y['search_timeout'],same_output=x['output_sha256']==y['output_sha256']))
- result=dict(completed=len(c['jobs']),planned=len(c['plan']),scope='full native mapping, generation included, no replay/no external seed; once-resyn2/ASAP7,600s mapping only, CEC excluded',rows=rows,pairs=pairs,missing=[p['key']for p in c['plan']if p['key']not in c['jobs']],verified_artifact_references=checked,invalid_artifacts=invalid,baseline_runs=0,GitHub_push=False,default_promoted=False,receipts={str(p.relative_to(R)):sha(p)for p in [O/'campaign.json',basepath,csvpath]})
+ interruptions=[]
+ for item in c.get('interruptions',[]):
+  path=pathlib.Path(item['audit_file']);assert sha(path)==item['sha256'];old=json.loads(path.read_text())
+  for n,h in old['artifacts'].items():
+   p=pathlib.Path(old['original_case'])/n;checked+=1
+   if sha(p)!=h:invalid.append(str(p))
+  interruptions.append({k:old.get(k)for k in ['original_case','original_key','reason','status','last_complete_observation_elapsed','last_observed_AD','CEC','not_a_full_budget_result','retry_key','old_attempt_retained','not_a_search_continuation']})
+ result=dict(completed=len(c['jobs']),planned=len(c['plan']),interruptions=interruptions,scope='full native mapping, generation included, no replay/no external seed; once-resyn2/ASAP7,600s mapping only, CEC excluded',rows=rows,pairs=pairs,missing=[p['key']for p in c['plan']if p['key']not in c['jobs']],verified_artifact_references=checked,invalid_artifacts=invalid,baseline_runs=0,GitHub_push=False,default_promoted=False,receipts={str(p.relative_to(R)):sha(p)for p in [O/'campaign.json',basepath,csvpath]})
  (a.output/'validation.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({k:v for k,v in result.items()if k not in ['rows','missing']},indent=2));assert not invalid
 if __name__=='__main__':main()
