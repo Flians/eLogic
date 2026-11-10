@@ -313,6 +313,7 @@ def main():
     ap.add_argument('--selected-provenance', action='store_true', help='selected generator/care witnesses, content-addressed inside mapping budget')
     ap.add_argument('--selected-evidence-cache', choices=['off','on'], default='off', help='reuse immutable proof objects; keep current cut and physical identity checks')
     ap.add_argument('--selected-witness-only', choices=['off','on'], default='off', help='export one sufficient checked generator per selected binding; exact preferred; pool unchanged')
+    ap.add_argument('--evidence-transfer', choices=['copy','move'], default='copy', help='transactional immutable evidence ownership transfer; unchanged serialization and proof checks')
     ap.add_argument('--observe', action='store_true', help='persistent native trajectory and exclusive scope costs; overhead inside 600s')
     ap.add_argument('--snapshot-after', type=float, help='diagnostic snapshot at first recovery boundary after native online seconds; not a search stop or extra budget')
     a = ap.parse_args()
@@ -372,6 +373,8 @@ def main():
     profile['selected_provenance_requested'] = bool(a.selected_provenance)
     profile['selected_evidence_cache'] = a.selected_evidence_cache
     profile['selected_witness_only'] = a.selected_witness_only
+    profile['evidence_transfer'] = a.evidence_transfer
+    profile['environment']['EGM_MOVE_SELECTED_EVIDENCE'] = '1' if a.evidence_transfer == 'move' else '0'
     profile['environment']['EGM_SELECTED_WITNESS_ONLY'] = '1' if a.selected_witness_only == 'on' else '0'
     profile['environment']['EGM_SELECTED_EVIDENCE_CACHE'] = '1' if a.selected_evidence_cache == 'on' else '0'
     profile = recovery_trial_profile(profile,a.trial_safe_area,a.trial_memo,a.trial_timing_dependencies,a.trial_fixed_area,a.trial_release_reuse,a.trial_delta_cost,a.trial_timing_scratch)
