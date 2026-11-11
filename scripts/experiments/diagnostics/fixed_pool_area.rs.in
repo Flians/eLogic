@@ -1,0 +1,87 @@
+//! Test-only differential diagnostic, never part of the production mapper.
+use super::*;
+use std::io::Write;
+
+#[test]
+#[ignore="explicit complete admitted-pool diagnostic; not end-to-end mapper QoR"]
+fn fixed_pool_area_screens_against_complete_oracle(){
+ let started=Instant::now();let _window=crate::egraph_time_policy::Window::enter(600.).unwrap();
+ let end=crate::egraph_time_policy::deadline().unwrap();
+ let path=std::env::var("EMAPPER_FIXED_POOL_SNAPSHOT").expect("explicit snapshot");
+ let out=std::path::PathBuf::from(std::env::var("EMAPPER_FIXED_POOL_OUTPUT").expect("new output"));
+ let frozen:Frozen=serde_json::from_reader(std::io::BufReader::new(std::fs::File::open(&path).unwrap())).unwrap();
+ let _session=selected_evidence::Session::start().unwrap();
+ selected_evidence::restore_context(frozen.selected_context.as_ref().expect("complete logic/care context"),frozen.free.len()).unwrap();
+ let mut s=frozen.restore(false,end).unwrap();
+ let initial=s.cover.value().unwrap();assert_eq!(initial,frozen.initial_ad);
+ s.cover.graph().unwrap().write_verilog(std::fs::OpenOptions::new().create_new(true).write(true).open(out.join("initial.v")).unwrap(),"mapped").unwrap();
+ let chosen=s.cover.bindings().unwrap().clone();let witness=frozen.witness.clone().unwrap_or_else(||chosen.clone());
+ let roots:Vec<_>=s.outputs.iter().map(|x|x.0).collect();
+ let(refs,users)=shared_area_counters(&s.pool,&chosen,&roots);
+ let required=required_times(&s.pool,&chosen,&s.free,&roots,initial.1);
+ let arrival=recovery_inputs::arrivals(&s.pool,&chosen,Some(&witness),&s.free,end).unwrap();
+ let mut oracle=cover_trial::Workspace::default();let mut proofs=exchange::OnlineProofMemo::default();
+ let mut events=std::fs::OpenOptions::new().create_new(true).write(true).open(out.join("proposals.jsonl")).unwrap();
+ let(mut visited,mut compared,mut unavailable,mut proof_blocked,mut missed,mut false_accept)=(0usize,0usize,0usize,0usize,0usize,0usize);
+ let mut best=initial;let mut best_sequence=0usize;let mut complete=true;
+ let cursor=frozen.context.get("legacy_cursor").copied().unwrap_or(0)%s.pool.len().max(1);
+ for step in 0..s.pool.len(){
+  let i=(cursor+step)%s.pool.len();
+  if Instant::now()>=end{complete=false;break}visited+=1;
+  let m=&s.pool[i];let mut edits=Vec::new();
+  for(pin,o)in m.outputs.iter().enumerate(){for &target in &o.targets{if chosen[target].is_some(){edits.push((target,Binding{instance:i,pin}));}}}
+  if edits.is_empty()||!edits.iter().any(|(t,b)|chosen[*t].is_some_and(|a|a.instance!=b.instance||a.pin!=b.pin)){continue}
+  let unknown=m.inputs.iter().any(|&v|arrival[v].is_none());
+  let estimate=selected_input_area(&s.pool,&chosen,&s.free,i,initial.0,&refs,&users);
+  let area_rejected=estimate.is_some_and(|a|a>=initial.0-1e-6);
+  let timing_rejected=!area_rejected&&!unknown&&!m.outputs.iter().any(|o|{
+   let t=m.inputs.iter().enumerate().filter(|(p,_)|o.has_arc(*p)).map(|(p,&v)|arrival[v].unwrap()+f64::from(o.delays[p])).fold(0.,f64::max);
+   o.targets.iter().any(|&v|chosen[v].is_some_and(|b|b.instance!=i)&&t<=required[v]+1e-7)
+  });
+  let reason=if unknown&&!recovery_inputs::enabled(){Some("unknown_input")}else if area_rejected{Some("selected_area")}else if timing_rejected{Some("required_time")}else{None};
+  let exact=oracle.score(&s.pool,&chosen,&witness,&s.free,&roots,&edits,end);
+  if Instant::now()>=end{complete=false;break}
+  let value=match exact{Ok(v)=>v,Err(e)=>{unavailable+=1;writeln!(events,"{}",serde_json::json!({"instance":i,"physical_unavailable":e,"outer_screen":reason})).unwrap();continue}};
+  let wanted=value.0<initial.0&&value.1<=initial.1;
+  let trial=if reason.is_none(){s.cover.area_trial(&s.pool,&s.free,&roots,Some(&witness),&edits,end)}else{Ok(None)};
+  if Instant::now()>=end{complete=false;break}
+  let production=matches!(&trial,Ok(Some(_)));let mut source_valid=false;let mut source_error=None;let mut cert=None;let mut evidence=None;
+  if wanted{
+   match proofs.capture_typed(&s.pool,&oracle.materialize(),&s.free,&roots,&frozen.bank){
+    Ok(c)=>{assert_eq!(c.value,value);cert=Some(c);
+     match selected_evidence::capture(&s.pool,&oracle.materialize(),&frozen.bank,end){
+      Ok(Some(v))=>{source_valid=true;evidence=Some(v);},
+      Ok(None)=>{proof_blocked+=1;source_error=Some("selected source/care proof context unavailable".into());},
+      Err(e)=>{proof_blocked+=1;source_error=Some(e);}
+     }
+    },
+    Err(e)=>{proof_blocked+=1;source_error=Some(format!("{e:?}"));}
+   }
+  }
+  if Instant::now()>=end{complete=false;break}compared+=1;
+  let miss=wanted&&source_valid&&!production;if miss{missed+=1}if production&&!wanted{false_accept+=1}
+  writeln!(events,"{}",serde_json::json!({"instance":i,"initial_AD":initial,"exact_AD":value,"outer_screen":reason,
+   "selected_area_estimate":estimate,"oracle_area_improves_under_initial_D":wanted,"generator_source_checked":wanted,"generator_source_valid":source_valid,
+   "source_error":source_error,"production_accept":production,"production_trial_error":trial.as_ref().err(),
+   "verified_missed_proposal":miss,"elapsed":started.elapsed().as_secs_f64()})).unwrap();
+  if wanted&&source_valid&&(value.0<best.0||value.0==best.0&&value.1<best.1){
+   let mut prepared=cover_state::Prepared::from_certificate(cert.unwrap(),&s.pool,&s.free,&roots,&s.inputs,&s.outputs,&s.constants,&MapStats::default()).unwrap();prepared.set_evidence(evidence);
+   let mut delivery=cover_state::CoverState::default();
+   if delivery.commit_typed(prepared,end,|_,_|Ok(())).unwrap()!=cover_state::CommitOutcome::Accepted{complete=false;break}
+   let graph=delivery.into_graph().unwrap();let seq=best_sequence+1;
+   let pending=out.join(format!("best-{seq:08}.pending"));std::fs::create_dir(&pending).unwrap();
+   graph.write_verilog(std::fs::OpenOptions::new().create_new(true).write(true).open(pending.join("mapped.v")).unwrap(),"mapped").unwrap();
+   std::fs::write(pending.join("metadata.json"),serde_json::to_vec_pretty(&serde_json::json!({"AD":value,"origin_instance":i,"chosen":oracle.materialize(),"generator_source_valid":true,"elapsed":started.elapsed().as_secs_f64(),"initial_D_bound":initial.1})).unwrap()).unwrap();
+   if Instant::now()>=end{complete=false;break}
+   std::fs::rename(&pending,out.join(format!("best-{seq:08}"))).unwrap();best_sequence=seq;best=value;
+  }
+  assert_eq!(s.cover.value(),Some(initial),"the comparison origin changed");
+ }
+ let report=serde_json::json!({"diagnostic_only":true,"snapshot":path,"initial_AD":initial,"best_source_valid_AD":best,
+  "best_sequence":best_sequence,"pool":s.pool.len(),"visited_instances":visited,"compared_proposals":compared,
+  "physical_unavailable":unavailable,"source_blocked_improvements":proof_blocked,"verified_missed_proposals":missed,
+  "false_metric_acceptances":false_accept,"instance_iteration_complete":complete,"elapsed":started.elapsed().as_secs_f64(),
+  "cursor_start":cursor,"scope":"same immutable pool, chosen and witness; full circular instance traversal from captured recovery cursor; same single-instance edits; production outer screens and area_trial vs complete score and source certificate; fixed INITIAL D; no cover commits affect the comparison; joint proposals not exhausted; no generation or full-mapper PPA claim"});
+ std::fs::write(out.join("comparison.json"),serde_json::to_vec_pretty(&report).unwrap()).unwrap();
+ assert_eq!(false_accept,0,"production accepted a metrically invalid fixed-D trial");
+}
