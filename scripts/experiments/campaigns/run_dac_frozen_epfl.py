@@ -35,6 +35,9 @@ def main():
  c=read(parent/'campaign.json');assert c['frozen']==core.fingerprint();selected=selection(c)
  for r in c['jobs'].values():
   assert all(sha(pathlib.Path(r['case'])/n)==h for n,h in r['artifacts'].items())and sha(pathlib.Path(r['sample_file']))==r['sample_sha256']
+ for item in c.get('interruptions',[]):
+  path=pathlib.Path(item['audit']);assert sha(path)==item['sha256'];audit=read(path);assert not audit['eligible_for_PPA']
+  assert all(sha(pathlib.Path(audit['original_case'])/n)==h for n,h in audit['artifacts'].items())
  if(o/'campaign.json').exists():f=read(o/'campaign.json');assert f['selection']==selected and f['wrapper_sha256']==sha(pathlib.Path(__file__))and f['parent_campaign_sha256']==sha(parent/'campaign.json')
  else:
   f=dict(frozen=c['frozen'],selection=selected,wrapper_sha256=sha(pathlib.Path(__file__)),parent_campaign_sha256=sha(parent/'campaign.json'),jobs={},references={},expected=20,baseline_runs=0,GitHub_push=False,default_promoted=False)
@@ -47,10 +50,11 @@ def main():
  dispatched=0
  for n in c['subjects']:
   if n in f['jobs']:continue
+  if(o/'STOP_AFTER_CURRENT').exists():break
   if dispatched>=a.max_jobs:break
   assert c['frozen']==core.fingerprint()and sha(pathlib.Path(__file__))==f['wrapper_sha256']
   j=dict(key=f"{n}_r0_{selected['variant']}",design=n,rep=0,variant=selected['variant'],phase='full-epfl')
   save(o/'state.json',dict(active=j['key'],completed=len(f['jobs']),expected=20,variant=selected['variant'],baseline_runs=0));print('start',j['key'],flush=True)
   row=core.execute(c,j,o,locks);receipt=o/(j['key']+'-completed.json');assert not receipt.exists();save(receipt,row);assert c['frozen']==core.fingerprint();f['jobs'][n]=row;save(o/'campaign.json',f);dispatched+=1;print('end',j['key'],row['status'],row.get('T'),row.get('A'),row.get('D'),flush=True)
- save(o/'state.json',dict(active=None,completed=len(f['jobs']),expected=20,variant=selected['variant'],baseline_runs=0,default_promoted=False,remaining='independent module ablations and final paper/evidence audit'))
+ save(o/'state.json',dict(active=None,completed=len(f['jobs']),expected=20,variant=selected['variant'],baseline_runs=0,default_promoted=False,manually_stopped=(o/'STOP_AFTER_CURRENT').exists(),remaining='independent module ablations and final paper/evidence audit'))
 if __name__=='__main__':main()

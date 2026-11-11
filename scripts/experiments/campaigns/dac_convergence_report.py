@@ -25,6 +25,21 @@ def main():
    prefix=v.get('observed_prefix',{});details=prefix.get('details',{});row['prefix']=dict(elapsed=prefix.get('elapsed'),exclusive_seconds=prefix.get('exclusive_seconds'),cuts=details.get('matched_cuts'),pool=details.get('pool'),selected_capture=details.get('selected_evidence'),trial_diagnostics=details.get('trial_diagnostics'),telemetry=details.get('telemetry'))
    row['resources']=summarize(v['sample_file'],os.sysconf('SC_CLK_TCK'));row['observed_peak_RSS_bytes_lower_bound']=max(json.loads(l).get('native',{}).get('rss_pages',0)for l in pathlib.Path(v['sample_file']).read_text().splitlines())*os.sysconf('SC_PAGE_SIZE')
   rows.append(row)
+ interrupted=[]
+ for item in c.get('interruptions',[]):
+  p=pathlib.Path(item['audit']);checked+=1
+  if not p.is_file()or sha(p)!=item['sha256']:invalid.append(str(p));continue
+  audit=json.loads(p.read_text());assert not audit['eligible_for_PPA']
+  for n,h in audit['artifacts'].items():
+   f=pathlib.Path(audit['original_case'])/n;checked+=1
+   if not f.is_file()or sha(f)!=h:invalid.append(str(f))
+  entry={k:audit.get(k)for k in ['original_case','logical_key','retry_key','status','reason','last_observed_seconds','last_observed_AD','full_mapping_T','CEC','eligible_for_PPA']}
+  supplement=p.with_name(p.stem+'-resources.json')
+  if supplement.exists():
+   resource=json.loads(supplement.read_text());sample=pathlib.Path(resource['source']);checked+=1
+   if not sample.is_file()or sha(sample)!=resource['sha256']:invalid.append(str(sample))
+   entry['original_resource_samples']=resource
+  interrupted.append(entry)
  by={v['key']:v for v in rows};pairs=[]
  for rep in [0,1,2]:
   for design in ['dec','sin','sqrt','div']:
@@ -35,7 +50,7 @@ def main():
     pair.update(off_AD=[x['A'],x['D']],on_AD=[y['A'],y['D']],off_T=x['T'],on_T=y['T'],T_percent=100*(y['T']/x['T']-1),DA='better'if(y['D'],y['A'])<(x['D'],x['A'])else'equal'if(y['D'],y['A'])==(x['D'],x['A'])else'worse',same_netlist=x['output_sha256']==y['output_sha256'],both_search_deadline=x['search_timeout']and y['search_timeout'])
    pairs.append(pair)
  allplan=[j for p in c['plans'].values()for j in p];missing=[j['key']for j in allplan if j['key']not in c['jobs']]
- out=dict(completed=len(rows),planned_representatives=8,planned_repeats=8,rows=rows,pairs=pairs,missing=missing,invalid_artifacts=invalid,verified_artifact_references=checked,baseline_runs=0,default_promoted=False,uniform_config_selected=False,GitHub_push=False,source_campaign_sha256=sha(a.campaign),helper_sha256=sha(pathlib.Path(__file__)),scope='completed rows only, sampled CPU spans differ from total mapping T; observation counters are prefixes; deadline completion is not convergence; any-time internal observations do not replace official delivered A/D')
+ out=dict(completed=len(rows),planned_representatives=8,planned_repeats=8,rows=rows,pairs=pairs,interruptions=interrupted,missing=missing,invalid_artifacts=invalid,verified_artifact_references=checked,baseline_runs=0,default_promoted=False,uniform_config_selected=False,GitHub_push=False,source_campaign_sha256=sha(a.campaign),helper_sha256=sha(pathlib.Path(__file__)),scope='completed rows only, interrupted attempts retained separately and ineligible for full-budget PPA; sampled CPU spans differ from total mapping T; observation counters are prefixes; deadline completion is not convergence; any-time internal observations do not replace official delivered A/D')
  (a.output/'validation.json').write_text(json.dumps(out,indent=2)+'\n')
  with(a.output/'results.csv').open('w')as f:
   fields=['key','design','rep','variant','phase','status','A','D','T','CEC','first_cover_time','search_net_gain','search_timeout','search_finished'];w=csv.DictWriter(f,fieldnames=fields,extrasaction='ignore');w.writeheader();w.writerows(rows)
