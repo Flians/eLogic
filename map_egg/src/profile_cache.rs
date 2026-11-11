@@ -49,6 +49,10 @@ pub(crate) static WRITE_FAILURES: AtomicU64 = AtomicU64::new(0);
 pub(crate) static CORRUPT: AtomicU64 = AtomicU64::new(0);
 pub(crate) static SERIAL: AtomicU64 = AtomicU64::new(0);
 static FALLBACKS: AtomicU64 = AtomicU64::new(0);
+static READONLY_LOOKUPS: AtomicU64 = AtomicU64::new(0);
+static READONLY_HITS: AtomicU64 = AtomicU64::new(0);
+static PRIVATE_DISK_HITS: AtomicU64 = AtomicU64::new(0);
+static DISK_WRITES: AtomicU64 = AtomicU64::new(0);
 static BUILD_NS: AtomicU64=AtomicU64::new(0);
 static READ_NS: AtomicU64=AtomicU64::new(0);
 static WRITE_NS: AtomicU64=AtomicU64::new(0);
@@ -245,6 +249,23 @@ fn write(path: &std::path::Path, key: &str, covers: &[MappedCoverChoice]) -> std
     }
     result
 }
+// Read-only packages contain the same immutable, content-addressed records as
+// private pools. No directory creation, repair, eviction or write targets this path.
+fn read_pools(shared: Option<&std::path::Path>, private: Option<&std::path::Path>,
+              key: &str, n: usize) -> Option<Vec<MappedCoverChoice>> {
+    for (path, readonly) in [(shared, true), (private, false)] {
+        let Some(path) = path else {continue};
+        if readonly {READONLY_LOOKUPS.fetch_add(1, Ordering::Relaxed);}
+        if let Some(covers) = read(path, key, n) {
+            DISK_HITS.fetch_add(1, Ordering::Relaxed);
+            if readonly {READONLY_HITS.fetch_add(1, Ordering::Relaxed);}
+            else {PRIVATE_DISK_HITS.fetch_add(1, Ordering::Relaxed);}
+            return Some(covers);
+        }
+        if path.exists() {CORRUPT.fetch_add(1, Ordering::Relaxed);}
+    }
+    None
+}
 pub(crate) fn pool(expr: &str, n: usize, expression_arity: u8, tt: &crate::tt9::Tt9) -> Vec<MappedCoverChoice> {
     if !std::env::var("MAP_EGG_PROFILE_TT_CACHE").is_ok_and(|v| v == "0") {
         return crate::tt_profile_cache::pool(expr,n,expression_arity,tt);
@@ -259,19 +280,22 @@ pub(crate) fn pool(expr: &str, n: usize, expression_arity: u8, tt: &crate::tt9::
     let disk = std::env::var_os("MAP_EGG_PROFILE_CACHE_DIR")
         .map(PathBuf::from)
         .map(|p| p.join(format!("{key}.json")));
-    let covers = if let Some(c) = disk.as_ref().and_then(|p| {let _timer=phase_clock(&READ_NS);read(p, &key, n)}) {
-        DISK_HITS.fetch_add(1, Ordering::Relaxed);
+    let shared = std::env::var_os("MAP_EGG_PROFILE_READONLY_DIR")
+        .filter(|p| !p.is_empty()).map(PathBuf::from)
+        .map(|p| p.join(format!("{key}.json")));
+    let covers = if let Some(c) = {
+        let _timer=phase_clock(&READ_NS);
+        read_pools(shared.as_deref(), disk.as_deref(), &key, n)
+    } {
         c
     } else {
-        if disk.as_ref().is_some_and(|p| p.exists()) {
-            CORRUPT.fetch_add(1, Ordering::Relaxed);
-        }
         BUILDS.fetch_add(1, Ordering::Relaxed);
         let covers = {let _timer=phase_clock(&BUILD_NS);emap_cover::profile::extract(expr, tech, n, limits()).unwrap_or_default()};
         if let Some(p) = &disk {
             let _timer=phase_clock(&WRITE_NS);
-            if write(p, &key, &covers).is_err() {
-                WRITE_FAILURES.fetch_add(1, Ordering::Relaxed);
+            match write(p, &key, &covers) {
+                Err(_) => {WRITE_FAILURES.fetch_add(1, Ordering::Relaxed);},
+                Ok(()) => {if p.is_file() {DISK_WRITES.fetch_add(1, Ordering::Relaxed);}},
             }
         }
         covers
@@ -296,7 +320,9 @@ pub(crate) fn stats() -> String {
         CORRUPT.load(Ordering::Relaxed),
         WRITE_FAILURES.load(Ordering::Relaxed),
         FALLBACKS.load(Ordering::Relaxed),
-        format!("{} {} {}",crate::tt_profile_cache::stats(),retention,timing)
+        format!("{} {} {} readonly_lookups={} readonly_hits={} private_disk_hits={} profile_writes={}",crate::tt_profile_cache::stats(),retention,timing,
+            READONLY_LOOKUPS.load(Ordering::Relaxed),READONLY_HITS.load(Ordering::Relaxed),
+            PRIVATE_DISK_HITS.load(Ordering::Relaxed),DISK_WRITES.load(Ordering::Relaxed))
     )
 }
 
@@ -358,6 +384,23 @@ mod tests {
             k,
             key_with_search("(& a b)", &tech, 2, bounds, (2, 500, 100))
         );
+    }
+    #[test]
+    fn readonly_pool_precedes_private_and_never_repairs_shared_files() {
+        let dir=std::env::temp_dir().join(format!("profile-readonly-{}-{}",std::process::id(),test_serial()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let shared=dir.join("shared.json");let private=dir.join("private.json");
+        write(&shared,"key",&[]).unwrap();
+        std::fs::write(&private,b"bad private record").unwrap();
+        let original=std::fs::read(&shared).unwrap();
+        assert!(read_pools(Some(&shared),Some(&private),"key",2).is_some());
+        assert_eq!(std::fs::read(&shared).unwrap(),original);
+        std::fs::write(&shared,b"bad shared record").unwrap();
+        write(&private,"key",&[]).unwrap();
+        assert!(read_pools(Some(&shared),Some(&private),"key",2).is_some());
+        assert_eq!(std::fs::read(&shared).unwrap(),b"bad shared record");
+        assert!(read_pools(Some(&shared),Some(&private),"wrong namespace",2).is_none());
+        std::fs::remove_dir_all(dir).unwrap();
     }
     #[test]
     fn corrupt_payload_is_rejected() {

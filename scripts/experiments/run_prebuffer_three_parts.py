@@ -35,7 +35,7 @@ def native(root,m,stage,arm,design,mode,cache,flags):
     options=dict(m['goal']);options.update(flags)
     shared=root/'normalized'/('direct6' if stage=='mfs3' else 'strong6' if restricted else 'strong47')/(design+'.blif')
     options.update(EPMAPPING_BASELINE=recipe,EPMAPPING_ROUNDS=str(rounds),MAP_EGG_PROFILE_CACHE_DIR=str(cache),EPMAPPING_PROFILE_RETAIN='vector',EPMAPPING_MAPPED_INPUT=str(shared),EPMAPPING_PRE_BUFFER_CLEANUP='1')
-    if mode=='cold':assert not cache.exists(),('nonempty cold pool',cache)
+    if mode in ['cold','prebuilt']:assert not cache.exists(),('nonempty fresh private pool',cache)
     else:assert cache.is_dir(),('missing warm pool',cache)
     cache.mkdir(parents=True,exist_ok=True)
     env={k:v for k,v in os.environ.items() if not k.startswith(('EPMAPPING_','MAP_EGG_','EPM_'))}
