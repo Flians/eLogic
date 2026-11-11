@@ -113,6 +113,16 @@ def recovery_noop_profile(base, mode):
     return profile
 
 
+def physical_stamp_profile(base, mode):
+    """One proof-cache lookup factor; no matching, scoring or budget changes."""
+    if mode not in ('construct', 'borrow'):
+        raise ValueError('unknown physical stamp mode')
+    profile = copy.deepcopy(base)
+    profile['physical_stamp'] = mode
+    profile['environment']['EGM_SELECTED_PHYSICAL_BORROW'] = '1' if mode == 'borrow' else '0'
+    return profile
+
+
 def cover_materialization_profile(base, mode):
     """Change cover compaction/publication only; keep candidate production intact."""
     if mode not in ('eager', 'coalesced', 'deferred', 'event'):
@@ -316,6 +326,7 @@ def main():
     ap.add_argument('--selected-evidence-cache', choices=['off','on'], default='off', help='reuse immutable proof objects; keep current cut and physical identity checks')
     ap.add_argument('--selected-witness-only', choices=['off','on'], default='off', help='export one sufficient checked generator per selected binding; exact preferred; pool unchanged')
     ap.add_argument('--evidence-transfer', choices=['copy','move'], default='copy', help='transactional immutable evidence ownership transfer; unchanged serialization and proof checks')
+    ap.add_argument('--physical-stamp', choices=['construct','borrow'], default='construct', help='borrow: compare cached physical identity without constructing a temporary stamp; exact original fields and source checks')
     ap.add_argument('--observe', action='store_true', help='persistent native trajectory and exclusive scope costs; overhead inside 600s')
     ap.add_argument('--snapshot-after', type=float, help='diagnostic snapshot at first recovery boundary after native online seconds; not a search stop or extra budget')
     a = ap.parse_args()
@@ -323,6 +334,8 @@ def main():
         ap.error('--selected-witness-only on requires --selected-provenance')
     if a.selected_evidence_cache == 'on' and not a.selected_provenance:
         ap.error('--selected-evidence-cache on requires --selected-provenance')
+    if a.physical_stamp == 'borrow' and a.selected_evidence_cache != 'on':
+        ap.error('--physical-stamp borrow requires --selected-evidence-cache on')
     if a.frontier_numeric == 'local' and (a.batch_frontier_cache != 'on' or a.frontier_preparation != 'on'):
         ap.error('--frontier-numeric local requires --batch-frontier-cache on and --frontier-preparation on')
     if a.snapshot_after is not None and (not __import__('math').isfinite(a.snapshot_after) or not 0 <= a.snapshot_after < 600):
@@ -380,6 +393,7 @@ def main():
     profile['selected_evidence_cache'] = a.selected_evidence_cache
     profile['selected_witness_only'] = a.selected_witness_only
     profile['evidence_transfer'] = a.evidence_transfer
+    profile = physical_stamp_profile(profile, a.physical_stamp)
     profile['environment']['EGM_MOVE_SELECTED_EVIDENCE'] = '1' if a.evidence_transfer == 'move' else '0'
     profile['environment']['EGM_SELECTED_WITNESS_ONLY'] = '1' if a.selected_witness_only == 'on' else '0'
     profile['environment']['EGM_SELECTED_EVIDENCE_CACHE'] = '1' if a.selected_evidence_cache == 'on' else '0'

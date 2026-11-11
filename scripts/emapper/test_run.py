@@ -383,3 +383,13 @@ class TimingScratchProfileTests(unittest.TestCase):
         off=recovery_trial_profile(base,'off','off','on','on','off','off','off');on=recovery_trial_profile(base,'off','off','on','on','off','off','on')
         self.assertEqual({k for k in on['environment']if on['environment'][k]!=off['environment'][k]},{'EGM_TRIAL_TIMING_SCRATCH'})
         self.assertEqual(on['mapping_seconds'],600);self.assertEqual(on['candidate_domain'],'full');self.assertEqual(on['environment']['EGM_TRIAL_TIMING_DEPENDENCIES'],'1')
+
+class PhysicalStampProfileTests(unittest.TestCase):
+    def test_borrow_changes_only_physical_cache_comparison(self):
+        from run import physical_stamp_profile
+        base=dict(environment={'EGM_TOTAL_TIME_ONLY':'1','EGM_SELECTED_EVIDENCE_CACHE':'1'},mapping_seconds=600,candidate_domain='full')
+        old=physical_stamp_profile(base,'construct');new=physical_stamp_profile(base,'borrow')
+        self.assertEqual({k for k in new['environment']if new['environment'][k]!=old['environment'][k]},{'EGM_SELECTED_PHYSICAL_BORROW'})
+        self.assertEqual(new['candidate_domain'],'full');self.assertEqual(new['mapping_seconds'],600)
+        self.assertNotIn('EGM_SELECTED_PHYSICAL_BORROW',base['environment'])
+        with self.assertRaises(ValueError):physical_stamp_profile(base,'invalid')
