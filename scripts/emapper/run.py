@@ -276,6 +276,8 @@ def main():
     ap.add_argument('--match-profile', action='store_true', help='explicit diagnostic matching timers; unchanged search, profiling overhead counts in mapping time')
     ap.add_argument('--ablation', choices=['joint-off', 'joint-filtered', 'joint-area-only', 'functional-stream', 'functional-sparse', 'functional-fine', 'functional-lazy', 'source-editable', 'source-coalesced'], help='explicit same-binary joint or functional-search variant; fixed global clock')
     ap.add_argument('--cover-materialization', choices=['eager','coalesced','deferred','event'], help='explicit same-binary cover compaction/publication ablation; event also coalesces one existing small-match event; unchanged candidates and 600s')
+    ap.add_argument('--publication-receiver', choices=['scan','events'], default='scan', help='same validation, optional atomic-directory commit notifications with scan fallback')
+    ap.add_argument('--publication-timing', action='store_true', help='native commit and frontend receipt CLOCK_MONOTONIC evidence; overhead inside mapping budget')
     ap.add_argument('--publication-integrity', choices=['fnv64','sha256'], default='fnv64', help='explicit full-byte publication digest protocol; no renewed mapping deadline')
     ap.add_argument('--frontier-numeric',choices=['legacy','local'],default='legacy',help='local: exact dependency-closed numerical reuse on positive full-arc graphs, full-builder fallback otherwise; requires frontier cache/preparation on')
     ap.add_argument('--trial-timing-first',choices=['off','on','goal-aware'],default='off',help='off: area-first; on: timing-first for both goals; goal-aware: timing-first only for DelayArea; acceptance and domain unchanged')
@@ -347,6 +349,10 @@ def main():
         profile = cover_materialization_profile(profile, a.cover_materialization)
     profile['environment']['EGM_PUBLICATION_INTEGRITY'] = a.publication_integrity
     profile['publication_integrity'] = a.publication_integrity
+    profile['publication_receiver'] = a.publication_receiver
+    profile['publication_timing'] = a.publication_timing
+    profile['environment']['EGM_PUBLICATION_RECEIVER'] = a.publication_receiver
+    profile['environment']['EGM_PUBLICATION_TIMING'] = '1' if a.publication_timing else '0'
     profile['environment']['EGM_SDC_TRUTH_CACHE'] = '1' if a.sdc_truth_cache=='on' else '0'
     profile['sdc_truth_cache'] = a.sdc_truth_cache
     profile['environment']['EGM_SDC_PHASE_FILTER'] = '1' if a.sdc_phase_filter=='on' else '0'

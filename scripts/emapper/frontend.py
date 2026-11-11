@@ -29,13 +29,14 @@ def valid_integrity(manifest,data):
     return False
 def atomic_json(path,value):
     temp=path.with_suffix(path.suffix+'.pending');temp.write_text(json.dumps(value,indent=2)+'\n');temp.replace(path)
-def scan(root,receipt_path,deadline,provenance,source,best=None,state=None):
+def scan(root,receipt_path,deadline,provenance,source,best=None,state=None,folders=None,trace=None):
     """Committed transactions are examined once; rejected metadata authorizes no output."""
     state=state if state is not None else ScanState()
-    for folder in sorted(root.glob('[0-9]'*8),reverse=True) if root.exists()else[]:
+    for folder in folders if folders is not None else (sorted(root.glob('[0-9]'*8),reverse=True) if root.exists()else[]):
         sequence=int(folder.name)
         if sequence in state.processed:continue
         if time.monotonic()>=deadline:break
+        if trace:trace.emit('discovered',sequence=sequence)
         try:
             manifest=folder/'manifest.json';m=json.loads(manifest.read_text());state.counts['manifests_seen']+=1
             if m.get('kind')not in ('complete-generated-cover','complete-source-cover')or m.get('sequence')!=sequence or not all(isinstance(m.get(k),(int,float))and math.isfinite(m[k])and m[k]>=0 for k in ['area','delay']):
@@ -48,9 +49,14 @@ def scan(root,receipt_path,deadline,provenance,source,best=None,state=None):
                 state.processed.add(sequence);state.counts['integrity_rejected']+=1;continue
             record=dict(m,netlist=str(netlist.resolve()),netlist_sha256=hashlib.sha256(data).hexdigest(),manifest=str(manifest.resolve()),manifest_sha256=sha(manifest),provenance=provenance)
             observed=time.monotonic()
+            if trace:trace.emit('verified',monotonic=observed,sequence=sequence,eligible=observed<deadline)
             if observed>=deadline:break
             record.update(publication_policy='latest-committed-first-v1',observed_monotonic=observed,deadline_monotonic=deadline,CEC='not yet checked',objective_policy=OBJECTIVE_POLICY)
-            atomic_json(receipt_path,record);best=record;state.processed.add(sequence);state.counts['receipts_committed']+=1
+            if trace:trace.emit('receipt_write_begin',sequence=sequence)
+            atomic_json(receipt_path,record)
+            if trace:
+                written=time.monotonic();trace.emit('receipt_written',monotonic=written,sequence=sequence,receipt_sha256=sha(receipt_path),write_completed_before_deadline=written<deadline)
+            best=record;state.processed.add(sequence);state.counts['receipts_committed']+=1
         except (OSError,ValueError,KeyError,TypeError):continue
     return best
 
@@ -113,24 +119,35 @@ def main():
         info.update(search_finished=False,search_deadline_hit=True,external_native_import_failed='mapping deadline before native launch',selected_verilog_sha256=sha(out)if out.exists()else None);atomic_json(meta,info);return
     env['EGM_TOTAL_REMAINING_SECS']=str(max(.000001,deadline-time.monotonic()-_grace))
     env.pop('EGM_DIAG_PATH',None);best=None;timed_out=False;scan_state=ScanState();last_audit=0.
+    from publication_receiver import Receiver,TimingTrace
+    receiver=Receiver(root,env.get('EGM_PUBLICATION_RECEIVER','scan'))
+    trace=TimingTrace(out.parent/'frontend.publication-timing.jsonl',deadline)if env.get('EGM_PUBLICATION_TIMING')=='1'else None
+    if trace:env['EGM_NATIVE_PUBLICATION_TIMING']=str(out.parent/'native.publication-timing.jsonl')
+    def receive(best):
+        folders=receiver.folders()
+        best=scan(root,receipt,deadline,provenance,seed,best,scan_state,folders=folders,trace=trace)
+        receiver.retry(folders,scan_state.processed)
+        return best
+    def audit():return dict(scan_state.report(),receiver=receiver.report())
     first_recorded=False
     with(out.parent/'native.stdout').open('w')as stdout,(out.parent/'native.stderr').open('w')as stderr:
         native_argv = [str(native), '--replay-recovery', env['EGM_REPLAY_SNAPSHOT'], str(worker), 'fair' if env.get('EGM_RECOVERY_FAIR') == '1' else 'legacy'] if env.get('EGM_REPLAY_SNAPSHOT') else [str(native),str(library),str(subject),str(worker)]
         proc=subprocess.Popen(native_argv,env=env,stdout=stdout,stderr=stderr)
         while True:
-            best=scan(root,receipt,deadline,provenance,seed,best,scan_state)
+            best=receive(best)
             if direct and best and not first_recorded:
                 first=dict(best,mapping_elapsed_seconds=best['observed_monotonic']-float(os.environ.get('EGM_MAPPING_STARTED_MONOTONIC',start)),constructor='existing native primitive/cut match and incremental delay Flow',external_mapper_called=False,source_bundle_used=False,timing_scope='first externally verified complete native cover, including supervisor lag')
                 atomic_json(out.parent/'first-native-cover.json',first);first_recorded=True
             if time.monotonic()-last_audit>=1.:
-                atomic_json(out.parent/'publication.json',scan_state.report());last_audit=time.monotonic()
+                atomic_json(out.parent/'publication.json',audit());last_audit=time.monotonic()
             if proc.poll()is not None:
-                best=scan(root,receipt,deadline,provenance,seed,best,scan_state)
+                best=receive(best)
                 break
             remaining=deadline-time.monotonic()
             if remaining<=0:timed_out=True;proc.kill();proc.wait();break
-            time.sleep(min(.05,remaining))
-    atomic_json(out.parent/'publication.json',scan_state.report())
+            receiver.wait(min(.05,remaining))
+    atomic_json(out.parent/'publication.json',audit())
+    receiver.close()
     if direct and best and not first_recorded:
         first=dict(best,mapping_elapsed_seconds=best['observed_monotonic']-float(os.environ.get('EGM_MAPPING_STARTED_MONOTONIC',start)),constructor='existing native primitive/cut match and incremental delay Flow',external_mapper_called=False,source_bundle_used=False,timing_scope='first externally verified complete native cover, including supervisor lag')
         atomic_json(out.parent/'first-native-cover.json',first)
