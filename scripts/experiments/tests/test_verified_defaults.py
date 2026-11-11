@@ -13,7 +13,7 @@ f=ROOT/cfg['campaign']/'inputs'
 goal=json.loads((f.parent/'manifest.json').read_text())['goal']
 assert all(goal[k]==v for k,v in pairs.items())
 base={k:v for k,v in os.environ.items() if not k.startswith(('EPMAPPING_','MAP_EGG_','EPM_'))}
-base.update(ABC=str(f/'abc'),RAYON_NUM_THREADS='1',OMP_NUM_THREADS='1')
+base.update(ABC=str(f/'abc'),RAYON_NUM_THREADS='1',OMP_NUM_THREADS='1',MAP_EGG_PROFILE_READONLY_DIR='')
 with tempfile.TemporaryDirectory(prefix='epmapping-defaults-') as td:
  p=Path(td);rows=[]
  # Full-sized original benchmark, default strong preprocessing; compare with
@@ -39,6 +39,17 @@ with tempfile.TemporaryDirectory(prefix='epmapping-defaults-') as td:
    assert a['area']<=initial['area']+.0001 and a['delay']<=initial['delay']+.001
    if label=='explicit':assert (w/'epmapping_mapped.v').read_bytes()==(p/'defaults'/mode/'epmapping_mapped.v').read_bytes()
    rows.append(dict(mode=mode,profile=label,A=a['area'],D=a['delay'],CEC=1))
+ # Installed frozen bank is selected by default; no algorithm/quality change.
+ env=base.copy();env.pop('MAP_EGG_PROFILE_READONLY_DIR');env['MAP_EGG_PROFILE_CACHE_DIR']=str(p/'auto-private')
+ w=p/'auto-prebuilt'
+ q=subprocess.run([str(ROOT/'build/epmapping/epmapping_check'),str(f/'asap7.genlib'),str(f/'benchmarks/usb_phy.aig'),str(w)],env=env,capture_output=True,text=True,timeout=160)
+ assert q.returncode==0 and '[i] cec=1' in q.stdout,(q.stdout,q.stderr)
+ assert 'candidate_pool_mode=prebuilt' in q.stdout
+ stats=re.findall(r'egraph_profile (.*)',q.stdout)[-1]
+ counters=dict(re.findall(r'(\w+)=([0-9.eE+-]+)',stats))
+ assert int(counters['readonly_hits'])>0 and int(counters['builds'])==0
+ assert (w/'epmapping_mapped.v').read_bytes()==(p/'defaults/cold/epmapping_mapped.v').read_bytes()
+ rows.append(dict(mode='prebuilt',profile='automatic frozen bank',A=18.8,D=158.68,CEC=1,readonly_hits=int(counters['readonly_hits'])))
  # Explicit zero preserves the earlier complete-flow input and final costs.
  w=p/'legacy';env=base.copy();env.update(EPMAPPING_PRE_BUFFER_CLEANUP='0',MAP_EGG_PROFILE_CACHE_DIR=str(p/'legacy-pool'))
  q=subprocess.run([str(ROOT/'build/epmapping/epmapping_check'),str(f/'asap7.genlib'),str(f/'benchmarks/usb_phy.aig'),str(w)],env=env,capture_output=True,text=True,timeout=160)

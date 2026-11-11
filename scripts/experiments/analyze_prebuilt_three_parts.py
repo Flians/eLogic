@@ -75,7 +75,7 @@ def analyze(root,partial=False):
                     assert flags['MAP_EGG_PROFILE_READONLY_DIR']==str(root/'shared_libraries'/family)
                     assert flags['MAP_EGG_PROFILE_CACHE_DIR']==str(root/'private_deltas'/stage/r['arm']/r['design'])
                 else:
-                    assert 'MAP_EGG_PROFILE_READONLY_DIR' not in flags
+                    assert not flags.get('MAP_EGG_PROFILE_READONLY_DIR')
                 assert flags['EPMAPPING_BUFFER_CLEANUP']==('0' if r['arm']=='noBUFFER' else '1')
             else:
                 assert command['timeout']==1000 and command['input_sha256']==r['initial_sha256']
