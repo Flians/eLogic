@@ -11,12 +11,14 @@ def freeze_sources(root,dest):
         tar.add(root/'inputs/sources',arcname='frozen_sources')
         for name in ['analyze_prebuffer_three_parts.py','finish_prebuffer_three_parts.py','compare_prebuffer_flow.py','mapped_shared_blif.py','verify_prebuffer_imports.py','exact_core_graph.py','run_prebuffer_three_parts.py','run_buffer_three_parts.py','run_buffer_core_validation.py','run_epmapping_supplement.py','audit_mapped_ppa.py','run_three_parts.py','recover_checkpoint.py','report.py','audit_buffer_core.py','analyze_epmapping_supplement.py','resume_prebuffer_campaign.py']:
             tar.add(PROJECT/'scripts/experiments'/name,arcname='auditors/'+name)
+        for name in ['run_joint_three_parts.py','run_isolated_mem_eth.py','report_joint_three_parts.py','tests/test_shared_sum_factor.cpp','tests/test_cover_library_setup.cpp']:
+            tar.add(PROJECT/'scripts/experiments'/name,arcname='auditors/'+name)
         for name in ['asap7.genlib','asap7_6in.genlib']:
             tar.add(root/'inputs'/name,arcname='libraries/'+name)
         if (root/'build_context').exists():tar.add(root/'build_context',arcname='build_context')
 
 def main():
-    ap=argparse.ArgumentParser();ap.add_argument('--root',required=True,type=Path);ap.add_argument('--paper-work',required=True,type=Path);ap.add_argument('--wait',action='store_true');a=ap.parse_args()
+    ap=argparse.ArgumentParser();ap.add_argument('--root',required=True,type=Path);ap.add_argument('--paper-work',required=True,type=Path);ap.add_argument('--wait',action='store_true');ap.add_argument('--snapshot-name',default='prebuffer-20261111');ap.add_argument('--paper-generator',default='prebuffer_campaign.py');a=ap.parse_args()
     root=a.root.resolve();paper=a.paper_work.resolve()
     while True:
         status=json.loads((root/'execution_status.json').read_text()) if (root/'execution_status.json').exists() else {}
@@ -26,8 +28,9 @@ def main():
         time.sleep(45)
     with (root/'final_audit.log').open('w') as f:
         subprocess.run([sys.executable,str(PROJECT/'scripts/experiments/analyze_prebuffer_three_parts.py'),'--root',str(root)],check=True,stdout=f,stderr=subprocess.STDOUT)
-    data=json.loads((root/'analysis.json').read_text());assert data['complete'] and data['observed']==832
-    dest=paper/'data/prebuffer-20261111';dest.mkdir(parents=True,exist_ok=True)
+    plan=json.loads((root/'manifest.json').read_text())['three_part_plan'];expected=plan['expected_method_runs']+plan['expected_abc_runs']
+    data=json.loads((root/'analysis.json').read_text());assert data['complete'] and data['observed']==expected
+    dest=paper/'data'/a.snapshot_name;dest.mkdir(parents=True,exist_ok=True)
     (dest/'analysis.json.gz').write_bytes(gzip.compress((root/'analysis.json').read_bytes(),mtime=0))
     subprocess.run([sys.executable,str(PROJECT/'scripts/experiments/compare_prebuffer_flow.py'),'--root',str(root),'--control',str(PROJECT/'results_epmapping_three_parts_buffer_v1_20261111')],check=True)
     for source,target in [(root/'normalized/manifest.json','normalization_manifest.json'),(root/'abc_import_proofs.json','abc_import_proofs.json'),(root/'full_flow_comparison.json','full_flow_comparison.json')]:shutil.copy2(source,dest/target)
@@ -48,9 +51,9 @@ def main():
     freeze_sources(root,dest)
     resume=json.loads((root/'latest_resume.json').read_text()) if (root/'latest_resume.json').exists() else None
     if resume:shutil.copy2(root/resume['archive']/'resume_manifest.json',dest/'resume_manifest.json')
-    save(dest/'manifest.json',dict(campaign=root.name,source_campaign=str(root),engine_sha256=json.loads((root/'manifest.json').read_text())['engine_sha256'],observed=832,method_runs=768,abc_runs=64,files={p.name:sha(p) for p in dest.iterdir() if p.is_file() and p.name!='manifest.json'},normalization='shared mapped BLIF with identity BUF bypass before search; same physical core/pins/ordered outputs; fixed bound from cleaned input; aliases are wires',cold='empty private profile pool',warm='paired cold pool in a new process; OS caches retained',validation='selected output byte hashes bind native CEC inputs or independent ABC/recovered-checkpoint CEC; original logs and netlists retained in source campaign'))
-    subprocess.run([sys.executable,str(paper/'scripts/prebuffer_campaign.py'),'--write'],check=True,cwd=paper)
+    save(dest/'manifest.json',dict(campaign=root.name,source_campaign=str(root),engine_sha256=json.loads((root/'manifest.json').read_text())['engine_sha256'],observed=expected,method_runs=plan['expected_method_runs'],abc_runs=plan['expected_abc_runs'],files={p.name:sha(p) for p in dest.iterdir() if p.is_file() and p.name!='manifest.json'},normalization='shared mapped BLIF with identity BUF bypass before search; same physical core/pins/ordered outputs; fixed bound from cleaned input; aliases are wires',cold='empty private profile pool',warm='paired cold pool in a new process; OS caches retained',validation='selected output byte hashes bind native CEC inputs or independent ABC/recovered-checkpoint CEC; original logs and netlists retained in source campaign'))
+    subprocess.run([sys.executable,str(paper/'scripts'/a.paper_generator),'--write'],check=True,cwd=paper)
     with (root/'paper_data_verification.log').open('w') as f:subprocess.run(['make','verify-data'],check=True,cwd=paper,stdout=f,stderr=subprocess.STDOUT)
     save(root/'paper_snapshot_status.json',dict(complete=True,paper_work=str(paper),data_directory=str(dest),analysis_sha256=sha(root/'analysis.json')))
-    print('Complete: campaign audited, paper snapshot frozen and all four data verifiers passed',flush=True)
+    print('Complete: campaign audited, paper snapshot frozen and all configured data verifiers passed',flush=True)
 if __name__=='__main__':main()

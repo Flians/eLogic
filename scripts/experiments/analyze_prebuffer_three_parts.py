@@ -13,9 +13,10 @@ MODES=['cold','warm']
 
 def analyze(root,partial=False):
     manifest=json.loads((root/'manifest.json').read_text())
+    arms=manifest.get('three_part_plan',{}).get('arms',ARMS)
     for name,h in manifest['input_sha256'].items():assert sha(root/'inputs'/name)==h,('input mutated',name)
     expected={(s,'ours',d,m) for s in ['mfs3','main','main_r1','strong_common'] for d in DESIGNS for m in MODES}
-    expected|={('ablation',arm,d,m) for arm in ARMS for d in DESIGNS for m in MODES}
+    expected|={('ablation',arm,d,m) for arm in arms for d in DESIGNS for m in MODES}
     expected|={(s,'abc',d,m) for s in ['mfs3','strong_common'] for d in DESIGNS for m in MODES}
     proofs=json.loads((root/'abc_import_proofs.json').read_text());assert proofs['complete'] and len(proofs['records'])==32
     for proof in proofs['records']:
@@ -46,6 +47,11 @@ def analyze(root,partial=False):
                 assert flags['EPMAPPING_POST_TIMEOUT']=='1000' and flags['EPMAPPING_WINDOW_SYN']=='0'
                 assert flags['EPMAPPING_AREA_UNDER_DELAY']=='1' and flags['MAP_EGG_PROFILE_TT_CACHE']=='0'
                 assert flags['EPMAPPING_PRE_BUFFER_CLEANUP']=='1'
+                if 'worker_cpus' in manifest:
+                    effective=dict(manifest['goal'],**arms.get(r['arm'],{}))
+                    for setting in ['EPMAPPING_SHARED_SUM_FACTOR','MAP_EGG_COVER_INDEXED',
+                                    'MAP_EGG_PROFILE_MEMORY_ENTRIES','MAP_EGG_PROFILE_MEMORY_BYTES']:
+                        assert flags[setting]==effective[setting],('pilot setting changed',path,setting)
                 shared=root/'normalized'/('direct6' if stage=='mfs3' else 'strong6' if stage=='strong_common' else 'strong47')/(r['design']+'.blif')
                 assert flags['EPMAPPING_MAPPED_INPUT']==str(shared) and sha(shared)==r['initial_sha256']
                 assert flags['EPMAPPING_BASELINE']==('direct' if stage=='mfs3' else 'high_effort')
@@ -67,6 +73,17 @@ def analyze(root,partial=False):
             assert sha(start)==r['initial_verilog_sha256'],path
             if r['arm']!='abc':
                 log=(path.parent/'log').read_text()
+                resource=path.parent/'log.resources.json'
+                if resource.exists():r['resource']=json.loads(resource.read_text())
+                def fields(line):
+                    return {k:float(v) if any(c in v for c in '.eE') else int(v)
+                            for k,v in re.findall(r'(\w+)=([0-9.eE+-]+)',line)}
+                profiles=re.findall(r'egraph_profile (.*)',log)
+                if profiles:r['profile_metrics']=fields(profiles[-1])
+                joint=re.findall(r'\[i\] shared_sum (.*)',log)
+                if joint:r['shared_sum_metrics']=fields(joint[-1])
+                joint_cost=re.findall(r'\[i\] shared_sum_cost (.*)',log)
+                if joint_cost:r['shared_sum_cost']=fields(joint_cost[-1])
                 first=re.search(r'\[i\] emap area=([0-9.eE+-]+) delay=([0-9.eE+-]+)',log)
                 assert first,('missing native initial cost',path)
                 # Tolerance here matches printed values only; feasibility above
@@ -106,7 +123,7 @@ def analyze(root,partial=False):
                     for q in ['buffer','core']:v['raw_'+q+'_gain_sum']=sum(r['raw_'+q+'_gain'] for r in completed)
                 stats[stage+'/'+arm+'/'+mode]=v
     ablations={}
-    for arm in ARMS:
+    for arm in arms:
         for mode in MODES:
             if not all(('ablation',arm,d,mode) in index and ('ablation','full',d,mode) in index for d in DESIGNS):continue
             full=[index['ablation','full',d,mode] for d in DESIGNS];rows=[index['ablation',arm,d,mode] for d in DESIGNS]

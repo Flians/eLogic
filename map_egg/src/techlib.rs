@@ -152,6 +152,8 @@ pub struct TechLib {
     pub(crate) egg_bundle_cache: OnceLock<Arc<EggRewriteBundle>>,
     /// Lazy cover-only (`AIG -> gate`) egg rules; see [`TechLib::egg_cover_bundle`].
     pub(crate) egg_cover_bundle_cache: OnceLock<Arc<EggRewriteBundle>>,
+    // Pin/phase variants requested by a named-cell cover, in eager-index order.
+    cell_variant_cache: OnceLock<Vec<OnceLock<Vec<CellVariant>>>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -226,6 +228,7 @@ impl TechLib {
             index: self.index.clone(),
             egg_bundle_cache: OnceLock::new(),
             egg_cover_bundle_cache: OnceLock::new(),
+            cell_variant_cache: OnceLock::new(),
         };
         lib.unit_delays();
         lib
@@ -415,6 +418,7 @@ impl TechLib {
             index,
             egg_bundle_cache: OnceLock::new(),
             egg_cover_bundle_cache: OnceLock::new(),
+            cell_variant_cache: OnceLock::new(),
         })
     }
 
@@ -597,6 +601,15 @@ impl TechLib {
             }
         }
         variants
+    }
+
+    fn cached_cell_variants(&self, cell: &Cell) -> Option<&[CellVariant]> {
+        let position=self.cells.iter().position(|c|c.name==cell.name && c.tt==cell.tt && c.vars==cell.vars)?;
+        let slots=self.cell_variant_cache.get_or_init(||(0..self.cells.len()).map(|_|OnceLock::new()).collect());
+        Some(slots[position].get_or_init(||self.matching_cell_variants(&self.cells[position])).as_slice())
+    }
+    pub(crate) fn lazy_variant_counts(&self)->(usize,usize) {
+        self.cell_variant_cache.get().map(|slots|slots.iter().filter_map(|s|s.get()).fold((0,0),|(cells,variants),v|(cells+1,variants+v.len()))).unwrap_or((0,0))
     }
 
     #[must_use]
@@ -855,6 +868,13 @@ impl TechLib {
         let n_inputs = cell.vars.len();
         if arrivals.len() != n_inputs {
             return None;
+        }
+        // Covers bind one named cell, so only that cell's self-equivalent
+        // pin/phase realizations are relevant. Preserve every eager realization
+        // and its enumeration order without constructing the cross-cell index.
+        if self.index.is_empty() {
+            let candidates=self.cached_cell_variants(cell)?;
+            return self.best_variant_from_candidates(candidates.iter(),cell.tt,arrivals,objective,native_phases,leaf_flow,area_cost);
         }
         let cands = self
             .candidates(n_inputs as u8, cell.tt)?

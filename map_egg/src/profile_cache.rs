@@ -13,7 +13,35 @@ use std::{
         atomic::{AtomicU64, Ordering},
     },
 };
-static MEMORY: OnceLock<Mutex<BTreeMap<String, Vec<MappedCoverChoice>>>> = OnceLock::new();
+#[derive(Default)]
+struct MemoryPool {
+    entries: BTreeMap<String, MemoryEntry>,
+    clock: u64,
+    payload_bytes: usize,
+    peak_payload_bytes: usize,
+    evictions: u64,
+}
+struct MemoryEntry { covers: Vec<MappedCoverChoice>, touched: u64, payload_bytes: usize }
+impl MemoryPool {
+    fn get(&mut self, key: &str) -> Option<Vec<MappedCoverChoice>> {
+        self.clock += 1;
+        let tick = self.clock;
+        self.entries.get_mut(key).map(|entry| {entry.touched=tick;entry.covers.clone()})
+    }
+    // Bound serialized payloads and keys, rather than claiming an exact RSS cap.
+    fn insert(&mut self, key: String, covers: Vec<MappedCoverChoice>, capacity: usize, budget: usize) {
+        let bytes=key.len()+serde_json::to_vec(&covers).map_or(usize::MAX-key.len(), |v|v.len());
+        if bytes>budget || capacity==0 {return;}
+        if let Some(old)=self.entries.remove(&key) {self.payload_bytes-=old.payload_bytes;}
+        while self.entries.len()>=capacity || self.payload_bytes+bytes>budget {
+            let Some(victim)=self.entries.iter().min_by_key(|(_,e)|e.touched).map(|(k,_)|k.clone()) else {break;};
+            let old=self.entries.remove(&victim).unwrap();self.payload_bytes-=old.payload_bytes;self.evictions+=1;
+        }
+        self.clock+=1;self.payload_bytes+=bytes;self.peak_payload_bytes=self.peak_payload_bytes.max(self.payload_bytes);
+        self.entries.insert(key,MemoryEntry{covers,touched:self.clock,payload_bytes:bytes});
+    }
+}
+static MEMORY: OnceLock<Mutex<MemoryPool>> = OnceLock::new();
 pub(crate) static MEMORY_HITS: AtomicU64 = AtomicU64::new(0);
 pub(crate) static DISK_HITS: AtomicU64 = AtomicU64::new(0);
 pub(crate) static BUILDS: AtomicU64 = AtomicU64::new(0);
@@ -21,6 +49,19 @@ pub(crate) static WRITE_FAILURES: AtomicU64 = AtomicU64::new(0);
 pub(crate) static CORRUPT: AtomicU64 = AtomicU64::new(0);
 pub(crate) static SERIAL: AtomicU64 = AtomicU64::new(0);
 static FALLBACKS: AtomicU64 = AtomicU64::new(0);
+static BUILD_NS: AtomicU64=AtomicU64::new(0);
+static READ_NS: AtomicU64=AtomicU64::new(0);
+static WRITE_NS: AtomicU64=AtomicU64::new(0);
+static FALLBACK_NS: AtomicU64=AtomicU64::new(0);
+pub(crate) struct PhaseClock { start: Option<std::time::Instant>, counter: &'static AtomicU64 }
+impl Drop for PhaseClock {fn drop(&mut self){if let Some(start)=self.start{self.counter.fetch_add(start.elapsed().as_nanos().min(u64::MAX as u128)as u64,Ordering::Relaxed);}}}
+fn phase_clock(counter: &'static AtomicU64)->PhaseClock {
+    static ENABLED:OnceLock<bool>=OnceLock::new();
+    let enabled=*ENABLED.get_or_init(||std::env::var("MAP_EGG_PROFILE_TIMING").is_ok_and(|v|v=="1"));
+    PhaseClock{start:enabled.then(std::time::Instant::now),counter}
+}
+pub(crate) fn fallback_clock()->PhaseClock {phase_clock(&FALLBACK_NS)}
+
 #[derive(Serialize, Deserialize)]
 struct Record {
     schema: u32,
@@ -210,15 +251,15 @@ pub(crate) fn pool(expr: &str, n: usize, expression_arity: u8, tt: &crate::tt9::
     }
     let tech = crate::profile_techlib_store();
     let key = key(expr, n);
-    let memory = MEMORY.get_or_init(|| Mutex::new(BTreeMap::new()));
-    if let Some(c) = memory.lock().unwrap().get(&key).cloned() {
+    let memory = MEMORY.get_or_init(|| Mutex::new(MemoryPool::default()));
+    if let Some(c) = memory.lock().unwrap().get(&key) {
         MEMORY_HITS.fetch_add(1, Ordering::Relaxed);
         return c;
     }
     let disk = std::env::var_os("MAP_EGG_PROFILE_CACHE_DIR")
         .map(PathBuf::from)
         .map(|p| p.join(format!("{key}.json")));
-    let covers = if let Some(c) = disk.as_ref().and_then(|p| read(p, &key, n)) {
+    let covers = if let Some(c) = disk.as_ref().and_then(|p| {let _timer=phase_clock(&READ_NS);read(p, &key, n)}) {
         DISK_HITS.fetch_add(1, Ordering::Relaxed);
         c
     } else {
@@ -226,8 +267,9 @@ pub(crate) fn pool(expr: &str, n: usize, expression_arity: u8, tt: &crate::tt9::
             CORRUPT.fetch_add(1, Ordering::Relaxed);
         }
         BUILDS.fetch_add(1, Ordering::Relaxed);
-        let covers = emap_cover::profile::extract(expr, tech, n, limits()).unwrap_or_default();
+        let covers = {let _timer=phase_clock(&BUILD_NS);emap_cover::profile::extract(expr, tech, n, limits()).unwrap_or_default()};
         if let Some(p) = &disk {
+            let _timer=phase_clock(&WRITE_NS);
             if write(p, &key, &covers).is_err() {
                 WRITE_FAILURES.fetch_add(1, Ordering::Relaxed);
             }
@@ -235,18 +277,17 @@ pub(crate) fn pool(expr: &str, n: usize, expression_arity: u8, tt: &crate::tt9::
         covers
     };
     let mut store = memory.lock().unwrap();
-    if store.len() >= 1024 {
-        if let Some(first) = store.keys().next().cloned() {
-            store.remove(&first);
-        }
-    }
-    store.insert(key, covers.clone());
+    store.insert(key, covers.clone(),
+        env_limit("MAP_EGG_PROFILE_MEMORY_ENTRIES",2048,8192),
+        env_limit("MAP_EGG_PROFILE_MEMORY_BYTES",64*1024*1024,512*1024*1024));
     covers
 }
 pub(crate) fn fallback() {
     FALLBACKS.fetch_add(1, Ordering::Relaxed);
 }
 pub(crate) fn stats() -> String {
+    let timing=format!("profile_build_seconds={:.6} profile_read_seconds={:.6} profile_write_seconds={:.6} profile_fallback_seconds={:.6}",BUILD_NS.load(Ordering::Relaxed)as f64/1e9,READ_NS.load(Ordering::Relaxed)as f64/1e9,WRITE_NS.load(Ordering::Relaxed)as f64/1e9,FALLBACK_NS.load(Ordering::Relaxed)as f64/1e9);
+    let retention=MEMORY.get().map(|m|{let m=m.lock().unwrap();format!("profile_entries={} profile_evictions={} profile_payload_bytes={} profile_peak_payload_bytes={}",m.entries.len(),m.evictions,m.payload_bytes,m.peak_payload_bytes)}).unwrap_or_default();
     format!(
         "memory_hits={} disk_hits={} builds={} corrupt={} write_failures={} legacy_fallbacks={} {}",
         MEMORY_HITS.load(Ordering::Relaxed),
@@ -255,13 +296,29 @@ pub(crate) fn stats() -> String {
         CORRUPT.load(Ordering::Relaxed),
         WRITE_FAILURES.load(Ordering::Relaxed),
         FALLBACKS.load(Ordering::Relaxed),
-        crate::tt_profile_cache::stats()
+        format!("{} {} {}",crate::tt_profile_cache::stats(),retention,timing)
     )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn retention_is_recent_and_payload_bounded() {
+        let mut pool=MemoryPool::default();
+        pool.insert("a".into(),vec![],2,100);
+        pool.insert("b".into(),vec![],2,100);
+        assert!(pool.get("a").is_some());
+        pool.insert("c".into(),vec![],2,100);
+        assert!(pool.get("b").is_none());
+        assert!(pool.get("a").is_some());
+        pool.insert("d".into(),vec![],10,3);
+        assert!(pool.get("a").is_none());
+        assert!(pool.get("d").is_some());
+        assert!(pool.payload_bytes<=3);
+        pool.insert("oversize".into(),vec![],10,3);
+        assert!(pool.get("oversize").is_none());
+    }
     #[test]
     fn keys_track_library_search_and_variable_order() {
         assert_eq!(

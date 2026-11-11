@@ -7,8 +7,9 @@ def compare(root,control):
  new=json.loads((root/'analysis.json').read_text());old=json.loads((control/'analysis.json').read_text())
  oi={tuple(r[k]for k in ['stage','arm','design','mode']):r for r in old['records']};rows=[]
  for n in new['records']:
-  key=tuple(n[k]for k in ['stage','arm','design','mode']);o=oi[key]
+  key=tuple(n[k]for k in ['stage','arm','design','mode'])
   if n['arm']!='ours' and not(n['stage']=='ablation' and n['arm']=='full'):continue
+  o=oi[key]
   core=lambda r:r['final']['area']-r['final_buffer_area']
   def counters(base):
    log=base/n['stage']/n['arm']/f"{n['mode']}.{n['design']}"/'log'

@@ -137,6 +137,8 @@ fn default_genlib_path() -> PathBuf {
         .join("../tools/mockturtle/experiments/cell_libraries/asap7.genlib")
 }
 
+static INDEXED_LIBRARY_NS: AtomicU64 = AtomicU64::new(0);
+static INDEXED_LIBRARY_BUILDS: AtomicU64 = AtomicU64::new(0);
 fn techlib_store() -> &'static TechLib {
     static TECH: OnceLock<TechLib> = OnceLock::new();
     TECH.get_or_init(|| {
@@ -144,7 +146,11 @@ fn techlib_store() -> &'static TechLib {
         let candidate = env_path
             .map(PathBuf::from)
             .unwrap_or_else(default_genlib_path);
-        TechLib::from_genlib(&candidate, 9).unwrap_or_default()
+        let started=std::time::Instant::now();
+        let lib=TechLib::from_genlib(&candidate, 9).unwrap_or_default();
+        INDEXED_LIBRARY_NS.fetch_add(started.elapsed().as_nanos().min(u64::MAX as u128)as u64,Ordering::Relaxed);
+        INDEXED_LIBRARY_BUILDS.fetch_add(1,Ordering::Relaxed);
+        lib
     })
 }
 
@@ -154,6 +160,15 @@ fn profile_techlib_store() -> &'static TechLib {
         let path=std::env::var_os("MAP_EGG_TECHLIB_PATH").map(PathBuf::from).unwrap_or_else(default_genlib_path);
         TechLib::from_genlib_unindexed(path, 9).unwrap_or_default()
     })
+}
+
+// Cover extraction uses lazy named-cell pin/phase variants, preserving the
+// eager order. Exact cross-cell truth matching keeps its exhaustive store.
+fn cover_techlib_store() -> &'static TechLib {
+    static INDEXED:OnceLock<bool>=OnceLock::new();
+    if *INDEXED.get_or_init(||std::env::var("MAP_EGG_COVER_INDEXED").map_or(true,|v|v!="0")) {
+        techlib_store()
+    } else {profile_techlib_store()}
 }
 
 fn parse_var_dep(vars: *const u32, size: usize) -> Vec<u32> {
@@ -235,7 +250,7 @@ fn run_extract(
     objective: MappingObjective,
     required_output_delay: Option<f32>,
 ) -> Option<MappedCoverChoice> {
-    let tech = techlib_store();
+    let tech = cover_techlib_store();
     let aig = emap_egg::gate_expr_to_aig_sexp(s, tech)?;
     let (n_inputs, _) = emap_egg::sexp_to_tt9(&aig)?;
     let arrivals: Vec<f32> = if var_dep.len() == n_inputs as usize {
@@ -767,6 +782,7 @@ pub fn cut_mapping_egg_arr(
         }
         profile_cache::fallback();
     }
+    let _fallback_timer=profile_cache::fallback_clock();
     let required = required_output_delay.is_finite().then_some(required_output_delay);
     if limit <= 1 {
         let result = cached_cut_mapping(s, vars, size, objective, required);
@@ -776,7 +792,7 @@ pub fn cut_mapping_egg_arr(
        implementations. Not memoised (the cache holds one cover per key). */
     let var_dep = parse_var_dep(vars, size);
     let objective = MappingObjective::from_u8(objective);
-    let tech = techlib_store();
+    let tech = cover_techlib_store();
     let Some(aig) = emap_egg::gate_expr_to_aig_sexp(s, tech) else {
         return Vec::new();
     };
@@ -895,6 +911,53 @@ mod tests {
                 let _ = input_tt;
             }
         }
+    }
+
+    #[test]
+    fn cover_only_preserves_physical_choices_without_truth_index() {
+        let path=std::env::temp_dir().join(format!("cover-index-parity-{}.genlib",std::process::id()));
+        let data="GATE INV 0.04 Y=!A;\nPIN A INV 1 999 2 0 3 0\nGATE AND2 0.08 Y=A*B;\nPIN A NONINV 1 999 5 0 6 0\nPIN B NONINV 1 999 7 0 8 0\nGATE NAND2 0.06 Y=!(A*B);\nPIN A INV 1 999 3 0 4 0\nPIN B INV 1 999 5 0 6 0\nGATE AO22 0.13 Y=(A*B)+(C*D);\nPIN A NONINV 1 999 8 0 9 0\nPIN B NONINV 1 999 9 0 10 0\nPIN C NONINV 1 999 10 0 11 0\nPIN D NONINV 1 999 11 0 12 0\n";
+        std::fs::write(&path,data).unwrap();
+        let indexed=TechLib::from_genlib(&path,9).unwrap();
+        let unindexed=TechLib::from_genlib_unindexed(&path,9).unwrap();
+        assert!(!indexed.index.is_empty());assert!(unindexed.index.is_empty());
+        // Traversal IDs and permutation-vector layout are not physical properties.
+        // Canonicalize named pins while retaining distinct cells and shared references.
+        fn physical_graph(g:&emap_cover::MappedCoverGraph)->serde_json::Value {
+            fn visit(g:&emap_cover::MappedCoverGraph,n:usize,seen:&mut std::collections::HashMap<usize,usize>,nodes:&mut Vec<serde_json::Value>)->serde_json::Value {
+                use emap_cover::MappedCoverNode;
+                match &g.nodes[n] {
+                    MappedCoverNode::Input(k)=>serde_json::json!(["input",k]),
+                    MappedCoverNode::Const(v)=>serde_json::json!(["constant",v]),
+                    MappedCoverNode::Cell{cell,fanins}=>{
+                        if let Some(id)=seen.get(&n){return serde_json::json!(["cell",id]);}
+                        let mut pins:Vec<_>=cell.pin_names.iter().enumerate().map(|(i,p)|(p.clone(),fanins[i],cell.pin_delay[i],((cell.neg_mask>>i)&1)!=0)).collect();
+                        pins.sort_by(|a,b|a.0.cmp(&b.0));let mut wiring=Vec::new();
+                        for (name,child,delay,negative)in pins {wiring.push(serde_json::json!([name,visit(g,child,seen,nodes),delay,negative]));}
+                        let id=nodes.len();seen.insert(n,id);
+                        nodes.push(serde_json::json!({"name":cell.cell_name,"out":cell.out_pin,"area":cell.area,"out_neg":cell.out_neg,"pins":wiring}));
+                        serde_json::json!(["cell",id])
+                    }
+                }
+            }
+            let mut seen=std::collections::HashMap::new();let mut nodes=Vec::new();let root=visit(g,g.root,&mut seen,&mut nodes);serde_json::json!({"root":root,"cells":nodes})
+        }
+        for expr in ["(& a b)","(~ (& a b))","(& (~ a) b)","(~ (& (~ (& a b)) (~ (& c d))))"] {
+            let n=emap_egg::sexp_to_tt9(expr).unwrap().0 as usize;
+            for late in [false,true] {
+                let arrivals:Vec<f32>=(0..n).map(|i|if late{(i*11+3)as f32}else{0.}).collect();
+                for objective in [EmapObjective::AreaFirst,EmapObjective::DelayFirst] {
+                    for bound in [None,Some(1000.)] {
+                        let a=map_cut_to_cover_cover_only(expr,&indexed,&arrivals,objective,bound).unwrap();
+                        let b=map_cut_to_cover_cover_only(expr,&unindexed,&arrivals,objective,bound).unwrap();
+                        assert_eq!(a.area,b.area,"{expr}");assert_eq!(a.delay,b.delay,"{expr}");
+                        assert_eq!(a.pin_to_root_delay,b.pin_to_root_delay,"{expr}");assert_eq!(a.used_leaf_indices,b.used_leaf_indices,"{expr}");
+                        assert_eq!(physical_graph(&a.graph),physical_graph(&b.graph),"{expr}");
+                    }
+                }
+            }
+        }
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]
@@ -1096,4 +1159,4 @@ mod tests {
     }
 }
 
-pub fn mapping_profile_stats() -> String { profile_cache::stats() }
+pub fn mapping_profile_stats() -> String { let (cells,variants)=profile_techlib_store().lazy_variant_counts();format!("{} indexed_library_builds={} indexed_library_seconds={:.6} lazy_variant_cells={} lazy_variants={}",profile_cache::stats(),INDEXED_LIBRARY_BUILDS.load(Ordering::Relaxed),INDEXED_LIBRARY_NS.load(Ordering::Relaxed)as f64/1e9,cells,variants) }
