@@ -123,6 +123,18 @@ def physical_stamp_profile(base, mode):
     return profile
 
 
+def low_overhead_profile(base, trace_write, evidence_arrays):
+    """Serialization only: retain all events, source checks and deadline work."""
+    if trace_write not in ('fragmented', 'line') or evidence_arrays not in ('copy', 'move'):
+        raise ValueError('unknown low-overhead serialization policy')
+    profile = copy.deepcopy(base)
+    profile['trace_write'] = trace_write
+    profile['evidence_arrays'] = evidence_arrays
+    profile['environment']['EGM_TRACE_LINE_WRITE'] = '1' if trace_write == 'line' else '0'
+    profile['environment']['EGM_EVIDENCE_ARRAY_MOVE'] = '1' if evidence_arrays == 'move' else '0'
+    return profile
+
+
 def cover_materialization_profile(base, mode):
     """Change cover compaction/publication only; keep candidate production intact."""
     if mode not in ('eager', 'coalesced', 'deferred', 'event'):
@@ -327,6 +339,8 @@ def main():
     ap.add_argument('--selected-witness-only', choices=['off','on'], default='off', help='export one sufficient checked generator per selected binding; exact preferred; pool unchanged')
     ap.add_argument('--evidence-transfer', choices=['copy','move'], default='copy', help='transactional immutable evidence ownership transfer; unchanged serialization and proof checks')
     ap.add_argument('--physical-stamp', choices=['construct','borrow'], default='construct', help='borrow: compare cached physical identity without constructing a temporary stamp; exact original fields and source checks')
+    ap.add_argument('--trace-write', choices=['fragmented','line'], default='fragmented', help='line: serialize each complete stage event once before writing; retain every event')
+    ap.add_argument('--evidence-arrays', choices=['copy','move'], default='copy', help='move: retain constructed selected/instance JSON arrays; identical proof and serialized bytes')
     ap.add_argument('--observe', action='store_true', help='persistent native trajectory and exclusive scope costs; overhead inside 600s')
     ap.add_argument('--snapshot-after', type=float, help='diagnostic snapshot at first recovery boundary after native online seconds; not a search stop or extra budget')
     a = ap.parse_args()
@@ -394,6 +408,7 @@ def main():
     profile['selected_witness_only'] = a.selected_witness_only
     profile['evidence_transfer'] = a.evidence_transfer
     profile = physical_stamp_profile(profile, a.physical_stamp)
+    profile = low_overhead_profile(profile, a.trace_write, a.evidence_arrays)
     profile['environment']['EGM_MOVE_SELECTED_EVIDENCE'] = '1' if a.evidence_transfer == 'move' else '0'
     profile['environment']['EGM_SELECTED_WITNESS_ONLY'] = '1' if a.selected_witness_only == 'on' else '0'
     profile['environment']['EGM_SELECTED_EVIDENCE_CACHE'] = '1' if a.selected_evidence_cache == 'on' else '0'
